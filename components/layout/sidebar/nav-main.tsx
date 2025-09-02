@@ -121,7 +121,12 @@ export const navItems: NavGroup[] = [
       { title: "Academy/School", href: "/dashboard/academy", icon: GraduationCapIcon },
       { title: "Hospital Management", href: "/dashboard/hospital-management", icon: ActivityIcon },
       { title: "Hotel Dashboard", href: "/dashboard/hotel", icon: Building2Icon, isComing: true },
-      { title: "Finance", href: "/dashboard/finance", icon: WalletMinimalIcon, isNew: true }
+      {
+        title: "Finance Dashboard",
+        href: "/dashboard/finance",
+        icon: WalletMinimalIcon,
+        isNew: true
+      }
     ]
   },
   {
@@ -149,7 +154,7 @@ export const navItems: NavGroup[] = [
         title: "Kanban",
         href: "/dashboard/apps/kanban",
         icon: SquareKanbanIcon,
-        isComing: true
+        isNew: true
       },
       { title: "Notes", href: "/dashboard/apps/notes", icon: StickyNoteIcon, isDataBadge: "8" },
       { title: "Chats", href: "/dashboard/apps/chat", icon: MessageSquareIcon, isDataBadge: "5" },
