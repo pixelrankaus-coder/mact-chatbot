@@ -124,26 +124,7 @@ export const navItems: NavGroup[] = [
       {
         title: "Finance Dashboard",
         href: "/dashboard/finance",
-        icon: WalletMinimalIcon,
-        isNew: true
-      }
-    ]
-  },
-  {
-    title: "AI",
-    items: [
-      { title: "AI Chat", href: "/dashboard/apps/ai-chat", icon: BrainIcon },
-      {
-        title: "AI Chat V2",
-        href: "/dashboard/apps/ai-chat",
-        icon: BrainCircuitIcon,
-        isComing: true
-      },
-      {
-        title: "Image Generator",
-        href: "/dashboard/apps/ai-image-generator",
-        icon: ImagesIcon,
-        isNew: true
+        icon: WalletMinimalIcon
       }
     ]
   },
@@ -175,10 +156,27 @@ export const navItems: NavGroup[] = [
         title: "File Manager",
         href: "/dashboard/apps/file-manager",
         icon: ArchiveRestoreIcon,
-        isComing: true
+        isNew: true
       },
       { title: "Api Keys", href: "/dashboard/apps/api-keys", icon: KeyIcon },
       { title: "POS App", href: "/dashboard/apps/pos-system", icon: CookieIcon }
+    ]
+  },
+  {
+    title: "AI Apps",
+    items: [
+      { title: "AI Chat", href: "/dashboard/apps/ai-chat", icon: BrainIcon },
+      {
+        title: "AI Chat V2",
+        href: "/dashboard/apps/ai-chat",
+        icon: BrainCircuitIcon,
+        isComing: true
+      },
+      {
+        title: "Image Generator",
+        href: "/dashboard/apps/ai-image-generator",
+        icon: ImagesIcon
+      }
     ]
   },
   {

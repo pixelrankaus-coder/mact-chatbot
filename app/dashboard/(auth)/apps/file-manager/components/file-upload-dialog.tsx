@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { PlusCircle, Upload, UploadIcon, X, XIcon } from "lucide-react";
+import { Upload, UploadIcon, XIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -63,7 +63,7 @@ export function FileUploadDialog() {
     <Dialog open={open} onOpenChange={setOpen}>
       <Button onClick={() => setOpen(true)}>
         <UploadIcon />
-        <span className="hidden sm:inline">Upload</span>
+        Upload
       </Button>
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
@@ -72,7 +72,7 @@ export function FileUploadDialog() {
         </DialogHeader>
         <div
           className={`mt-2 flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-900/25 px-6 py-10 ${
-            dragActive ? "bg-blue-50" : ""
+            dragActive ? "bg-muted" : ""
           }`}
           onDragEnter={handleDrag}
           onDragLeave={handleDrag}
