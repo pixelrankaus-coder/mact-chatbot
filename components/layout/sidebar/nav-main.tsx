@@ -49,7 +49,8 @@ import {
   type LucideIcon,
   GithubIcon,
   RedoDotIcon,
-  BrushCleaningIcon
+  BrushCleaningIcon,
+  CreditCardIcon
 } from "lucide-react";
 import Link from "next/link";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -125,6 +126,15 @@ export const navItems: NavGroup[] = [
         title: "Finance Dashboard",
         href: "/dashboard/finance",
         icon: WalletMinimalIcon
+      },
+      {
+        title: "Payment Dashboard",
+        href: "/dashboard/payment",
+        icon: CreditCardIcon,
+        items: [
+          { title: "Dashboard", href: "/dashboard/payment" },
+          { title: "Transactions", href: "/dashboard/payment/transactions" }
+        ]
       }
     ]
   },
