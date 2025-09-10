@@ -2,10 +2,14 @@
 
 import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { cn } from "@/lib/utils";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
+import { toast } from "sonner";
+import { CircleUserRoundIcon, Trash2Icon } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { useFileUpload } from "@/hooks/use-file-upload";
+
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -25,8 +29,8 @@ import {
   SelectValue
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const profileFormSchema = z.object({
   username: z
@@ -61,6 +65,13 @@ const defaultValues: Partial<ProfileFormValues> = {
 };
 
 export default function Page() {
+  const [{ files }, { removeFile, openFileDialog, getInputProps }] = useFileUpload({
+    accept: "image/*"
+  });
+
+  const previewUrl = files[0]?.preview || null;
+  const fileName = files[0]?.file.name || null;
+
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
     defaultValues,
@@ -87,6 +98,37 @@ export default function Page() {
       <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+            <div className="flex flex-col gap-2">
+              <div className="inline-flex items-center gap-2 align-top">
+                <Avatar className="h-20 w-20">
+                  <AvatarImage src={`${previewUrl}`} />
+                  <AvatarFallback>
+                    <CircleUserRoundIcon className="opacity-45" />
+                  </AvatarFallback>
+                </Avatar>
+                <div className="relative flex gap-2">
+                  <Button type="button" onClick={openFileDialog} aria-haspopup="dialog">
+                    {fileName ? "Change image" : "Upload image"}
+                  </Button>
+                  <input
+                    {...getInputProps()}
+                    className="sr-only"
+                    aria-label="Upload image file"
+                    tabIndex={-1}
+                  />
+                  {fileName && (
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="destructive"
+                      onClick={() => removeFile(files[0]?.id)}>
+                      <Trash2Icon />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+
             <FormField
               control={form.control}
               name="username"
@@ -112,7 +154,7 @@ export default function Page() {
                   <FormLabel>Email</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
-                      <SelectTrigger>
+                      <SelectTrigger className="w-full">
                         <SelectValue placeholder="Select a verified email to display" />
                       </SelectTrigger>
                     </FormControl>
@@ -124,7 +166,7 @@ export default function Page() {
                   </Select>
                   <FormDescription>
                     You can manage verified email addresses in your{" "}
-                    <Link href="/examples/forms">email settings</Link>.
+                    <Link href="#">email settings</Link>.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

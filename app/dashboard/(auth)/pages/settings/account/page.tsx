@@ -117,7 +117,7 @@ export default function Page() {
                         <Button
                           variant={"outline"}
                           className={cn(
-                            "w-[240px] pl-3 text-left font-normal",
+                            "w-full pl-3 text-left font-normal",
                             !field.value && "text-muted-foreground"
                           )}>
                           {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
@@ -125,7 +125,9 @@ export default function Page() {
                         </Button>
                       </FormControl>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
+                    <PopoverContent
+                      className="max-h-[--radix-popover-content-available-height] w-[--radix-popover-trigger-width] p-0"
+                      align="start">
                       <Calendar
                         mode="single"
                         selected={field.value}
@@ -155,7 +157,7 @@ export default function Page() {
                           variant="outline"
                           role="combobox"
                           className={cn(
-                            "w-[200px] justify-between",
+                            "w-full justify-between",
                             !field.value && "text-muted-foreground"
                           )}>
                           {field.value
@@ -165,7 +167,7 @@ export default function Page() {
                         </Button>
                       </FormControl>
                     </PopoverTrigger>
-                    <PopoverContent className="w-[200px] p-0">
+                    <PopoverContent className="p-0" align="start">
                       <Command>
                         <CommandInput placeholder="Search language..." />
                         <CommandList>

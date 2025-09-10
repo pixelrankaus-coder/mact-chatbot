@@ -19,6 +19,15 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
+import Link from "next/link";
+import { useTheme } from "next-themes";
 
 const appearanceFormSchema = z.object({
   theme: z.enum(["light", "dark"], {
@@ -38,6 +47,8 @@ const defaultValues: Partial<AppearanceFormValues> = {
 };
 
 export default function Page() {
+  const { theme, setTheme } = useTheme();
+
   const form = useForm<AppearanceFormValues>({
     resolver: zodResolver(appearanceFormSchema),
     defaultValues
@@ -64,26 +75,24 @@ export default function Page() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Font</FormLabel>
-                  <div className="relative w-max">
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
-                      <select
-                        className={cn(
-                          buttonVariants({ variant: "outline" }),
-                          "w-[200px] appearance-none font-normal"
-                        )}
-                        {...field}>
-                        <option value="inter">Inter</option>
-                        <option value="manrope">Manrope</option>
-                        <option value="system">System</option>
-                      </select>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select font" />
+                      </SelectTrigger>
                     </FormControl>
-                    <ChevronDownIcon className="absolute top-2.5 right-3 h-4 w-4 opacity-50" />
-                  </div>
+                    <SelectContent>
+                      <SelectItem value="Inter">Inter</SelectItem>
+                      <SelectItem value="Manrope">Manrope</SelectItem>
+                      <SelectItem value="System">System</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <FormDescription>Set the font you want to use in the dashboard.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
+
             <FormField
               control={form.control}
               name="theme"
@@ -93,7 +102,10 @@ export default function Page() {
                   <FormDescription>Select the theme for the dashboard.</FormDescription>
                   <FormMessage />
                   <RadioGroup
-                    onValueChange={field.onChange}
+                    onValueChange={(value) => {
+                      setTheme(value);
+                      field.onChange();
+                    }}
                     defaultValue={field.value}
                     className="flex max-w-md gap-6 pt-2">
                     <FormItem>

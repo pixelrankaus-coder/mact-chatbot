@@ -18,8 +18,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import conversations from "../data.json";
-import { NavMain } from "@/components/layout/sidebar/nav-main";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface SidebarItem {
   icon: React.ComponentType<{ className?: string }>;

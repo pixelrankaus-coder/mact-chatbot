@@ -224,6 +224,7 @@ export const navItems: NavGroup[] = [
         items: [
           { title: "Profile", href: "/dashboard/pages/settings" },
           { title: "Account", href: "/dashboard/pages/settings/account" },
+          { title: "Billing", href: "/dashboard/pages/settings/billing" },
           { title: "Appearance", href: "/dashboard/pages/settings/appearance" },
           { title: "Notifications", href: "/dashboard/pages/settings/notifications" },
           { title: "Display", href: "/dashboard/pages/settings/display" }
