@@ -114,7 +114,11 @@ export const navItems: NavGroup[] = [
       {
         title: "Project Management",
         href: "/dashboard/project-management",
-        icon: FolderDotIcon
+        icon: FolderDotIcon,
+        items: [
+          { title: "Dashboard", href: "/dashboard/project-management" },
+          { title: "Project List", href: "/dashboard/project-list" }
+        ]
       },
       {
         title: "File Manager",
