@@ -1,10 +1,9 @@
 import { generateMeta } from "@/lib/utils";
-import CalendarApp from "@/app/dashboard/(auth)/apps/calendar/components/calendar-app";
-import CalendarSidebar from "@/app/dashboard/(auth)/apps/calendar/components/calendar-sidebar";
-import EventSheet from "@/app/dashboard/(auth)/apps/calendar/components/event-sheet";
-import React from "react";
+import { Metadata } from "next";
 
-export async function generateMetadata() {
+import EventCalendarApp from "./components/event-calendar-app";
+
+export async function generateMetadata(): Promise<Metadata> {
   return generateMeta({
     title: "Calendar",
     description:
@@ -14,13 +13,5 @@ export async function generateMetadata() {
 }
 
 export default function Page() {
-  return (
-    <div className="flex lg:space-x-5">
-      <CalendarSidebar />
-      <div className="grow">
-        <CalendarApp />
-      </div>
-      <EventSheet />
-    </div>
-  );
+  return <EventCalendarApp />;
 }

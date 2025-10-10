@@ -39,7 +39,14 @@ import {
   TableRow
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from "@/components/ui/card";
 
 interface Payment {
   id: string;
@@ -243,10 +250,10 @@ export function LatestPayments() {
       },
       {
         accessorKey: "amount",
-        header: () => <div className="text-right">Amount</div>,
+        header: () => <div>Amount</div>,
         cell: ({ row }) => {
           const amount = Number.parseFloat(row.original.amount.toString());
-          return <div className="text-right font-medium">${amount.toFixed(2)}</div>;
+          return <div className="font-medium">${amount.toFixed(2)}</div>;
         }
       },
       {
@@ -322,46 +329,49 @@ export function LatestPayments() {
     <Card className="h-full">
       <CardHeader>
         <CardTitle>Latest Payments</CardTitle>
+        <CardDescription>See recent payments from your customers here.</CardDescription>
+        <CardAction>
+          <div className="flex gap-2">
+            <Input
+              placeholder="Filter payments..."
+              className="max-w-sm"
+              value={globalFilter}
+              onChange={(e) => setGlobalFilter(e.target.value)}
+            />
+            {selectedRowsCount > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline">
+                    <Badge variant="outline">{selectedRowsCount} selected</Badge>
+                    <ChevronDown />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleBulkAction("export")}>
+                    <Download />
+                    Export
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleBulkAction("email")}>
+                    <Mail />
+                    Email customers
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleBulkAction("tag")}>
+                    <Tag />
+                    Tag payments
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onClick={() => handleBulkAction("delete")}>
+                    <Trash2 />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+        </CardAction>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex gap-2">
-          <Input
-            placeholder="Filter payments..."
-            className="max-w-sm"
-            value={globalFilter}
-            onChange={(e) => setGlobalFilter(e.target.value)}
-          />
-
-          {selectedRowsCount > 0 && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline">
-                  Actions <Badge variant="outline">{selectedRowsCount} selected</Badge>
-                  <ChevronDown />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => handleBulkAction("delete")}>
-                  <Trash2 />
-                  Delete selected
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleBulkAction("export")}>
-                  <Download />
-                  Export selected
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleBulkAction("email")}>
-                  <Mail />
-                  Email customers
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleBulkAction("tag")}>
-                  <Tag />
-                  Tag payments
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </div>
-
         <div className="rounded-md border">
           <Table>
             <TableHeader>
