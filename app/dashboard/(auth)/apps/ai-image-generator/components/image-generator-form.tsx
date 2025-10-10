@@ -220,8 +220,6 @@ function CardFormContent({ onGenerate, isGenerating }: ImageGeneratorFormProps) 
         </Button>
       </form>
 
-      <Separator />
-
       {/* Quick Prompts */}
       <div className="space-y-3">
         <Label className="text-sm font-medium">Quick Prompts</Label>
@@ -254,7 +252,7 @@ export const ImageGeneratorForm: React.FC<ImageGeneratorFormProps> = ({
     <>
       {/* Desktop */}
       <ScrollArea className="hidden h-full min-h-0 lg:block">
-        <Card className="bg-muted border-transparent">
+        <Card>
           <CardContent className="space-y-6">
             <CardFormContent onGenerate={onGenerate} isGenerating={isGenerating} />
           </CardContent>
@@ -262,7 +260,7 @@ export const ImageGeneratorForm: React.FC<ImageGeneratorFormProps> = ({
       </ScrollArea>
 
       {/* Mobile */}
-      <div className="block overflow-y-auto px-4 pb-4 lg:hidden">
+      <div className="block space-y-4 overflow-y-auto px-4 pb-4 lg:hidden">
         <CardFormContent onGenerate={onGenerate} isGenerating={isGenerating} />
       </div>
     </>

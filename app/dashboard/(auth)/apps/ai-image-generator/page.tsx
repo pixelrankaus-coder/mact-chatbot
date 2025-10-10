@@ -1,8 +1,10 @@
+import { Metadata } from "next";
 import { generateMeta } from "@/lib/utils";
+
 import ImageGenerator from "./components/image-generator";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
-export async function generateMetadata() {
+export async function generateMetadata(): Promise<Metadata> {
   return generateMeta({
     title: "AI Image Generator",
     description:
@@ -12,9 +14,5 @@ export async function generateMetadata() {
 }
 
 export default function Page() {
-  return (
-    <TooltipProvider>
-      <ImageGenerator />
-    </TooltipProvider>
-  );
+  return <ImageGenerator />;
 }

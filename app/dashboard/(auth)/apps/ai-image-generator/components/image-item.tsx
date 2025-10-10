@@ -88,7 +88,7 @@ export default function ImageItem({ image, onDeleteImage }: ImageItemProps) {
                 {image.aspectRatio}
               </Badge>
             </div>
-            <span className="text-muted-foreground text-xs">
+            <span className="text-muted-foreground text-xs" suppressHydrationWarning={true}>
               {image.createdAt.toLocaleTimeString()}
             </span>
           </div>

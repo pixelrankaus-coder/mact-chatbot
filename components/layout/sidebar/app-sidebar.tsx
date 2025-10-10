@@ -67,26 +67,28 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <DropdownMenuLabel>Projects</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem className="flex items-center gap-3">
-                  <ShoppingBagIcon className="text-muted-foreground size-4" />
+                  <div className="flex size-8 items-center justify-center rounded-md border">
+                    <ShoppingBagIcon className="text-muted-foreground size-4" />
+                  </div>
                   <div className="flex flex-col">
                     <span className="text-sm font-medium">E-commerce</span>
-                    <span className="text-muted-foreground text-xs">Active</span>
+                    <span className="text-xs text-green-700">Active</span>
                   </div>
                 </DropdownMenuItem>
                 <DropdownMenuItem className="flex items-center gap-3">
-                  <UserCircle2Icon className="text-muted-foreground size-4" />
+                  <div className="flex size-8 items-center justify-center rounded-md border">
+                    <UserCircle2Icon className="text-muted-foreground size-4" />
+                  </div>
                   <div className="flex flex-col">
                     <span className="text-sm font-medium">Blog Platform</span>
                     <span className="text-muted-foreground text-xs">Inactive</span>
                   </div>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Button className="w-full" variant="secondary">
-                    <PlusIcon />
-                    Add New Project
-                  </Button>
-                </DropdownMenuItem>
+                <Button className="w-full">
+                  <PlusIcon />
+                  New Project
+                </Button>
               </DropdownMenuContent>
             </DropdownMenu>
           </SidebarMenuItem>

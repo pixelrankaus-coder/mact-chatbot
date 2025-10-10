@@ -506,7 +506,7 @@ export default function KanbanBoard() {
   return (
     <div className="space-y-4">
       <div className="flex flex-row items-center justify-between">
-        <h1 className="text-xl font-bold tracking-tight lg:text-2xl">Project 01</h1>
+        <h1 className="text-xl font-bold tracking-tight lg:text-2xl">Kanban Board</h1>
         <div className="flex items-center space-x-2">
           <div className="flex -space-x-2 overflow-hidden">
             <Avatar className="border-background border-2">

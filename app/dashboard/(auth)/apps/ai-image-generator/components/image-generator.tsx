@@ -125,55 +125,50 @@ export default function ImageGenerator() {
 
   return (
     <>
-      <div className="grid h-[calc(100vh-var(--header-height)-3rem)] grid-cols-1 gap-4 lg:grid-cols-[400px_1fr]">
-        <div className="lg:col-span-2">
-          <header className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="from-primary to-primary-glow flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br lg:size-10">
-                <span className="text-primary-foreground text-lg font-bold">AI</span>
-              </div>
-              <div>
-                <h1 className="font-bold lg:text-xl">AI Image Generator</h1>
-                <p className="text-muted-foreground hidden text-sm sm:block">
-                  Create stunning images with artificial intelligence
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              {/* mobile generator form */}
-              <Drawer
-                open={mobileFormOpen}
-                onOpenChange={setMobileFormOpen}
-                repositionInputs={false}>
-                <DrawerTrigger asChild className="flex lg:hidden">
-                  <Button variant="default" size="sm">
-                    <Wand2 />
-                  </Button>
-                </DrawerTrigger>
-                <DrawerContent>
-                  <DrawerHeader>
-                    <DrawerTitle>Generate Image</DrawerTitle>
-                    <DrawerDescription>Create stunning AI-generated images</DrawerDescription>
-                  </DrawerHeader>
-                  <div className="overflow-y-auto lg:mt-6 lg:h-[calc(90vh-120px)]">
-                    <ImageGeneratorForm onGenerate={handleGenerate} isGenerating={isGenerating} />
-                  </div>
-                </DrawerContent>
-              </Drawer>
-
-              {images.length > 0 && (
-                <Button variant="outline" size="sm" onClick={handleDownloadAll}>
-                  <DownloadCloud />
-                  <span className="hidden lg:inline">Download All</span>
-                </Button>
-              )}
-
-              <HistorySheet />
-            </div>
-          </header>
+      <header className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="from-primary to-primary-glow flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br lg:size-10">
+            <span className="text-primary-foreground text-lg font-bold">AI</span>
+          </div>
+          <div>
+            <h1 className="font-bold lg:text-xl">AI Image Generator</h1>
+            <p className="text-muted-foreground hidden text-sm sm:block">
+              Create stunning images with artificial intelligence
+            </p>
+          </div>
         </div>
 
+        <div className="flex items-center gap-2">
+          {/* mobile generator form */}
+          <Drawer open={mobileFormOpen} onOpenChange={setMobileFormOpen} repositionInputs={false}>
+            <DrawerTrigger asChild className="flex lg:hidden">
+              <Button variant="default" size="sm">
+                <Wand2 />
+              </Button>
+            </DrawerTrigger>
+            <DrawerContent>
+              <DrawerHeader>
+                <DrawerTitle>Generate Image</DrawerTitle>
+                <DrawerDescription>Create stunning AI-generated images</DrawerDescription>
+              </DrawerHeader>
+              <div className="overflow-y-auto lg:mt-6 lg:h-[calc(90vh-120px)]">
+                <ImageGeneratorForm onGenerate={handleGenerate} isGenerating={isGenerating} />
+              </div>
+            </DrawerContent>
+          </Drawer>
+
+          {images.length > 0 && (
+            <Button variant="outline" size="sm" onClick={handleDownloadAll}>
+              <DownloadCloud />
+              <span className="hidden lg:inline">Download All</span>
+            </Button>
+          )}
+
+          <HistorySheet />
+        </div>
+      </header>
+
+      <div className="grid h-[calc(100vh-var(--header-height)-3rem)] grid-cols-1 gap-4 lg:grid-cols-[400px_1fr]">
         <div className="hidden h-full min-h-0 lg:block">
           <ImageGeneratorForm onGenerate={handleGenerate} isGenerating={isGenerating} />
         </div>
