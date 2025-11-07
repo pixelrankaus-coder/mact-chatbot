@@ -53,7 +53,8 @@ import {
   CreditCardIcon,
   SpeechIcon,
   MessageSquareHeartIcon,
-  BookAIcon
+  BookAIcon,
+  PuzzleIcon
 } from "lucide-react";
 import Link from "next/link";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -286,6 +287,16 @@ export const navItems: NavGroup[] = [
   {
     title: "Others",
     items: [
+      {
+        title: "Widgets",
+        href: "#",
+        icon: PuzzleIcon,
+        items: [
+          { title: "Fitness", href: "/dashboard/widgets/fitness" },
+          { title: "E-commerce", href: "/dashboard/widgets/ecommerce" },
+          { title: "Analytics", href: "/dashboard/widgets/analytics" }
+        ]
+      },
       {
         title: "Download Shadcn UI Kit",
         href: "/pricing",

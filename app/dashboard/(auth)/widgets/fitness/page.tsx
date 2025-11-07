@@ -17,7 +17,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return generateMeta({
     title: "Fitness Widgets",
     description:
-      "A modern and elegant responsive sales admin Dashboard. Easily manage, analyze, and report your sales data. Built with shadcn/ui, Tailwind CSS, Next.js.",
+      "UI components that display fitness data such as workouts, progress, and health metrics within a dashboard. Built with shadcn/ui, Tailwind CSS, Next.js.",
     canonical: "/widgets/fitness"
   });
 }

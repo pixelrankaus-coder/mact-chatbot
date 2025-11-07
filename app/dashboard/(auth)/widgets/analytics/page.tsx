@@ -5,7 +5,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return generateMeta({
     title: "Analytic Widgets",
     description:
-      "A modern and elegant responsive sales admin Dashboard. Easily manage, analyze, and report your sales data. Built with shadcn/ui, Tailwind CSS, Next.js.",
+      "Interactive components that display key metrics, charts, and insights within a dashboard interface. Built with shadcn/ui, Tailwind CSS, Next.js.",
     canonical: "/widgets/analytics"
   });
 }
