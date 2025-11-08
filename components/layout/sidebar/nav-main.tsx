@@ -223,6 +223,11 @@ export const navItems: NavGroup[] = [
         icon: UserIcon
       },
       {
+        title: "Profile V2",
+        href: "/dashboard/pages/user-profile",
+        icon: UserIcon
+      },
+      {
         title: "Onboarding Flow",
         href: "/dashboard/pages/onboarding-flow",
         icon: RedoDotIcon
