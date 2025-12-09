@@ -160,8 +160,7 @@ export const navItems: NavGroup[] = [
       {
         title: "Kanban",
         href: "/dashboard/apps/kanban",
-        icon: SquareKanbanIcon,
-        isNew: true
+        icon: SquareKanbanIcon
       },
       { title: "Notes", href: "/dashboard/apps/notes", icon: StickyNoteIcon, isDataBadge: "8" },
       { title: "Chats", href: "/dashboard/apps/chat", icon: MessageSquareIcon, isDataBadge: "5" },
@@ -169,7 +168,7 @@ export const navItems: NavGroup[] = [
         title: "Social Media",
         href: "/dashboard/apps/social-media",
         icon: MessageSquareHeartIcon,
-        isComing: true
+        isNew: true
       },
       { title: "Mail", href: "/dashboard/apps/mail", icon: MailIcon },
       {

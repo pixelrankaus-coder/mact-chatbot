@@ -21,14 +21,18 @@ export default async function AuthLayout({
       style={
         {
           "--sidebar-width": "calc(var(--spacing) * 64)",
-          "--header-height": "calc(var(--spacing) * 14)"
+          "--header-height": "calc(var(--spacing) * 14)",
+          "--content-padding": "calc(var(--spacing) * 4)",
+          "--content-margin": "calc(var(--spacing) * 2)",
+          "--content-full-height":
+            "calc(100vh - var(--header-height) - (var(--content-padding) * 2) - (var(--content-margin) * 2))"
         } as React.CSSProperties
       }>
       <AppSidebar variant="inset" />
       <SidebarInset>
         <SiteHeader />
         <div className="flex flex-1 flex-col">
-          <div className="@container/main p-4 xl:group-data-[theme-content-layout=centered]/layout:container xl:group-data-[theme-content-layout=centered]/layout:mx-auto">
+          <div className="@container/main p-[var(--content-padding)] xl:group-data-[theme-content-layout=centered]/layout:container xl:group-data-[theme-content-layout=centered]/layout:mx-auto">
             {children}
           </div>
         </div>

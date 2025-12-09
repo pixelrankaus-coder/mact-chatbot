@@ -22,7 +22,7 @@ export const items: Booking[] = [
     status: "finished",
     room: 1,
     timeSlot: "07:00 AM",
-    date: "2025-12-04"
+    date: new Date().toISOString().split("T")[0]
   },
   {
     id: "ID1928310",
@@ -33,7 +33,7 @@ export const items: Booking[] = [
     status: "cancelled",
     room: 2,
     timeSlot: "07:00 AM",
-    date: "2025-12-04"
+    date: new Date().toISOString().split("T")[0]
   },
   {
     id: "ID1928311",
@@ -44,7 +44,7 @@ export const items: Booking[] = [
     status: "approved",
     room: 3,
     timeSlot: "07:00 AM",
-    date: "2025-12-04"
+    date: new Date().toISOString().split("T")[0]
   },
   {
     id: "ID1928312",
@@ -55,7 +55,7 @@ export const items: Booking[] = [
     status: "pending",
     room: 1,
     timeSlot: "09:00 AM",
-    date: "2025-12-04"
+    date: new Date().toISOString().split("T")[0]
   },
   {
     id: "ID1928313",
@@ -66,7 +66,7 @@ export const items: Booking[] = [
     status: "approved",
     room: 2,
     timeSlot: "09:00 AM",
-    date: "2025-12-05"
+    date: new Date().toISOString().split("T")[0]
   },
   {
     id: "ID1928314",
@@ -77,7 +77,7 @@ export const items: Booking[] = [
     status: "approved",
     room: 1,
     timeSlot: "11:00 AM",
-    date: "2025-12-05"
+    date: new Date().toISOString().split("T")[0]
   },
   {
     id: "ID1928315",
@@ -88,7 +88,7 @@ export const items: Booking[] = [
     status: "approved",
     room: 2,
     timeSlot: "11:00 AM",
-    date: "2025-12-05"
+    date: new Date().toISOString().split("T")[0]
   }
 ];
 
