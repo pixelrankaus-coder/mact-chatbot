@@ -190,7 +190,7 @@ export const navItems: NavGroup[] = [
       },
       { title: "Api Keys", href: "/dashboard/apps/api-keys", icon: KeyIcon },
       { title: "POS App", href: "/dashboard/apps/pos-system", icon: CookieIcon },
-      { title: "Courses", href: "/dashboard/apps/courses", icon: BookAIcon, isComing: true }
+      { title: "Courses", href: "/dashboard/apps/courses", icon: BookAIcon, isNew: true }
     ]
   },
   {
