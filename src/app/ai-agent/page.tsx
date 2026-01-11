@@ -758,7 +758,7 @@ export default function AIAgentPage() {
                         </TooltipContent>
                       </Tooltip>
                     </div>
-                    <Select value={personality} onValueChange={setPersonality}>
+                    <Select value={personality} onValueChange={(value) => setPersonality(value as "professional" | "friendly" | "casual")}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select personality" />
                       </SelectTrigger>
