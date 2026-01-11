@@ -303,10 +303,11 @@ export default function AIAgentPage() {
 
         if (error) throw error;
 
-        if (data) {
+        if (data && data.length > 0) {
+          const typedData = data as UploadedDocument[];
           setDocuments((prev) =>
             prev.map((doc) => {
-              const updated = data.find((d) => d.id === doc.id);
+              const updated = typedData.find((d) => d.id === doc.id);
               return updated || doc;
             })
           );
