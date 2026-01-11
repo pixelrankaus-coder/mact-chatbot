@@ -96,21 +96,21 @@
       const data = await response.json();
 
       if (data.messages && data.messages.length > 0) {
-        if (lastMessageTime) {
-          // Append new messages, but filter out duplicates by ID
-          const existingIds = new Set(messages.map(m => m.id));
-          const newMessages = data.messages.filter(m => !existingIds.has(m.id));
-          if (newMessages.length > 0) {
-            messages = [...messages, ...newMessages];
-            lastMessageTime = data.messages[data.messages.length - 1].created_at;
-            renderMessages();
-          }
-        } else {
-          // Initial load
-          messages = data.messages;
-          lastMessageTime = data.messages[data.messages.length - 1].created_at;
-          renderMessages();
+        // Always deduplicate by ID on every fetch
+        const existingIds = new Set(messages.filter(m => !m.id.startsWith('temp_')).map(m => m.id));
+        const newMessages = data.messages.filter(m => !existingIds.has(m.id));
+
+        if (!lastMessageTime) {
+          // Initial load - replace all (but keep any temp messages)
+          const tempMessages = messages.filter(m => m.id.startsWith('temp_'));
+          messages = [...data.messages, ...tempMessages];
+        } else if (newMessages.length > 0) {
+          // Append only truly new messages
+          messages = [...messages, ...newMessages];
         }
+
+        lastMessageTime = data.messages[data.messages.length - 1].created_at;
+        renderMessages();
       }
     } catch (error) {
       console.error('MACt Widget: Failed to fetch messages', error);
@@ -706,9 +706,9 @@
         height: 12px;
       }
       .mact-msg-bubble {
-        padding: 6px 10px;
-        font-size: 14px;
-        line-height: 1.35;
+        padding: 5px 10px;
+        font-size: 13px;
+        line-height: 1.3;
         word-wrap: break-word;
         overflow-wrap: break-word;
         white-space: pre-wrap;
@@ -717,12 +717,12 @@
       .mact-msg-bubble-bot {
         background: #f1f5f9;
         color: #1e293b;
-        border-radius: 14px 14px 14px 4px;
+        border-radius: 12px 12px 12px 2px;
       }
       .mact-msg-bubble-user {
         background: ${primaryColor};
         color: white;
-        border-radius: 14px 14px 4px 14px;
+        border-radius: 12px 12px 2px 12px;
       }
       .mact-typing {
         display: flex;
