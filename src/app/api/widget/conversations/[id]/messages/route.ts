@@ -94,7 +94,8 @@ export async function POST(
       .from("messages")
       .insert({
         conversation_id: id,
-        sender: "user",
+        sender_type: "visitor",
+        sender_name: conversation.visitor_name || "Visitor",
         content: content.trim(),
       })
       .select()
@@ -102,12 +103,11 @@ export async function POST(
 
     if (msgError) throw msgError;
 
-    // Update conversation timestamp and preview
+    // Update conversation timestamp
     await supabase
       .from("conversations")
       .update({
         updated_at: new Date().toISOString(),
-        last_message: content.trim().substring(0, 100),
       })
       .eq("id", id);
 
@@ -126,15 +126,15 @@ export async function POST(
       // Get conversation history for context
       const { data: history } = await supabase
         .from("messages")
-        .select("sender, content")
+        .select("sender_type, content")
         .eq("conversation_id", id)
         .order("created_at", { ascending: true })
         .limit(20);
 
       const conversationHistory = (history || [])
-        .filter((m) => m.sender !== "system")
+        .filter((m) => m.sender_type !== "system")
         .map((m) => ({
-          role: m.sender === "user" ? "user" : "assistant" as "user" | "assistant",
+          role: m.sender_type === "visitor" ? "user" : "assistant" as "user" | "assistant",
           content: m.content,
         }));
 
@@ -203,7 +203,8 @@ export async function POST(
           .from("messages")
           .insert({
             conversation_id: id,
-            sender: "bot",
+            sender_type: "ai",
+            sender_name: aiSettings?.value?.name || "MACt Assistant",
             content: aiResponse.content,
           })
           .select()
@@ -219,7 +220,8 @@ export async function POST(
           .from("messages")
           .insert({
             conversation_id: id,
-            sender: "bot",
+            sender_type: "ai",
+            sender_name: aiSettings?.value?.name || "MACt Assistant",
             content: "I apologize, but I'm having trouble responding right now. Please try again in a moment, or a team member will assist you shortly.",
           })
           .select()

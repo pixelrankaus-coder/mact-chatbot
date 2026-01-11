@@ -47,8 +47,7 @@ export async function POST(request: NextRequest) {
         visitor_name: visitorName || "Website Visitor",
         visitor_email: visitorEmail || null,
         status: "active",
-        channel: "widget",
-        metadata: { storeId: storeId || "default" },
+        metadata: { storeId: storeId || "default", channel: "widget" },
       })
       .select()
       .single();
@@ -68,7 +67,8 @@ export async function POST(request: NextRequest) {
     // Insert welcome message
     await supabase.from("messages").insert({
       conversation_id: conversation.id,
-      sender: "bot",
+      sender_type: "ai",
+      sender_name: aiSettings?.value?.name || "MACt Assistant",
       content: welcomeMessage,
     });
 
