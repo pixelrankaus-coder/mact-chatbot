@@ -97,14 +97,20 @@
 
       if (data.messages && data.messages.length > 0) {
         if (lastMessageTime) {
-          // Append new messages
-          messages = [...messages, ...data.messages];
+          // Append new messages, but filter out duplicates by ID
+          const existingIds = new Set(messages.map(m => m.id));
+          const newMessages = data.messages.filter(m => !existingIds.has(m.id));
+          if (newMessages.length > 0) {
+            messages = [...messages, ...newMessages];
+            lastMessageTime = data.messages[data.messages.length - 1].created_at;
+            renderMessages();
+          }
         } else {
           // Initial load
           messages = data.messages;
+          lastMessageTime = data.messages[data.messages.length - 1].created_at;
+          renderMessages();
         }
-        lastMessageTime = data.messages[data.messages.length - 1].created_at;
-        renderMessages();
       }
     } catch (error) {
       console.error('MACt Widget: Failed to fetch messages', error);
@@ -146,6 +152,7 @@
       const tempIndex = messages.findIndex(m => m.id === tempMessage.id);
       if (tempIndex !== -1 && data.userMessage) {
         messages[tempIndex] = data.userMessage;
+        lastMessageTime = data.userMessage.created_at;
       }
 
       // Add bot response if present
@@ -687,9 +694,9 @@
         height: 12px;
       }
       .mact-msg-bubble {
-        padding: 8px 12px;
+        padding: 6px 10px;
         font-size: 14px;
-        line-height: 1.4;
+        line-height: 1.35;
         word-wrap: break-word;
         overflow-wrap: break-word;
         white-space: pre-wrap;
@@ -698,12 +705,12 @@
       .mact-msg-bubble-bot {
         background: #f1f5f9;
         color: #1e293b;
-        border-radius: 16px 16px 16px 4px;
+        border-radius: 14px 14px 14px 4px;
       }
       .mact-msg-bubble-user {
         background: ${primaryColor};
         color: white;
-        border-radius: 16px 16px 4px 16px;
+        border-radius: 14px 14px 4px 14px;
       }
       .mact-typing {
         display: flex;
