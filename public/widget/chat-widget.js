@@ -305,11 +305,13 @@
     const messagesContainer = chatWindow?.querySelector('.mact-messages');
     if (!messagesContainer) return;
 
-    const primaryColor = settings?.appearance?.primaryColor || '#2563eb';
+    const primaryColor = settings?.appearance?.primaryColor || settings?.appearance?.actionColor || '#2563eb';
 
     messagesContainer.innerHTML = messages.map(msg => {
-      const isUser = msg.sender === 'user';
-      const isSystem = msg.sender === 'system';
+      // Support both old format (sender) and new format (sender_type)
+      const senderType = msg.sender_type || msg.sender;
+      const isUser = senderType === 'visitor' || senderType === 'user';
+      const isSystem = senderType === 'system' || msg.sender_name === 'System';
       const hasError = msg.error;
 
       if (isSystem) {
@@ -327,12 +329,12 @@
 
       return `
         <div class="mact-message ${isUser ? 'mact-message-user' : 'mact-message-bot'}">
-          ${!isUser ? `<div class="mact-avatar" style="background-color: ${primaryColor}20; color: ${primaryColor};">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          ${!isUser ? `<div class="mact-msg-avatar" style="background-color: ${primaryColor}20; color: ${primaryColor};">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M12 8V4H8"/><rect x="8" y="8" width="8" height="12" rx="2"/><circle cx="10" cy="13" r="1"/><circle cx="14" cy="13" r="1"/>
             </svg>
           </div>` : ''}
-          <div class="mact-bubble ${isUser ? '' : 'mact-bubble-bot'}" style="${isUser ? `background-color: ${primaryColor}; color: white;` : ''} ${hasError ? 'opacity: 0.6;' : ''}">
+          <div class="mact-msg-bubble ${isUser ? 'mact-msg-bubble-user' : 'mact-msg-bubble-bot'}" ${hasError ? 'style="opacity: 0.6;"' : ''}>
             ${msg.content}
             ${hasError ? '<div style="font-size: 10px; margin-top: 4px;">Failed to send</div>' : ''}
           </div>
@@ -343,12 +345,12 @@
     // Re-add typing indicator HTML
     const typingHtml = `
       <div class="mact-typing" style="display: ${isTyping ? 'flex' : 'none'};">
-        <div class="mact-avatar" style="background-color: ${primaryColor}20; color: ${primaryColor};">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <div class="mact-msg-avatar" style="background-color: ${primaryColor}20; color: ${primaryColor};">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 8V4H8"/><rect x="8" y="8" width="8" height="12" rx="2"/><circle cx="10" cy="13" r="1"/><circle cx="14" cy="13" r="1"/>
           </svg>
         </div>
-        <div class="mact-bubble mact-bubble-bot">
+        <div class="mact-msg-bubble mact-msg-bubble-bot">
           <div class="mact-typing-dots">
             <span></span><span></span><span></span>
           </div>
@@ -655,12 +657,13 @@
         padding: 16px;
         display: flex;
         flex-direction: column;
-        gap: 12px;
+        gap: 8px;
       }
       .mact-message {
         display: flex;
         gap: 8px;
-        max-width: 85%;
+        max-width: 80%;
+        min-width: 60px;
       }
       .mact-message-user {
         align-self: flex-end;
@@ -669,32 +672,34 @@
       .mact-message-bot {
         align-self: flex-start;
       }
-      .mact-avatar {
-        width: 32px;
-        height: 32px;
+      .mact-msg-avatar {
+        width: 28px;
+        height: 28px;
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
         flex-shrink: 0;
+        margin-top: 2px;
       }
-      .mact-bubble {
-        width: auto;
-        height: auto;
-        border-radius: 16px;
-        padding: 10px 14px;
+      .mact-msg-bubble {
+        padding: 12px 16px;
         font-size: 14px;
-        line-height: 1.4;
+        line-height: 1.5;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        white-space: pre-wrap;
+        max-width: 100%;
+      }
+      .mact-msg-bubble-bot {
         background: #f1f5f9;
         color: #1e293b;
+        border-radius: 18px 18px 18px 4px;
       }
-      .mact-bubble-bot {
-        background: #f1f5f9;
-        color: #1e293b;
-        border-radius: 16px 16px 16px 4px;
-      }
-      .mact-message-user .mact-bubble {
-        border-radius: 16px 16px 4px 16px;
+      .mact-msg-bubble-user {
+        background: ${primaryColor};
+        color: white;
+        border-radius: 18px 18px 4px 18px;
       }
       .mact-typing {
         display: flex;
