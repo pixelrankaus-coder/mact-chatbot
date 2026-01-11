@@ -45,6 +45,22 @@ export async function GET() {
       offlineMessage: "We're currently offline. Leave a message and we'll get back to you.",
       avatarUrl: null,
       companyName: "MACt Support",
+      // Visibility and position settings
+      desktop: {
+        display: true,
+        position: "right",
+        buttonType: "corner",
+      },
+      mobile: {
+        display: true,
+        position: "right",
+        buttonType: "corner",
+      },
+      offsetX: 20,
+      offsetY: 80,
+      zIndex: 999999,
+      showWhenOffline: true,
+      enableSounds: false,
     };
 
     const defaultAiAgent = {

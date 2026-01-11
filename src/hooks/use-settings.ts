@@ -74,6 +74,23 @@ export function useAppearanceSettings() {
     chatPlaceholder: "Type your message...",
     agentName: "MACt Assistant",
     position: "bottom-right" as const,
+    // Visibility and position settings
+    desktop: {
+      display: true,
+      position: "right" as const,
+      buttonType: "corner" as const,
+    },
+    mobile: {
+      display: true,
+      position: "right" as const,
+      buttonType: "corner" as const,
+    },
+    offsetX: 20,
+    offsetY: 80,
+    zIndex: 999999,
+    // Advanced settings
+    showWhenOffline: true,
+    enableSounds: false,
   });
 }
 

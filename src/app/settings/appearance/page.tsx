@@ -12,6 +12,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -59,7 +60,10 @@ export default function AppearancePage() {
   const { value: settings, loading, updateSetting } = useAppearanceSettings();
 
   const [generalOpen, setGeneralOpen] = useState(true);
+  const [visibilityOpen, setVisibilityOpen] = useState(true);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [contentTab, setContentTab] = useState("home");
+  const [deviceTab, setDeviceTab] = useState<"desktop" | "mobile">("desktop");
   const [saving, setSaving] = useState(false);
 
   // Local state for form fields
@@ -72,6 +76,21 @@ export default function AppearancePage() {
   const [position, setPosition] = useState("bottom-right");
   const [previewTab, setPreviewTab] = useState<"home" | "chat">("home");
 
+  // Visibility and position settings
+  const [desktopDisplay, setDesktopDisplay] = useState(true);
+  const [desktopPosition, setDesktopPosition] = useState<"left" | "right">("right");
+  const [desktopButtonType, setDesktopButtonType] = useState<"corner" | "sidebar">("corner");
+  const [mobileDisplay, setMobileDisplay] = useState(true);
+  const [mobilePosition, setMobilePosition] = useState<"left" | "right">("right");
+  const [mobileButtonType, setMobileButtonType] = useState<"corner" | "sidebar">("corner");
+  const [offsetX, setOffsetX] = useState(20);
+  const [offsetY, setOffsetY] = useState(80);
+  const [zIndex, setZIndex] = useState(999999);
+
+  // Advanced settings
+  const [showWhenOffline, setShowWhenOffline] = useState(true);
+  const [enableSounds, setEnableSounds] = useState(false);
+
   // Load settings from Supabase
   useEffect(() => {
     if (!loading && settings) {
@@ -82,6 +101,28 @@ export default function AppearancePage() {
       setChatPlaceholder(settings.chatPlaceholder || "Type your message...");
       setAgentName(settings.agentName || "MACt Assistant");
       setPosition(settings.position || "bottom-right");
+
+      // Visibility and position settings
+      const desktop = settings.desktop as { display?: boolean; position?: "left" | "right"; buttonType?: "corner" | "sidebar" } | undefined;
+      const mobile = settings.mobile as { display?: boolean; position?: "left" | "right"; buttonType?: "corner" | "sidebar" } | undefined;
+
+      if (desktop) {
+        setDesktopDisplay(desktop.display !== false);
+        setDesktopPosition(desktop.position || "right");
+        setDesktopButtonType(desktop.buttonType || "corner");
+      }
+      if (mobile) {
+        setMobileDisplay(mobile.display !== false);
+        setMobilePosition(mobile.position || "right");
+        setMobileButtonType(mobile.buttonType || "corner");
+      }
+      setOffsetX(typeof settings.offsetX === "number" ? settings.offsetX : 20);
+      setOffsetY(typeof settings.offsetY === "number" ? settings.offsetY : 80);
+      setZIndex(typeof settings.zIndex === "number" ? settings.zIndex : 999999);
+
+      // Advanced settings
+      setShowWhenOffline(settings.showWhenOffline !== false);
+      setEnableSounds(settings.enableSounds === true);
     }
   }, [loading, settings]);
 
@@ -96,6 +137,23 @@ export default function AppearancePage() {
         chatPlaceholder,
         agentName,
         position,
+        // Visibility and position settings
+        desktop: {
+          display: desktopDisplay,
+          position: desktopPosition,
+          buttonType: desktopButtonType,
+        },
+        mobile: {
+          display: mobileDisplay,
+          position: mobilePosition,
+          buttonType: mobileButtonType,
+        },
+        offsetX,
+        offsetY,
+        zIndex,
+        // Advanced settings
+        showWhenOffline,
+        enableSounds,
       });
       toast.success("Settings saved successfully!", {
         description: "Your appearance settings have been updated.",
@@ -376,28 +434,274 @@ export default function AppearancePage() {
               </Tabs>
             </div>
 
-            {/* Position Section */}
-            <div className="rounded-lg border bg-white p-4">
-              <h3 className="mb-4 font-semibold text-slate-900">Position</h3>
-              <RadioGroup
-                value={position}
-                onValueChange={setPosition}
-                className="flex gap-6"
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="bottom-left" id="bottom-left" />
-                  <Label htmlFor="bottom-left" className="text-sm">
-                    Bottom-left
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="bottom-right" id="bottom-right" />
-                  <Label htmlFor="bottom-right" className="text-sm">
-                    Bottom-right
-                  </Label>
-                </div>
-              </RadioGroup>
-            </div>
+            {/* Visibility and Position Section */}
+            <Collapsible open={visibilityOpen} onOpenChange={setVisibilityOpen}>
+              <div className="rounded-lg border bg-white">
+                <CollapsibleTrigger className="flex w-full items-center justify-between p-4">
+                  <h3 className="font-semibold text-slate-900">Visibility and position</h3>
+                  {visibilityOpen ? (
+                    <ChevronUp className="h-5 w-5 text-slate-400" />
+                  ) : (
+                    <ChevronDown className="h-5 w-5 text-slate-400" />
+                  )}
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="space-y-6 border-t p-4">
+                    {/* Desktop/Mobile Tabs */}
+                    <Tabs value={deviceTab} onValueChange={(v) => setDeviceTab(v as "desktop" | "mobile")}>
+                      <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="desktop">Desktop</TabsTrigger>
+                        <TabsTrigger value="mobile">Mobile</TabsTrigger>
+                      </TabsList>
+
+                      <TabsContent value="desktop" className="mt-4 space-y-6">
+                        {/* Display Toggle */}
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm font-medium">Display</Label>
+                          <Switch
+                            checked={desktopDisplay}
+                            onCheckedChange={setDesktopDisplay}
+                          />
+                        </div>
+
+                        {/* Widget Position */}
+                        <div>
+                          <Label className="mb-3 block text-sm font-medium">Widget position</Label>
+                          <div className="flex items-center gap-8">
+                            {/* Left Option */}
+                            <button
+                              type="button"
+                              onClick={() => setDesktopPosition("left")}
+                              className={cn(
+                                "flex flex-col items-center gap-2",
+                                desktopPosition === "left" ? "opacity-100" : "opacity-50"
+                              )}
+                            >
+                              <div className={cn(
+                                "relative h-16 w-12 rounded border-2 bg-slate-100",
+                                desktopPosition === "left" ? "border-blue-600" : "border-slate-300"
+                              )}>
+                                <div
+                                  className={cn(
+                                    "absolute bottom-1 left-1 h-3 w-3 rounded-full",
+                                    desktopPosition === "left" ? "bg-blue-600" : "bg-slate-400"
+                                  )}
+                                />
+                              </div>
+                              <span className="text-xs font-medium">Left</span>
+                            </button>
+
+                            {/* Right Option */}
+                            <button
+                              type="button"
+                              onClick={() => setDesktopPosition("right")}
+                              className={cn(
+                                "flex flex-col items-center gap-2",
+                                desktopPosition === "right" ? "opacity-100" : "opacity-50"
+                              )}
+                            >
+                              <div className={cn(
+                                "relative h-16 w-12 rounded border-2 bg-slate-100",
+                                desktopPosition === "right" ? "border-blue-600" : "border-slate-300"
+                              )}>
+                                <div
+                                  className={cn(
+                                    "absolute bottom-1 right-1 h-3 w-3 rounded-full",
+                                    desktopPosition === "right" ? "bg-blue-600" : "bg-slate-400"
+                                  )}
+                                />
+                              </div>
+                              <span className="text-xs font-medium">Right</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Button Type */}
+                        <div>
+                          <Label className="mb-3 block text-sm font-medium">Button type</Label>
+                          <RadioGroup
+                            value={desktopButtonType}
+                            onValueChange={(v) => setDesktopButtonType(v as "corner" | "sidebar")}
+                            className="flex gap-6"
+                          >
+                            <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="corner" id="desktop-corner" />
+                              <Label htmlFor="desktop-corner" className="text-sm">Corner</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="sidebar" id="desktop-sidebar" />
+                              <Label htmlFor="desktop-sidebar" className="text-sm">Sidebar</Label>
+                            </div>
+                          </RadioGroup>
+                        </div>
+                      </TabsContent>
+
+                      <TabsContent value="mobile" className="mt-4 space-y-6">
+                        {/* Display Toggle */}
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm font-medium">Display</Label>
+                          <Switch
+                            checked={mobileDisplay}
+                            onCheckedChange={setMobileDisplay}
+                          />
+                        </div>
+
+                        {/* Widget Position */}
+                        <div>
+                          <Label className="mb-3 block text-sm font-medium">Widget position</Label>
+                          <div className="flex items-center gap-8">
+                            {/* Left Option */}
+                            <button
+                              type="button"
+                              onClick={() => setMobilePosition("left")}
+                              className={cn(
+                                "flex flex-col items-center gap-2",
+                                mobilePosition === "left" ? "opacity-100" : "opacity-50"
+                              )}
+                            >
+                              <div className={cn(
+                                "relative h-16 w-12 rounded border-2 bg-slate-100",
+                                mobilePosition === "left" ? "border-blue-600" : "border-slate-300"
+                              )}>
+                                <div
+                                  className={cn(
+                                    "absolute bottom-1 left-1 h-3 w-3 rounded-full",
+                                    mobilePosition === "left" ? "bg-blue-600" : "bg-slate-400"
+                                  )}
+                                />
+                              </div>
+                              <span className="text-xs font-medium">Left</span>
+                            </button>
+
+                            {/* Right Option */}
+                            <button
+                              type="button"
+                              onClick={() => setMobilePosition("right")}
+                              className={cn(
+                                "flex flex-col items-center gap-2",
+                                mobilePosition === "right" ? "opacity-100" : "opacity-50"
+                              )}
+                            >
+                              <div className={cn(
+                                "relative h-16 w-12 rounded border-2 bg-slate-100",
+                                mobilePosition === "right" ? "border-blue-600" : "border-slate-300"
+                              )}>
+                                <div
+                                  className={cn(
+                                    "absolute bottom-1 right-1 h-3 w-3 rounded-full",
+                                    mobilePosition === "right" ? "bg-blue-600" : "bg-slate-400"
+                                  )}
+                                />
+                              </div>
+                              <span className="text-xs font-medium">Right</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Button Type */}
+                        <div>
+                          <Label className="mb-3 block text-sm font-medium">Button type</Label>
+                          <RadioGroup
+                            value={mobileButtonType}
+                            onValueChange={(v) => setMobileButtonType(v as "corner" | "sidebar")}
+                            className="flex gap-6"
+                          >
+                            <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="corner" id="mobile-corner" />
+                              <Label htmlFor="mobile-corner" className="text-sm">Corner</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="sidebar" id="mobile-sidebar" />
+                              <Label htmlFor="mobile-sidebar" className="text-sm">Sidebar</Label>
+                            </div>
+                          </RadioGroup>
+                        </div>
+                      </TabsContent>
+                    </Tabs>
+
+                    {/* Offset Controls - applies to both desktop and mobile */}
+                    <div className="border-t pt-6">
+                      <div className="grid grid-cols-3 gap-4">
+                        <div>
+                          <Label className="mb-2 block text-sm font-medium">Horizontal offset</Label>
+                          <div className="flex items-center">
+                            <Input
+                              type="number"
+                              value={offsetX}
+                              onChange={(e) => setOffsetX(Number(e.target.value))}
+                              className="w-20"
+                              min={0}
+                            />
+                            <span className="ml-2 text-sm text-slate-500">px</span>
+                          </div>
+                        </div>
+                        <div>
+                          <Label className="mb-2 block text-sm font-medium">Vertical offset</Label>
+                          <div className="flex items-center">
+                            <Input
+                              type="number"
+                              value={offsetY}
+                              onChange={(e) => setOffsetY(Number(e.target.value))}
+                              className="w-20"
+                              min={0}
+                            />
+                            <span className="ml-2 text-sm text-slate-500">px</span>
+                          </div>
+                        </div>
+                        <div>
+                          <Label className="mb-2 block text-sm font-medium">Z-index</Label>
+                          <Input
+                            type="number"
+                            value={zIndex}
+                            onChange={(e) => setZIndex(Number(e.target.value))}
+                            className="w-28"
+                            min={1}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CollapsibleContent>
+              </div>
+            </Collapsible>
+
+            {/* Advanced Section */}
+            <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+              <div className="rounded-lg border bg-white">
+                <CollapsibleTrigger className="flex w-full items-center justify-between p-4">
+                  <h3 className="font-semibold text-slate-900">Advanced</h3>
+                  {advancedOpen ? (
+                    <ChevronUp className="h-5 w-5 text-slate-400" />
+                  ) : (
+                    <ChevronDown className="h-5 w-5 text-slate-400" />
+                  )}
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="space-y-4 border-t p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label className="text-sm font-medium">Display widget when agents are offline</Label>
+                        <p className="text-xs text-slate-500">Show the widget even when no agents are available</p>
+                      </div>
+                      <Switch
+                        checked={showWhenOffline}
+                        onCheckedChange={setShowWhenOffline}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label className="text-sm font-medium">Enable widget sounds</Label>
+                        <p className="text-xs text-slate-500">Play notification sounds for new messages</p>
+                      </div>
+                      <Switch
+                        checked={enableSounds}
+                        onCheckedChange={setEnableSounds}
+                      />
+                    </div>
+                  </div>
+                </CollapsibleContent>
+              </div>
+            </Collapsible>
 
             {/* Save Button */}
             <div className="flex justify-end">
