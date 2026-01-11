@@ -47,7 +47,6 @@ export async function POST(request: NextRequest) {
         visitor_name: visitorName || "Website Visitor",
         visitor_email: visitorEmail || null,
         status: "active",
-        metadata: { storeId: storeId || "default", channel: "widget" },
       })
       .select()
       .single();

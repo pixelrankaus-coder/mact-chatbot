@@ -117,16 +117,6 @@ export async function POST(
     if (visitorName) updateData.visitor_name = visitorName;
     if (visitorEmail) updateData.visitor_email = visitorEmail;
 
-    // Store handoff metadata
-    const metadata = {
-      ...(conversation.metadata as Record<string, unknown> || {}),
-      handoffRequested: true,
-      handoffReason: reason || "user_requested",
-      handoffTime: new Date().toISOString(),
-      withinOperatingHours: withinHours,
-    };
-    updateData.metadata = metadata;
-
     const { error: updateError } = await supabase
       .from("conversations")
       .update(updateData)
