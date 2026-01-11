@@ -654,16 +654,16 @@
       .mact-messages {
         flex: 1;
         overflow-y: auto;
-        padding: 16px;
+        padding: 12px;
         display: flex;
         flex-direction: column;
-        gap: 8px;
+        gap: 4px;
       }
       .mact-message {
         display: flex;
-        gap: 8px;
-        max-width: 80%;
-        min-width: 60px;
+        gap: 6px;
+        max-width: 85%;
+        min-width: 40px;
       }
       .mact-message-user {
         align-self: flex-end;
@@ -673,19 +673,23 @@
         align-self: flex-start;
       }
       .mact-msg-avatar {
-        width: 28px;
-        height: 28px;
+        width: 24px;
+        height: 24px;
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
         flex-shrink: 0;
-        margin-top: 2px;
+        margin-top: 1px;
+      }
+      .mact-msg-avatar svg {
+        width: 12px;
+        height: 12px;
       }
       .mact-msg-bubble {
-        padding: 12px 16px;
+        padding: 8px 12px;
         font-size: 14px;
-        line-height: 1.5;
+        line-height: 1.4;
         word-wrap: break-word;
         overflow-wrap: break-word;
         white-space: pre-wrap;
@@ -694,16 +698,16 @@
       .mact-msg-bubble-bot {
         background: #f1f5f9;
         color: #1e293b;
-        border-radius: 18px 18px 18px 4px;
+        border-radius: 16px 16px 16px 4px;
       }
       .mact-msg-bubble-user {
         background: ${primaryColor};
         color: white;
-        border-radius: 18px 18px 4px 18px;
+        border-radius: 16px 16px 4px 16px;
       }
       .mact-typing {
         display: flex;
-        gap: 8px;
+        gap: 6px;
         align-self: flex-start;
       }
       .mact-typing-dots {
@@ -728,8 +732,8 @@
       .mact-input {
         flex: 1;
         border: 1px solid #e2e8f0;
-        border-radius: 24px;
-        padding: 10px 16px;
+        border-radius: 20px;
+        padding: 8px 14px;
         font-size: 14px;
         outline: none;
         transition: border-color 0.2s;
@@ -738,8 +742,8 @@
         border-color: ${primaryColor};
       }
       .mact-send {
-        width: 40px;
-        height: 40px;
+        width: 36px;
+        height: 36px;
         border-radius: 50%;
         border: none;
         color: white;
@@ -748,6 +752,7 @@
         align-items: center;
         justify-content: center;
         transition: opacity 0.2s;
+        flex-shrink: 0;
       }
       .mact-send:hover {
         opacity: 0.9;
@@ -788,16 +793,16 @@
       }
       /* Input row with human link */
       .mact-input-area {
-        padding: 12px 16px;
+        padding: 10px 12px;
         border-top: 1px solid #e2e8f0;
         display: flex;
         flex-direction: column;
-        gap: 8px;
+        gap: 6px;
         background: white;
       }
       .mact-input-row {
         display: flex;
-        gap: 8px;
+        gap: 6px;
       }
       .mact-human-link {
         display: flex;
