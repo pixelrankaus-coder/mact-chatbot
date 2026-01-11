@@ -482,14 +482,34 @@
     return settings?.appearance?.[deviceKey] || { display: true, position: 'right', buttonType: 'corner' };
   }
 
+  // Get bubble size in pixels
+  function getBubbleSize() {
+    const size = settings?.appearance?.bubbleSize || 'medium';
+    const sizes = { small: 50, medium: 60, large: 70 };
+    return sizes[size] || 60;
+  }
+
+  // Get chat window height in pixels
+  function getChatWindowHeight() {
+    const size = settings?.appearance?.chatWindowHeight || 'medium';
+    const sizes = { small: 450, medium: 550, large: 650 };
+    return sizes[size] || 550;
+  }
+
   // Create widget styles
   function createStyles() {
     const primaryColor = settings?.appearance?.primaryColor || settings?.appearance?.actionColor || '#2563eb';
     const offsetX = settings?.appearance?.offsetX ?? 20;
     const offsetY = settings?.appearance?.offsetY ?? 80;
     const zIndex = settings?.appearance?.zIndex ?? 999999;
+    const bubbleSize = getBubbleSize();
+    const bubbleIconColor = settings?.appearance?.bubbleIconColor || '#ffffff';
+    const chatWindowHeight = getChatWindowHeight();
     const deviceSettings = getDeviceSettings();
     const widgetPosition = deviceSettings.position || 'right';
+
+    // Calculate icon size (55% of bubble size)
+    const iconSize = Math.round(bubbleSize * 0.55);
 
     const styles = document.createElement('style');
     styles.id = 'mact-widget-styles';
@@ -516,9 +536,24 @@
         bottom: ${offsetY}px;
         left: ${offsetX}px;
       }
+      .mact-launcher {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .mact-launcher-text {
+        background: white;
+        color: #1e293b;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 14px;
+        font-weight: 500;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        white-space: nowrap;
+      }
       .mact-bubble {
-        width: 60px;
-        height: 60px;
+        width: ${bubbleSize}px;
+        height: ${bubbleSize}px;
         border-radius: 50%;
         background-color: ${primaryColor};
         cursor: pointer;
@@ -527,13 +562,16 @@
         justify-content: center;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         transition: transform 0.2s, box-shadow 0.2s;
+        flex-shrink: 0;
       }
       .mact-bubble:hover {
         transform: scale(1.05);
         box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
       }
       .mact-bubble svg {
-        color: white;
+        color: ${bubbleIconColor};
+        width: ${iconSize}px;
+        height: ${iconSize}px;
       }
       .mact-close-icon {
         display: none;
@@ -542,9 +580,9 @@
         display: none;
         flex-direction: column;
         position: absolute;
-        bottom: 80px;
+        bottom: ${bubbleSize + 20}px;
         width: 380px;
-        height: 520px;
+        height: ${chatWindowHeight}px;
         background: white;
         border-radius: 16px;
         box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
@@ -885,9 +923,12 @@
       @media (max-width: 768px) {
         .mact-chat-window {
           width: calc(100vw - 32px);
-          height: calc(100vh - 120px);
-          max-height: 600px;
-          bottom: 72px;
+          height: 85vh;
+          max-height: calc(100vh - 100px);
+          bottom: ${bubbleSize + 16}px;
+        }
+        .mact-launcher-text {
+          display: none;
         }
         .mact-widget-container.bottom-right,
         .mact-widget-container.bottom-left,
@@ -969,18 +1010,33 @@
       </div>
     `;
 
-    // Bubble
+    // Launcher wrapper (holds optional text + bubble)
+    const launcher = document.createElement('div');
+    launcher.className = 'mact-launcher';
+
+    // Optional bubble text
+    const showBubbleText = settings?.appearance?.showBubbleText === true;
+    if (showBubbleText) {
+      const textEl = document.createElement('span');
+      textEl.className = 'mact-launcher-text';
+      textEl.textContent = 'Chat with us';
+      launcher.appendChild(textEl);
+    }
+
+    // Bubble (circular FAB button)
     bubble = document.createElement('div');
     bubble.className = 'mact-bubble';
     bubble.setAttribute('aria-label', 'Open chat');
     bubble.innerHTML = `
-      <svg class="mact-chat-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <svg class="mact-chat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
       </svg>
-      <svg class="mact-close-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <svg class="mact-close-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M18 6L6 18M6 6l12 12"/>
       </svg>
     `;
+
+    launcher.appendChild(bubble);
 
     // Add event listeners
     bubble.addEventListener('click', toggleChat);
@@ -1011,7 +1067,7 @@
 
     // Assemble and append
     container.appendChild(chatWindow);
-    container.appendChild(bubble);
+    container.appendChild(launcher);
     document.body.appendChild(container);
   }
 

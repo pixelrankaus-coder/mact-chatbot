@@ -87,6 +87,14 @@ export default function AppearancePage() {
   const [offsetY, setOffsetY] = useState(80);
   const [zIndex, setZIndex] = useState(999999);
 
+  // Bubble settings
+  const [bubbleSize, setBubbleSize] = useState<"small" | "medium" | "large">("medium");
+  const [bubbleIconColor, setBubbleIconColor] = useState("#ffffff");
+  const [showBubbleText, setShowBubbleText] = useState(false);
+
+  // Chat window settings
+  const [chatWindowHeight, setChatWindowHeight] = useState<"small" | "medium" | "large">("medium");
+
   // Advanced settings
   const [showWhenOffline, setShowWhenOffline] = useState(true);
   const [enableSounds, setEnableSounds] = useState(false);
@@ -120,6 +128,14 @@ export default function AppearancePage() {
       setOffsetY(typeof settings.offsetY === "number" ? settings.offsetY : 80);
       setZIndex(typeof settings.zIndex === "number" ? settings.zIndex : 999999);
 
+      // Bubble settings
+      setBubbleSize((settings.bubbleSize as "small" | "medium" | "large") || "medium");
+      setBubbleIconColor((settings.bubbleIconColor as string) || "#ffffff");
+      setShowBubbleText(settings.showBubbleText === true);
+
+      // Chat window settings
+      setChatWindowHeight((settings.chatWindowHeight as "small" | "medium" | "large") || "medium");
+
       // Advanced settings
       setShowWhenOffline(settings.showWhenOffline !== false);
       setEnableSounds(settings.enableSounds === true);
@@ -151,6 +167,12 @@ export default function AppearancePage() {
         offsetX,
         offsetY,
         zIndex,
+        // Bubble settings
+        bubbleSize,
+        bubbleIconColor,
+        showBubbleText,
+        // Chat window settings
+        chatWindowHeight,
         // Advanced settings
         showWhenOffline,
         enableSounds,
@@ -664,6 +686,76 @@ export default function AppearancePage() {
                 </CollapsibleContent>
               </div>
             </Collapsible>
+
+            {/* Bubble & Chat Window Section */}
+            <div className="rounded-lg border bg-white p-4">
+              <h3 className="mb-4 font-semibold text-slate-900">Bubble & Chat Window</h3>
+              <div className="space-y-4">
+                {/* Bubble Size */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="mb-2 block text-sm font-medium">Bubble size</Label>
+                    <Select value={bubbleSize} onValueChange={(v) => setBubbleSize(v as "small" | "medium" | "large")}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="small">Small (50px)</SelectItem>
+                        <SelectItem value="medium">Medium (60px)</SelectItem>
+                        <SelectItem value="large">Large (70px)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Chat Window Height */}
+                  <div>
+                    <Label className="mb-2 block text-sm font-medium">Chat window height</Label>
+                    <Select value={chatWindowHeight} onValueChange={(v) => setChatWindowHeight(v as "small" | "medium" | "large")}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="small">Small (450px)</SelectItem>
+                        <SelectItem value="medium">Medium (550px)</SelectItem>
+                        <SelectItem value="large">Large (650px)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Bubble Icon Color */}
+                <div>
+                  <Label className="mb-2 block text-sm font-medium">Bubble icon color</Label>
+                  <div className="flex items-center gap-3">
+                    <Input
+                      type="color"
+                      value={bubbleIconColor}
+                      onChange={(e) => setBubbleIconColor(e.target.value)}
+                      className="h-10 w-14 cursor-pointer p-1"
+                    />
+                    <Input
+                      type="text"
+                      value={bubbleIconColor}
+                      onChange={(e) => setBubbleIconColor(e.target.value)}
+                      className="w-28"
+                      placeholder="#ffffff"
+                    />
+                  </div>
+                </div>
+
+                {/* Show Bubble Text */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-sm font-medium">Show bubble text</Label>
+                    <p className="text-xs text-slate-500">Display &quot;Chat with us&quot; text next to bubble</p>
+                  </div>
+                  <Switch
+                    checked={showBubbleText}
+                    onCheckedChange={setShowBubbleText}
+                  />
+                </div>
+              </div>
+            </div>
 
             {/* Advanced Section */}
             <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>

@@ -59,6 +59,13 @@ export async function GET() {
       offsetX: 20,
       offsetY: 80,
       zIndex: 999999,
+      // Bubble settings
+      bubbleSize: "medium", // small: 50px, medium: 60px, large: 70px
+      bubbleIconColor: "#ffffff",
+      showBubbleText: false,
+      // Chat window settings
+      chatWindowHeight: "medium", // small: 450px, medium: 550px, large: 650px
+      // Advanced
       showWhenOffline: true,
       enableSounds: false,
     };

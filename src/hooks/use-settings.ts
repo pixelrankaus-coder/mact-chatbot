@@ -88,6 +88,12 @@ export function useAppearanceSettings() {
     offsetX: 20,
     offsetY: 80,
     zIndex: 999999,
+    // Bubble settings
+    bubbleSize: "medium" as const, // small: 50px, medium: 60px, large: 70px
+    bubbleIconColor: "#ffffff",
+    showBubbleText: false,
+    // Chat window settings
+    chatWindowHeight: "medium" as const, // small: 450px, medium: 550px, large: 650px
     // Advanced settings
     showWhenOffline: true,
     enableSounds: false,
