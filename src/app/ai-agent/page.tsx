@@ -81,7 +81,7 @@ export default function AIAgentPage() {
   );
   const [personality, setPersonality] = useState<"professional" | "friendly" | "casual">("professional");
   const [responseLength, setResponseLength] = useState([50]);
-  const [fallbackAction, setFallbackAction] = useState("clarify");
+  const [fallbackAction, setFallbackAction] = useState<"clarify" | "transfer" | "email">("clarify");
 
   // Knowledge base state
   const [documents, setDocuments] = useState<UploadedDocument[]>([]);
