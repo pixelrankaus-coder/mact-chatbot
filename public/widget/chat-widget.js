@@ -118,13 +118,18 @@
   }
 
   // Send message
+  let isSending = false;
   async function sendMessage(content) {
-    if (!content.trim() || !conversation) return;
+    if (!content.trim() || !conversation || isSending) return;
+    isSending = true;
+
+    // Stop polling while sending to avoid race conditions
+    stopPolling();
 
     // Add optimistic user message
     const tempMessage = {
       id: 'temp_' + Date.now(),
-      sender: 'user',
+      sender_type: 'visitor',
       content: content.trim(),
       created_at: new Date().toISOString(),
     };
@@ -164,6 +169,10 @@
       setTyping(false);
       renderMessages();
       scrollToBottom();
+
+      // Resume polling after send completes
+      isSending = false;
+      startPolling();
     } catch (error) {
       console.error('MACt Widget: Failed to send message', error);
       setTyping(false);
@@ -173,6 +182,9 @@
         messages[tempIndex].error = true;
         renderMessages();
       }
+      // Resume polling after error
+      isSending = false;
+      startPolling();
     }
   }
 
