@@ -79,7 +79,7 @@ export default function AIAgentPage() {
   const [welcomeMessage, setWelcomeMessage] = useState(
     "Hi there! I'm the MACt Assistant. How can I help you with your GFRC project today?"
   );
-  const [personality, setPersonality] = useState("professional");
+  const [personality, setPersonality] = useState<"professional" | "friendly" | "casual">("professional");
   const [responseLength, setResponseLength] = useState([50]);
   const [fallbackAction, setFallbackAction] = useState("clarify");
 
