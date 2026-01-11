@@ -139,9 +139,12 @@ export async function POST(
       ? "You've been connected to our team. A human agent will respond shortly. Thank you for your patience!"
       : "Thanks for reaching out! Our team is currently offline. We've saved your information and will get back to you during our next business hours.";
 
+    // Note: Using 'ai' sender_type with 'System' name since 'system' may not be in the enum
+    // The inbox page handles system messages by checking sender_type or sender_name
     await supabase.from("messages").insert({
       conversation_id: id,
-      sender: "system",
+      sender_type: "ai",
+      sender_name: "System",
       content: systemMessage,
     });
 
