@@ -1,7 +1,7 @@
 (function() {
   'use strict';
 
-  const WIDGET_VERSION = '2.0.2';
+  const WIDGET_VERSION = '2.0.3';
 
   // Get script configuration
   const scriptTag = document.currentScript;
@@ -685,27 +685,30 @@
         .mact-messages {
           flex: 1;
           overflow-y: auto;
-          padding: 16px;
+          padding: 12px;
           display: flex;
           flex-direction: column;
-          gap: 12px;
+          gap: 6px;
           background: #f8fafc;
         }
 
         /* Message row */
         .mact-message {
           display: flex;
-          max-width: 70%;
+          margin-bottom: 6px;
+          max-width: 75%;
         }
 
         /* Visitor messages - right aligned */
         .mact-message-visitor {
           align-self: flex-end;
+          justify-content: flex-end;
         }
 
         /* Assistant messages - left aligned with avatar */
         .mact-message-assistant {
           align-self: flex-start;
+          justify-content: flex-start;
           gap: 8px;
         }
 
@@ -717,8 +720,8 @@
 
         /* Avatar */
         .mact-avatar {
-          width: 28px;
-          height: 28px;
+          width: 24px;
+          height: 24px;
           border-radius: 50%;
           display: flex;
           align-items: center;
@@ -728,11 +731,13 @@
 
         /* Bubbles */
         .mact-bubble {
-          padding: 6px 12px;
+          padding: 6px 10px;
           font-size: 14px;
-          line-height: 1.3;
+          line-height: 1.2;
+          display: inline-block;
+          max-width: 100%;
           word-wrap: break-word;
-          white-space: pre-wrap;
+          box-sizing: border-box;
         }
 
         .mact-bubble-visitor {
