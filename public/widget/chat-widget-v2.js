@@ -1,7 +1,7 @@
 (function() {
   'use strict';
 
-  const WIDGET_VERSION = '2.0.1';
+  const WIDGET_VERSION = '2.0.2';
 
   // Get script configuration
   const scriptTag = document.currentScript;
@@ -695,7 +695,7 @@
         /* Message row */
         .mact-message {
           display: flex;
-          max-width: 85%;
+          max-width: 70%;
         }
 
         /* Visitor messages - right aligned */
@@ -730,7 +730,7 @@
         .mact-bubble {
           padding: 6px 12px;
           font-size: 14px;
-          line-height: 1.4;
+          line-height: 1.3;
           word-wrap: break-word;
           white-space: pre-wrap;
         }
