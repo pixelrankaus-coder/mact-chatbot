@@ -2,7 +2,7 @@
   'use strict';
 
   // Widget version - increment on each release
-  const WIDGET_VERSION = '1.0.2';
+  const WIDGET_VERSION = '1.0.3';
 
   // Get script configuration
   const scriptTag = document.currentScript;
@@ -351,14 +351,14 @@
         `;
       }
 
-      // Inline styles - compact WhatsApp/Telegram style bubbles
+      // Inline styles - ultra-compact WhatsApp/Telegram style bubbles
       const bubbleInlineStyle = `
         display: inline-block;
-        padding: 3px 7px;
+        padding: 2px 6px;
         margin: 0;
-        border-radius: 10px;
-        font-size: 12px;
-        line-height: 1.15;
+        border-radius: 8px;
+        font-size: 13px;
+        line-height: 1.3;
         box-sizing: border-box;
         ${isUser
           ? `background: ${primaryColor}; color: #fff;`
@@ -744,19 +744,19 @@
         height: 14px;
       }
 
-      /* Actual bubble - compact WhatsApp/Telegram style */
+      /* Actual bubble - ultra-compact WhatsApp/Telegram style */
       .mact-msg-bubble {
         display: inline-block !important;
         max-width: 80% !important;
-        padding: 3px 7px !important;
+        padding: 2px 6px !important;
         margin: 0 !important;
-        border-radius: 10px !important;
+        border-radius: 8px !important;
         border: none !important;
         box-sizing: border-box !important;
 
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif !important;
-        font-size: 12px !important;
-        line-height: 1.15 !important;
+        font-size: 13px !important;
+        line-height: 1.3 !important;
 
         white-space: pre-wrap !important;
         word-break: break-word !important;
