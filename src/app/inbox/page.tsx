@@ -371,10 +371,10 @@ export default function InboxPage() {
   };
 
   // Check if conversation has handoff requested
-  const hasHandoffRequested = (conv: Conversation): boolean => {
+  function hasHandoffRequested(conv: Conversation): boolean {
     const metadata = conv.metadata as { handoffRequested?: boolean } | null;
     return metadata?.handoffRequested === true;
-  };
+  }
 
   // Get handoff info
   const getHandoffInfo = (conv: Conversation | undefined): { requested: boolean; time?: string; reason?: string } => {
