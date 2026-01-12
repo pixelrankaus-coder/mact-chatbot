@@ -64,37 +64,68 @@ export function useSettings<T extends Json>(key: string, defaultValue: T) {
   };
 }
 
+// Appearance settings interface
+interface AppearanceSettings {
+  backgroundColor?: string;
+  primaryColor?: string;
+  actionColor?: string;
+  welcomeTitle?: string;
+  welcomeSubtitle?: string;
+  chatPlaceholder?: string;
+  agentName?: string;
+  position?: string;
+  desktop?: {
+    display?: boolean;
+    position?: "left" | "right";
+    buttonType?: "corner" | "sidebar";
+  };
+  mobile?: {
+    display?: boolean;
+    position?: "left" | "right";
+    buttonType?: "corner" | "sidebar";
+    buttonSize?: number;
+  };
+  offsetX?: number;
+  offsetY?: number;
+  zIndex?: number;
+  bubbleSize?: "small" | "medium" | "large";
+  bubbleIconColor?: string;
+  showBubbleText?: boolean;
+  chatWindowHeight?: "small" | "medium" | "large";
+  showWhenOffline?: boolean;
+  enableSounds?: boolean;
+  [key: string]: unknown; // Allow additional properties
+}
+
 // Pre-defined hooks for common settings
 export function useAppearanceSettings() {
-  return useSettings("appearance", {
+  return useSettings<AppearanceSettings>("appearance", {
     backgroundColor: "#1a1a2e",
+    primaryColor: "#3b82f6",
     actionColor: "#3b82f6",
     welcomeTitle: "Hi there!",
     welcomeSubtitle: "How can we help you today?",
     chatPlaceholder: "Type your message...",
     agentName: "MACt Assistant",
-    position: "bottom-right" as const,
-    // Visibility and position settings
+    position: "bottom-right",
     desktop: {
       display: true,
-      position: "right" as const,
-      buttonType: "corner" as const,
+      position: "right",
+      buttonType: "corner",
     },
     mobile: {
       display: true,
-      position: "right" as const,
-      buttonType: "corner" as const,
+      position: "right",
+      buttonType: "corner",
+      buttonSize: 50,
     },
     offsetX: 20,
     offsetY: 80,
     zIndex: 999999,
-    // Bubble settings
-    bubbleSize: "medium" as const, // small: 50px, medium: 60px, large: 70px
+    bubbleSize: "medium",
     bubbleIconColor: "#ffffff",
     showBubbleText: false,
-    // Chat window settings
-    chatWindowHeight: "medium" as const, // small: 450px, medium: 550px, large: 650px
-    // Advanced settings
+    chatWindowHeight: "medium",
     showWhenOffline: true,
     enableSounds: false,
   });
