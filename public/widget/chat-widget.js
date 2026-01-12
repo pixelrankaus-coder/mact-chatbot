@@ -535,20 +535,24 @@
     const styles = document.createElement('style');
     styles.id = 'mact-widget-styles';
     styles.textContent = `
-      /* CSS Reset for isolation from parent page styles */
+      /* CSS Reset - minimal reset to prevent parent style bleeding */
       .mact-widget-container,
-      .mact-widget-container *,
-      .mact-widget-container *::before,
-      .mact-widget-container *::after {
-        all: revert;
-        box-sizing: border-box;
+      .mact-widget-container * {
+        box-sizing: border-box !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif !important;
+        font-size: 14px !important;
+        line-height: 1.4 !important;
+        font-weight: 400 !important;
+        letter-spacing: normal !important;
+        text-transform: none !important;
+        text-decoration: none !important;
       }
       .mact-widget-container {
         position: fixed;
         z-index: ${zIndex};
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-        font-size: 14px;
-        line-height: 1.4;
         color: #1e293b;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
@@ -656,22 +660,17 @@
         justify-content: center;
       }
       .mact-header-text h3 {
-        margin: 0;
-        padding: 0;
-        font-size: 16px;
-        font-weight: 600;
-        line-height: 1.3;
-        color: inherit;
-        text-transform: none;
-        letter-spacing: normal;
+        font-size: 15px !important;
+        font-weight: 600 !important;
+        line-height: 1.3 !important;
+        color: white !important;
       }
       .mact-header-text p {
-        margin: 2px 0 0;
-        padding: 0;
-        font-size: 12px;
-        opacity: 0.9;
-        line-height: 1.3;
-        color: inherit;
+        margin-top: 2px !important;
+        font-size: 11px !important;
+        opacity: 0.9 !important;
+        line-height: 1.3 !important;
+        color: white !important;
       }
       .mact-header-close {
         background: none;
@@ -692,68 +691,58 @@
         overflow: hidden;
       }
       .mact-messages {
-        flex: 1;
-        overflow-y: auto;
-        padding: 16px;
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        background: #ffffff;
+        flex: 1 !important;
+        overflow-y: auto !important;
+        padding: 12px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 8px !important;
+        background: #ffffff !important;
       }
       .mact-message {
-        display: flex;
-        gap: 8px;
-        max-width: 85%;
-        min-width: 40px;
-        margin: 0;
-        padding: 0;
+        display: flex !important;
+        gap: 6px !important;
+        max-width: 85% !important;
+        min-width: 40px !important;
       }
       .mact-message-user {
-        align-self: flex-end;
-        flex-direction: row-reverse;
+        align-self: flex-end !important;
+        flex-direction: row-reverse !important;
       }
       .mact-message-bot {
-        align-self: flex-start;
+        align-self: flex-start !important;
       }
       .mact-msg-avatar {
-        width: 24px;
-        height: 24px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-        margin-top: 1px;
+        width: 22px !important;
+        height: 22px !important;
+        border-radius: 50% !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        flex-shrink: 0 !important;
       }
       .mact-msg-avatar svg {
-        width: 12px;
-        height: 12px;
+        width: 11px !important;
+        height: 11px !important;
       }
       .mact-msg-bubble {
-        padding: 8px 12px;
-        font-size: 14px;
-        line-height: 1.4;
-        word-wrap: break-word;
-        overflow-wrap: break-word;
-        white-space: pre-wrap;
-        max-width: 100%;
-        margin: 0;
-        border: none;
-        outline: none;
-        text-decoration: none;
-        font-weight: 400;
-        letter-spacing: normal;
-        text-transform: none;
+        padding: 6px 10px !important;
+        font-size: 13px !important;
+        line-height: 1.35 !important;
+        word-wrap: break-word !important;
+        overflow-wrap: break-word !important;
+        white-space: pre-wrap !important;
+        max-width: 100% !important;
       }
       .mact-msg-bubble-bot {
-        background: #f1f5f9;
-        color: #1e293b;
-        border-radius: 8px 8px 8px 2px;
+        background: #f1f5f9 !important;
+        color: #1e293b !important;
+        border-radius: 6px 6px 6px 2px !important;
       }
       .mact-msg-bubble-user {
-        background: ${primaryColor};
-        color: white;
-        border-radius: 8px 8px 2px 8px;
+        background: ${primaryColor} !important;
+        color: white !important;
+        border-radius: 6px 6px 2px 6px !important;
       }
       .mact-typing {
         display: flex;
