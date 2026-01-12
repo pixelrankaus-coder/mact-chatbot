@@ -1,6 +1,9 @@
 (function() {
   'use strict';
 
+  // Widget version - increment on each release
+  const WIDGET_VERSION = '1.0.1';
+
   // Get script configuration
   const scriptTag = document.currentScript;
   const storeId = scriptTag?.getAttribute('data-store-id') || 'default';
@@ -1112,7 +1115,7 @@
         </div>
       </div>
       <div class="mact-footer">
-        Powered by <a href="https://mact.au" target="_blank" rel="noopener">MACt</a>
+        Powered by <a href="https://mact.au" target="_blank" rel="noopener">MACt</a> <span style="opacity: 0.5;">v${WIDGET_VERSION}</span>
       </div>
     `;
 
@@ -1221,7 +1224,7 @@
     // Listen for viewport changes
     window.addEventListener('resize', handleResize);
 
-    console.log('MACt Chat Widget initialized (Shadow DOM mode)');
+    console.log(`MACt Chat Widget v${WIDGET_VERSION} initialized (Shadow DOM mode)`);
   }
 
   // Wait for DOM ready
