@@ -13,6 +13,7 @@ import {
   Clock,
   Users,
   Plug,
+  History,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -34,6 +35,7 @@ const settingsNav: SettingsNavItem[] = [
   { id: "operating-hours", label: "Operating hours", href: "/settings/operating-hours", icon: <Clock className="h-4 w-4" />, section: "PERSONAL" },
   { id: "team", label: "Team", href: "/settings/team", icon: <Users className="h-4 w-4" />, section: "GENERAL" },
   { id: "integrations", label: "Integrations", href: "/settings/integrations", icon: <Plug className="h-4 w-4" />, section: "GENERAL" },
+  { id: "changelog", label: "Changelog", href: "/settings/changelog", icon: <History className="h-4 w-4" />, section: "GENERAL" },
 ];
 
 export function SettingsSidebar() {
