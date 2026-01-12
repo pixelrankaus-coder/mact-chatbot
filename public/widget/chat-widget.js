@@ -712,8 +712,8 @@
 
       /* Avatar */
       .mact-msg-avatar {
-        width: 20px;
-        height: 20px;
+        width: 28px;
+        height: 28px;
         border-radius: 50%;
         display: flex;
         align-items: center;
@@ -722,8 +722,8 @@
         margin-right: 6px;
       }
       .mact-msg-avatar svg {
-        width: 10px;
-        height: 10px;
+        width: 14px;
+        height: 14px;
       }
 
       /* Actual bubble */
