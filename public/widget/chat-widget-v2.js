@@ -1,7 +1,7 @@
 (function() {
   'use strict';
 
-  const WIDGET_VERSION = '2.0.3';
+  const WIDGET_VERSION = '2.1.0';
 
   // Get script configuration
   const scriptTag = document.currentScript;
@@ -59,6 +59,70 @@
     }
 
     // ============================================================
+    // Visitor Info Collection
+    // ============================================================
+    collectVisitorInfo() {
+      const ua = navigator.userAgent;
+
+      // Detect browser
+      let browser = 'Unknown';
+      if (ua.includes('Firefox/')) browser = 'Firefox';
+      else if (ua.includes('Edg/')) browser = 'Edge';
+      else if (ua.includes('Chrome/')) browser = 'Chrome';
+      else if (ua.includes('Safari/') && !ua.includes('Chrome')) browser = 'Safari';
+      else if (ua.includes('Opera') || ua.includes('OPR/')) browser = 'Opera';
+
+      // Extract browser version
+      let browserVersion = '';
+      const versionMatch = ua.match(new RegExp(`${browser === 'Edge' ? 'Edg' : browser}/([\\d.]+)`));
+      if (versionMatch) browserVersion = versionMatch[1].split('.')[0];
+
+      // Detect OS
+      let os = 'Unknown';
+      if (ua.includes('Windows NT 10')) os = 'Windows';
+      else if (ua.includes('Windows')) os = 'Windows';
+      else if (ua.includes('Mac OS X')) os = 'macOS';
+      else if (ua.includes('Linux')) os = 'Linux';
+      else if (ua.includes('Android')) os = 'Android';
+      else if (ua.includes('iPhone') || ua.includes('iPad')) os = 'iOS';
+
+      // Detect device type
+      let deviceType = 'Desktop';
+      if (/Mobile|Android|iPhone|iPad|iPod/i.test(ua)) {
+        deviceType = /iPad|Tablet/i.test(ua) ? 'Tablet' : 'Mobile';
+      }
+
+      // Get screen info
+      const screenWidth = window.screen.width;
+      const screenHeight = window.screen.height;
+
+      // Get page info
+      const currentPage = window.location.href;
+      const referrer = document.referrer || null;
+      const pageTitle = document.title;
+
+      // Get timezone
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+      // Get language
+      const language = navigator.language || navigator.userLanguage;
+
+      return {
+        browser: `${browser}${browserVersion ? ' ' + browserVersion : ''}`,
+        os,
+        deviceType,
+        screenResolution: `${screenWidth}x${screenHeight}`,
+        currentPage,
+        pageTitle,
+        referrer,
+        timezone,
+        language,
+        userAgent: ua,
+        visitedAt: new Date().toISOString(),
+      };
+    }
+
+    // ============================================================
     // Settings
     // ============================================================
     async loadSettings() {
@@ -103,10 +167,14 @@
     // ============================================================
     async createConversation() {
       try {
+        const visitorInfo = this.collectVisitorInfo();
         const response = await fetch(`${apiBase}/api/widget/conversations`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ visitorId: this.visitorId }),
+          body: JSON.stringify({
+            visitorId: this.visitorId,
+            visitorInfo,
+          }),
         });
         if (!response.ok) throw new Error('Failed to create conversation');
         const data = await response.json();

@@ -35,6 +35,11 @@ import {
   Sparkles,
   UserCheck,
   Bell,
+  Monitor,
+  Globe,
+  ExternalLink,
+  Eye,
+  Wifi,
 } from "lucide-react";
 import { useConversations } from "@/hooks/use-conversations";
 import { useMessages } from "@/hooks/use-messages";
@@ -385,6 +390,51 @@ export default function InboxPage() {
       time: metadata?.handoffTime,
       reason: metadata?.handoffReason,
     };
+  };
+
+  // Get visitor info from metadata
+  interface VisitorInfo {
+    browser?: string;
+    os?: string;
+    deviceType?: string;
+    ip?: string;
+    location?: string;
+    currentPage?: string;
+    pageTitle?: string;
+    referrer?: string;
+    timezone?: string;
+    language?: string;
+    screenResolution?: string;
+    pagesViewed?: Array<{ url: string; title: string; visitedAt: string }>;
+  }
+
+  const getVisitorInfo = (conv: Conversation | undefined): VisitorInfo => {
+    if (!conv) return {};
+    const metadata = conv.metadata as VisitorInfo | null;
+    return metadata || {};
+  };
+
+  // Format page URL for display
+  const formatPageUrl = (url: string): string => {
+    try {
+      const urlObj = new URL(url);
+      return urlObj.pathname + urlObj.search;
+    } catch {
+      return url;
+    }
+  };
+
+  // Format time for page views
+  const formatPageViewTime = (dateStr: string): string => {
+    const date = new Date(dateStr);
+    return date.toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
   };
 
   // Loading skeleton for conversation list
@@ -793,99 +843,111 @@ export default function InboxPage() {
       {/* RIGHT: Customer Details Panel */}
       {selectedConversation && (
         <div className="flex w-80 flex-col border-l bg-white">
-          <ScrollArea className="flex-1">
-            <div className="p-6">
-              {/* Customer Profile */}
-              <div className="mb-6 text-center">
-                <Avatar className="mx-auto h-16 w-16">
-                  <AvatarFallback className="bg-blue-100 text-xl text-blue-600">
-                    {getInitials(selectedConversation.visitor_name)}
-                  </AvatarFallback>
-                </Avatar>
-                <h4 className="mt-3 font-semibold text-slate-900">
-                  {selectedConversation.visitor_name || "Anonymous"}
-                </h4>
-                <p className="text-sm text-slate-500">
-                  {selectedConversation.visitor_location || "Unknown location"}
-                </p>
-              </div>
+          {/* Tabs Header */}
+          <Tabs defaultValue="info" className="flex flex-1 flex-col">
+            <div className="border-b px-4">
+              <TabsList className="w-full justify-start gap-4 bg-transparent h-12">
+                <TabsTrigger value="info" className="px-0 pb-3 data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none">
+                  Info
+                </TabsTrigger>
+                <TabsTrigger value="pages" className="px-0 pb-3 data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none">
+                  Viewed pages
+                </TabsTrigger>
+                <TabsTrigger value="notes" className="px-0 pb-3 data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none">
+                  Notes
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
-              {/* Contact Info */}
-              <div className="mb-6">
-                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase text-slate-500">
-                  <User className="h-4 w-4" />
-                  Contact Info
-                </h3>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <Mail className="h-4 w-4 text-slate-400" />
-                    <span className="text-sm text-slate-600">
-                      {selectedConversation.visitor_email || "Not provided"}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Phone className="h-4 w-4 text-slate-400" />
-                    <span className="text-sm text-slate-600">
-                      {selectedConversation.visitor_phone || "Not provided"}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <MapPin className="h-4 w-4 text-slate-400" />
-                    <span className="text-sm text-slate-600">
-                      {selectedConversation.visitor_location || "Unknown"}
-                    </span>
+            <ScrollArea className="flex-1">
+              {/* Info Tab */}
+              <TabsContent value="info" className="m-0 p-4">
+                {/* Customer Data Section */}
+                <div className="mb-6">
+                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    Customer Data
+                  </h3>
+                  <div className="space-y-3">
+                    {/* Email */}
+                    <div className="flex items-start gap-3">
+                      <Mail className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-400" />
+                      <div className="min-w-0 flex-1">
+                        <span className="block truncate text-sm text-slate-900">
+                          {selectedConversation.visitor_email || "Not provided"}
+                        </span>
+                      </div>
+                      {selectedConversation.visitor_email && (
+                        <Badge variant="outline" className="flex-shrink-0 text-xs text-green-600 border-green-200 bg-green-50">
+                          Subscribed
+                        </Badge>
+                      )}
+                    </div>
+
+                    {/* Location */}
+                    <div className="flex items-start gap-3">
+                      <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-400" />
+                      <div className="min-w-0 flex-1">
+                        <span className="block text-sm text-slate-900">
+                          {getVisitorInfo(selectedConversation).location || selectedConversation.visitor_location || "Unknown"}
+                        </span>
+                      </div>
+                      {getVisitorInfo(selectedConversation).location && (
+                        <Badge variant="outline" className="flex-shrink-0 text-xs text-green-600 border-green-200 bg-green-50">
+                          <span className="mr-1">&#127757;</span>
+                        </Badge>
+                      )}
+                    </div>
+
+                    {/* Phone */}
+                    <div className="flex items-start gap-3">
+                      <Phone className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-400" />
+                      <span className="text-sm text-slate-500">
+                        {selectedConversation.visitor_phone || "Phone..."}
+                      </span>
+                    </div>
+
+                    {/* Browser/OS */}
+                    <div className="flex items-start gap-3">
+                      <Monitor className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-400" />
+                      <div className="min-w-0 flex-1">
+                        <span className="block text-sm text-slate-900">
+                          {getVisitorInfo(selectedConversation).browser || "Unknown"}, {getVisitorInfo(selectedConversation).os || "Unknown"}
+                        </span>
+                      </div>
+                      <Badge variant="outline" className="flex-shrink-0 text-xs text-green-600 border-green-200 bg-green-50">
+                        <span className="mr-1">&#127760;</span>
+                      </Badge>
+                    </div>
+
+                    {/* IP Address */}
+                    <div className="flex items-start gap-3">
+                      <Wifi className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-400" />
+                      <span className="text-sm text-slate-900">
+                        {getVisitorInfo(selectedConversation).ip || "Unknown"}
+                      </span>
+                      <Badge variant="outline" className="flex-shrink-0 text-xs text-green-600 border-green-200 bg-green-50">
+                        <span className="mr-1">&#127760;</span>
+                      </Badge>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <Separator className="my-4" />
+                <Separator className="my-4" />
 
-              {/* Notes */}
-              <div className="mb-6">
-                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase text-slate-500">
-                  <StickyNote className="h-4 w-4" />
-                  Notes
-                </h3>
-                <Textarea
-                  placeholder="Add notes about this customer..."
-                  value={customerNote}
-                  onChange={(e) => setCustomerNote(e.target.value)}
-                  className="min-h-[80px] resize-none text-sm"
-                  rows={3}
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-2 w-full"
-                  onClick={handleSaveNote}
-                  disabled={savingNote}
-                >
-                  {savingNote ? (
-                    <>
-                      <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    "Save Notes"
-                  )}
-                </Button>
-              </div>
-
-              <Separator className="my-4" />
-
-              {/* Tags */}
-              <div>
-                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase text-slate-500">
-                  <Tag className="h-4 w-4" />
-                  Tags
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {getTags(selectedConversation).map((tag) => (
-                    <Badge key={tag} variant="outline" className="text-xs">
-                      {tag}
-                    </Badge>
-                  ))}
-                  <div className="flex w-full items-center gap-2 pt-2">
+                {/* Tags Section */}
+                <div className="mb-6">
+                  <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    <Tag className="h-3 w-3" />
+                    Add a customer tag...
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {getTags(selectedConversation).map((tag) => (
+                      <Badge key={tag} variant="outline" className="text-xs">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                  <div className="mt-2 flex items-center gap-2">
                     <Input
                       placeholder="Add tag..."
                       value={newTag}
@@ -905,13 +967,108 @@ export default function InboxPage() {
                       onClick={handleAddTag}
                     >
                       <Plus className="h-3 w-3" />
-                      Add
                     </Button>
                   </div>
                 </div>
-              </div>
-            </div>
-          </ScrollArea>
+
+                <Separator className="my-4" />
+
+                {/* Last Viewed Page Section */}
+                <div className="mb-6">
+                  <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    <Eye className="h-3 w-3" />
+                    Last Viewed Page
+                  </h3>
+                  {getVisitorInfo(selectedConversation).currentPage ? (
+                    <div className="rounded-lg border bg-slate-50 p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs text-slate-500">
+                            {formatPageViewTime(getVisitorInfo(selectedConversation).pagesViewed?.slice(-1)[0]?.visitedAt || new Date().toISOString())}
+                          </p>
+                          <a
+                            href={getVisitorInfo(selectedConversation).currentPage}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-1 flex items-center gap-1 text-sm text-blue-600 hover:underline"
+                          >
+                            <span className="truncate">{formatPageUrl(getVisitorInfo(selectedConversation).currentPage || "")}</span>
+                            <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-500">No page data available</p>
+                  )}
+                </div>
+
+                {/* See History Link */}
+                <button className="flex items-center gap-1 text-sm text-blue-600 hover:underline">
+                  <Clock className="h-4 w-4" />
+                  See the history
+                </button>
+              </TabsContent>
+
+              {/* Viewed Pages Tab */}
+              <TabsContent value="pages" className="m-0 p-4">
+                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  Page History
+                </h3>
+                {getVisitorInfo(selectedConversation).pagesViewed && getVisitorInfo(selectedConversation).pagesViewed!.length > 0 ? (
+                  <div className="space-y-3">
+                    {getVisitorInfo(selectedConversation).pagesViewed!.slice().reverse().map((page, index) => (
+                      <div key={index} className="rounded-lg border bg-slate-50 p-3">
+                        <p className="text-xs text-slate-500">{formatPageViewTime(page.visitedAt)}</p>
+                        <p className="mt-1 text-sm font-medium text-slate-900 truncate">{page.title || "Untitled"}</p>
+                        <a
+                          href={page.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-1 flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                        >
+                          <span className="truncate">{formatPageUrl(page.url)}</span>
+                          <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500">No pages viewed yet</p>
+                )}
+              </TabsContent>
+
+              {/* Notes Tab */}
+              <TabsContent value="notes" className="m-0 p-4">
+                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  Internal Notes
+                </h3>
+                <Textarea
+                  placeholder="Add notes about this customer..."
+                  value={customerNote}
+                  onChange={(e) => setCustomerNote(e.target.value)}
+                  className="min-h-[120px] resize-none text-sm"
+                  rows={5}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 w-full"
+                  onClick={handleSaveNote}
+                  disabled={savingNote}
+                >
+                  {savingNote ? (
+                    <>
+                      <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Notes"
+                  )}
+                </Button>
+              </TabsContent>
+            </ScrollArea>
+          </Tabs>
         </div>
       )}
     </div>
