@@ -121,9 +121,9 @@ export default function WidgetTestPage() {
               <li>Do you ship to California?</li>
             </ul>
             <div className="mt-4 rounded-lg bg-slate-50 p-4">
-              <p className="font-medium text-slate-700">Embed Code:</p>
+              <p className="font-medium text-slate-700">Embed Code (V2):</p>
               <code className="mt-2 block break-all rounded bg-slate-200 p-2 text-xs">
-                {`<script src="${typeof window !== 'undefined' ? window.location.origin : ''}/widget/chat-widget.js" data-store-id="mact-store-001"></script>`}
+                {`<script src="${typeof window !== 'undefined' ? window.location.origin : ''}/widget/chat-widget-v2.js"></script>`}
               </code>
             </div>
           </div>
@@ -139,10 +139,9 @@ export default function WidgetTestPage() {
         </div>
       </footer>
 
-      {/* Load the chat widget */}
+      {/* Load the chat widget V2 */}
       <Script
-        src="/widget/chat-widget.js"
-        data-store-id="mact-store-001"
+        src="/widget/chat-widget-v2.js"
         strategy="afterInteractive"
         onLoad={() => setWidgetLoaded(true)}
       />

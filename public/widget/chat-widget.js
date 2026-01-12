@@ -2,7 +2,7 @@
   'use strict';
 
   // Widget version - increment on each release
-  const WIDGET_VERSION = '1.1.1';
+  const WIDGET_VERSION = '1.2.0';
 
   // Get script configuration
   const scriptTag = document.currentScript;
