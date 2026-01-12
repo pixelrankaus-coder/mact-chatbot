@@ -2,7 +2,7 @@
   'use strict';
 
   // Widget version - increment on each release
-  const WIDGET_VERSION = '1.1.0';
+  const WIDGET_VERSION = '1.1.1';
 
   // Get script configuration
   const scriptTag = document.currentScript;
@@ -534,8 +534,9 @@
   // Get bubble padding
   function getBubblePadding() {
     const size = settings?.appearance?.bubblePadding || 'normal';
-    const paddings = { compact: '2px 6px', normal: '4px 8px', spacious: '6px 12px' };
-    return paddings[size] || '4px 8px';
+    // WhatsApp uses approximately 6px 12px for compact look
+    const paddings = { compact: '6px 10px', normal: '8px 12px', spacious: '10px 16px' };
+    return paddings[size] || '8px 12px';
   }
 
   // Create widget styles - returns style element for shadow DOM
@@ -753,10 +754,10 @@
       /* Bubble - block display, controlled by padding settings */
       .mact-msg-bubble {
         padding: ${bubblePadding};
-        border-radius: 12px;
+        border-radius: 16px;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
         font-size: ${bubbleTextSize}px;
-        line-height: 1.4;
+        line-height: 1.35;
         word-break: break-word;
         white-space: pre-wrap;
       }
