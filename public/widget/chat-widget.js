@@ -690,15 +690,16 @@
       .mact-messages {
         flex: 1 !important;
         overflow-y: auto !important;
-        padding: 12px !important;
+        padding: 10px !important;
         display: flex !important;
         flex-direction: column !important;
-        gap: 8px !important;
+        gap: 4px !important;
         background: #ffffff !important;
       }
+      /* Chat message rows */
       .mact-widget-container .mact-message {
         display: flex !important;
-        margin: 0 !important;
+        margin: 2px 0 !important;
         padding: 0 !important;
         gap: 6px !important;
         max-width: 85% !important;
@@ -707,13 +708,15 @@
       .mact-widget-container .mact-message-user {
         align-self: flex-end !important;
         flex-direction: row-reverse !important;
+        justify-content: flex-end !important;
       }
       .mact-widget-container .mact-message-bot {
         align-self: flex-start !important;
+        justify-content: flex-start !important;
       }
       .mact-widget-container .mact-msg-avatar {
-        width: 22px !important;
-        height: 22px !important;
+        width: 20px !important;
+        height: 20px !important;
         margin: 0 !important;
         padding: 0 !important;
         border-radius: 50% !important;
@@ -723,29 +726,31 @@
         flex-shrink: 0 !important;
       }
       .mact-widget-container .mact-msg-avatar svg {
-        width: 11px !important;
-        height: 11px !important;
+        width: 10px !important;
+        height: 10px !important;
       }
-      /* Chat bubble container */
+      /* Chat bubbles - compact style */
       .mact-widget-container .mact-msg-bubble {
         display: inline-block !important;
-        max-width: 88% !important;
-        margin: 0 !important;
-        padding: 6px 10px !important;
+        max-width: 80% !important;
+        padding: 4px 8px !important;
+        border-radius: 6px !important;
         border: none !important;
         word-wrap: break-word !important;
         overflow-wrap: break-word !important;
         white-space: pre-wrap !important;
       }
-      /* Tight typography INSIDE bubbles - kills theme p/div styles */
+      /* Typography inside bubbles - tighter */
       .mact-widget-container .mact-msg-bubble,
       .mact-widget-container .mact-msg-bubble * {
-        font-size: 13px !important;
-        line-height: 1.35 !important;
+        font-size: 12px !important;
+        line-height: 1.2 !important;
         margin: 0 !important;
-      }
-      .mact-widget-container .mact-msg-bubble * {
         padding: 0 !important;
+      }
+      /* Restore bubble padding after * reset */
+      .mact-widget-container .mact-msg-bubble {
+        padding: 4px 8px !important;
       }
       .mact-widget-container .mact-msg-bubble-bot {
         background: #f1f5f9 !important;
