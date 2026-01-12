@@ -730,21 +730,22 @@
       .mact-msg-bubble {
         display: inline-block;
         max-width: 80%;
-        padding: 4px 8px;
+        padding: 6px 12px;
         margin: 0;
-        border-radius: 14px;
+        border-radius: 16px;
         border: none;
         box-sizing: border-box;
 
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
-        font-size: 13px;
-        line-height: 1.3;
+        font-size: 14px;
+        line-height: 1.2;
 
         white-space: pre-wrap;
         word-break: break-word;
 
-        height: auto;
-        min-height: 0;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
       }
 
       /* Make sure nested tags don't add space */
