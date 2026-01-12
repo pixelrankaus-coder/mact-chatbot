@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServiceClient } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 import { generateAIResponse } from "@/lib/ai";
 import {
   detectOrderIntent,
@@ -21,8 +21,6 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = createServiceClient();
-
   try {
     const { id } = await params;
     const { searchParams } = new URL(request.url);
@@ -57,8 +55,6 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = createServiceClient();
-
   try {
     const { id } = await params;
     const body = await request.json();

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServiceClient } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 
 // CORS headers for widget
 const corsHeaders = {
@@ -79,8 +79,6 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = createServiceClient();
-
   try {
     const { id } = await params;
     const body = await request.json();

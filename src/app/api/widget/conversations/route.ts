@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServiceClient } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 
 // CORS headers for widget
 const corsHeaders = {
@@ -44,8 +44,6 @@ async function getLocationFromIP(ip: string): Promise<{ city?: string; region?: 
 
 // POST /api/widget/conversations - Create a new conversation
 export async function POST(request: NextRequest) {
-  const supabase = createServiceClient();
-
   try {
     const body = await request.json();
     const { visitorId, visitorName, visitorEmail, visitorInfo } = body;
@@ -164,8 +162,6 @@ export async function POST(request: NextRequest) {
 
 // GET /api/widget/conversations?visitorId=xxx - Get visitor's conversations
 export async function GET(request: NextRequest) {
-  const supabase = createServiceClient();
-
   try {
     const { searchParams } = new URL(request.url);
     const visitorId = searchParams.get("visitorId");

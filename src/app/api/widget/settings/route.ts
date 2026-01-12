@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server";
-import { createServiceClient } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 
 // GET /api/widget/settings - Public endpoint for widget to fetch appearance settings
 export async function GET() {
-  const supabase = createServiceClient();
-
   try {
     // Fetch appearance settings
     const { data: appearance, error: appearanceError } = await supabase
