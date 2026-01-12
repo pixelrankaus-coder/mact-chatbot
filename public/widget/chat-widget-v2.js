@@ -1,7 +1,7 @@
 (function() {
   'use strict';
 
-  const WIDGET_VERSION = '2.0.0';
+  const WIDGET_VERSION = '2.0.1';
 
   // Get script configuration
   const scriptTag = document.currentScript;
@@ -728,7 +728,7 @@
 
         /* Bubbles */
         .mact-bubble {
-          padding: 10px 14px;
+          padding: 6px 12px;
           font-size: 14px;
           line-height: 1.4;
           word-wrap: break-word;
@@ -738,13 +738,13 @@
         .mact-bubble-visitor {
           background: var(--primary-color);
           color: white;
-          border-radius: 18px 18px 4px 18px;
+          border-radius: 16px 16px 4px 16px;
         }
 
         .mact-bubble-assistant {
           background: white;
           color: #1e293b;
-          border-radius: 18px 18px 18px 4px;
+          border-radius: 16px 16px 16px 4px;
           box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
         }
 
