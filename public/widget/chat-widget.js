@@ -535,10 +535,23 @@
     const styles = document.createElement('style');
     styles.id = 'mact-widget-styles';
     styles.textContent = `
+      /* CSS Reset for isolation from parent page styles */
+      .mact-widget-container,
+      .mact-widget-container *,
+      .mact-widget-container *::before,
+      .mact-widget-container *::after {
+        all: revert;
+        box-sizing: border-box;
+      }
       .mact-widget-container {
         position: fixed;
         z-index: ${zIndex};
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+        font-size: 14px;
+        line-height: 1.4;
+        color: #1e293b;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
       }
       .mact-widget-container.position-right {
         bottom: ${offsetY}px;
@@ -644,13 +657,21 @@
       }
       .mact-header-text h3 {
         margin: 0;
+        padding: 0;
         font-size: 16px;
         font-weight: 600;
+        line-height: 1.3;
+        color: inherit;
+        text-transform: none;
+        letter-spacing: normal;
       }
       .mact-header-text p {
         margin: 2px 0 0;
+        padding: 0;
         font-size: 12px;
         opacity: 0.9;
+        line-height: 1.3;
+        color: inherit;
       }
       .mact-header-close {
         background: none;
@@ -673,16 +694,19 @@
       .mact-messages {
         flex: 1;
         overflow-y: auto;
-        padding: 12px;
+        padding: 16px;
         display: flex;
         flex-direction: column;
-        gap: 4px;
+        gap: 12px;
+        background: #ffffff;
       }
       .mact-message {
         display: flex;
-        gap: 6px;
+        gap: 8px;
         max-width: 85%;
         min-width: 40px;
+        margin: 0;
+        padding: 0;
       }
       .mact-message-user {
         align-self: flex-end;
@@ -706,23 +730,30 @@
         height: 12px;
       }
       .mact-msg-bubble {
-        padding: 5px 10px;
-        font-size: 13px;
-        line-height: 1.3;
+        padding: 8px 12px;
+        font-size: 14px;
+        line-height: 1.4;
         word-wrap: break-word;
         overflow-wrap: break-word;
         white-space: pre-wrap;
         max-width: 100%;
+        margin: 0;
+        border: none;
+        outline: none;
+        text-decoration: none;
+        font-weight: 400;
+        letter-spacing: normal;
+        text-transform: none;
       }
       .mact-msg-bubble-bot {
         background: #f1f5f9;
         color: #1e293b;
-        border-radius: 12px 12px 12px 2px;
+        border-radius: 8px 8px 8px 2px;
       }
       .mact-msg-bubble-user {
         background: ${primaryColor};
         color: white;
-        border-radius: 12px 12px 2px 12px;
+        border-radius: 8px 8px 2px 8px;
       }
       .mact-typing {
         display: flex;
