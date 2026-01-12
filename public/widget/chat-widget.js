@@ -535,27 +535,23 @@
     const styles = document.createElement('style');
     styles.id = 'mact-widget-styles';
     styles.textContent = `
-      /* CSS Reset - minimal reset to prevent parent style bleeding */
-      .mact-widget-container,
-      .mact-widget-container * {
+      /* Base reset - only box-sizing and font on container */
+      .mact-widget-container {
         box-sizing: border-box !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        border: none !important;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif !important;
-        font-size: 14px !important;
-        line-height: 1.4 !important;
-        font-weight: 400 !important;
         letter-spacing: normal !important;
         text-transform: none !important;
         text-decoration: none !important;
-      }
-      .mact-widget-container {
         position: fixed;
         z-index: ${zIndex};
         color: #1e293b;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
+      }
+      /* Descendants inherit box-sizing only - no global padding/margin/font-size reset */
+      .mact-widget-container * {
+        box-sizing: inherit;
+        font-family: inherit;
       }
       .mact-widget-container.position-right {
         bottom: ${offsetY}px;
@@ -699,34 +695,40 @@
         gap: 8px !important;
         background: #ffffff !important;
       }
-      .mact-message {
+      .mact-widget-container .mact-message {
         display: flex !important;
+        margin: 0 !important;
+        padding: 0 !important;
         gap: 6px !important;
         max-width: 85% !important;
         min-width: 40px !important;
       }
-      .mact-message-user {
+      .mact-widget-container .mact-message-user {
         align-self: flex-end !important;
         flex-direction: row-reverse !important;
       }
-      .mact-message-bot {
+      .mact-widget-container .mact-message-bot {
         align-self: flex-start !important;
       }
-      .mact-msg-avatar {
+      .mact-widget-container .mact-msg-avatar {
         width: 22px !important;
         height: 22px !important;
+        margin: 0 !important;
+        padding: 0 !important;
         border-radius: 50% !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
         flex-shrink: 0 !important;
       }
-      .mact-msg-avatar svg {
+      .mact-widget-container .mact-msg-avatar svg {
         width: 11px !important;
         height: 11px !important;
       }
-      .mact-msg-bubble {
+      .mact-widget-container .mact-msg-bubble {
+        margin: 0 !important;
         padding: 6px 10px !important;
+        border: none !important;
         font-size: 13px !important;
         line-height: 1.35 !important;
         word-wrap: break-word !important;
@@ -734,12 +736,12 @@
         white-space: pre-wrap !important;
         max-width: 100% !important;
       }
-      .mact-msg-bubble-bot {
+      .mact-widget-container .mact-msg-bubble-bot {
         background: #f1f5f9 !important;
         color: #1e293b !important;
         border-radius: 6px 6px 6px 2px !important;
       }
-      .mact-msg-bubble-user {
+      .mact-widget-container .mact-msg-bubble-user {
         background: ${primaryColor} !important;
         color: white !important;
         border-radius: 6px 6px 2px 6px !important;
