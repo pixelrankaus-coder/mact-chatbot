@@ -2,7 +2,7 @@
   'use strict';
 
   // Widget version - increment on each release
-  const WIDGET_VERSION = '1.0.1';
+  const WIDGET_VERSION = '1.0.2';
 
   // Get script configuration
   const scriptTag = document.currentScript;
@@ -746,20 +746,20 @@
 
       /* Actual bubble - compact WhatsApp/Telegram style */
       .mact-msg-bubble {
-        display: inline-block;
-        max-width: 80%;
-        padding: 3px 7px;
-        margin: 0;
-        border-radius: 10px;
-        border: none;
-        box-sizing: border-box;
+        display: inline-block !important;
+        max-width: 80% !important;
+        padding: 3px 7px !important;
+        margin: 0 !important;
+        border-radius: 10px !important;
+        border: none !important;
+        box-sizing: border-box !important;
 
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
-        font-size: 12px;
-        line-height: 1.15;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif !important;
+        font-size: 12px !important;
+        line-height: 1.15 !important;
 
-        white-space: pre-wrap;
-        word-break: break-word;
+        white-space: pre-wrap !important;
+        word-break: break-word !important;
       }
 
       /* Make sure nested tags don't add space */
