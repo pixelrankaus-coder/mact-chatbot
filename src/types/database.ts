@@ -7,7 +7,7 @@ export type Json =
   | Json[];
 
 export type ConversationStatus = "active" | "pending" | "resolved";
-export type SenderType = "visitor" | "ai" | "agent";
+export type SenderType = "visitor" | "ai" | "agent" | "system";
 export type KnowledgeBaseStatus = "processing" | "ready" | "error";
 
 export interface Database {
@@ -19,8 +19,11 @@ export interface Database {
           visitor_id: string;
           visitor_name: string | null;
           visitor_email: string | null;
+          visitor_phone: string | null;
+          visitor_location: string | null;
           status: ConversationStatus;
           assigned_to: string | null;
+          metadata: Json | null;
           created_at: string;
           updated_at: string;
         };
@@ -29,8 +32,11 @@ export interface Database {
           visitor_id: string;
           visitor_name?: string | null;
           visitor_email?: string | null;
+          visitor_phone?: string | null;
+          visitor_location?: string | null;
           status?: ConversationStatus;
           assigned_to?: string | null;
+          metadata?: Json | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -39,8 +45,11 @@ export interface Database {
           visitor_id?: string;
           visitor_name?: string | null;
           visitor_email?: string | null;
+          visitor_phone?: string | null;
+          visitor_location?: string | null;
           status?: ConversationStatus;
           assigned_to?: string | null;
+          metadata?: Json | null;
           created_at?: string;
           updated_at?: string;
         };

@@ -2,7 +2,7 @@
   'use strict';
 
   // Widget version - increment on each release
-  const WIDGET_VERSION = '1.0.10';
+  const WIDGET_VERSION = '1.1.0';
 
   // Get script configuration
   const scriptTag = document.currentScript;
@@ -330,9 +330,6 @@
     if (!messagesContainer) return;
 
     const primaryColor = settings?.appearance?.primaryColor || settings?.appearance?.actionColor || '#2563eb';
-    const textSize = getBubbleTextSize();
-    const textAlign = getBubbleTextAlign();
-    const padding = getBubblePadding();
 
     messagesContainer.innerHTML = messages.map(msg => {
       // Support both old format (sender) and new format (sender_type)
@@ -354,6 +351,8 @@
         `;
       }
 
+      // User messages: bubble only (no avatar)
+      // Bot messages: avatar + bubble
       return `
         <div class="mact-message ${isUser ? 'mact-message-user' : 'mact-message-bot'}">
           ${!isUser ? `<div class="mact-msg-avatar" style="background-color: ${primaryColor}20; color: ${primaryColor};">
@@ -361,7 +360,7 @@
               <path d="M12 8V4H8"/><rect x="8" y="8" width="8" height="12" rx="2"/><circle cx="10" cy="13" r="1"/><circle cx="14" cy="13" r="1"/>
             </svg>
           </div>` : ''}
-          <div class="mact-msg-bubble ${isUser ? 'mact-msg-bubble-user' : 'mact-msg-bubble-bot'}" style="display:inline-block !important;padding:${padding} !important;margin:0 !important;border-radius:10px !important;font-size:${textSize}px !important;line-height:1.35 !important;text-align:${textAlign} !important;box-sizing:border-box !important;${isUser ? `background:${primaryColor} !important;color:#fff !important;` : 'background:#f1f5f9 !important;color:#1e293b !important;'}${hasError ? 'opacity:0.6 !important;' : ''}">
+          <div class="mact-msg-bubble ${isUser ? 'mact-msg-bubble-user' : 'mact-msg-bubble-bot'}"${isUser ? ` style="background-color: ${primaryColor};"` : ''}${hasError ? ' style="opacity: 0.6;"' : ''}>
             ${msg.content}
             ${hasError ? '<div style="font-size: 10px; margin-top: 4px;">Failed to send</div>' : ''}
           </div>
@@ -532,11 +531,6 @@
     return sizes[size] || 14;
   }
 
-  // Get bubble text alignment
-  function getBubbleTextAlign() {
-    return settings?.appearance?.bubbleTextAlign || 'left';
-  }
-
   // Get bubble padding
   function getBubblePadding() {
     const size = settings?.appearance?.bubblePadding || 'normal';
@@ -553,7 +547,6 @@
     const bubbleIconColor = settings?.appearance?.bubbleIconColor || '#ffffff';
     const chatWindowHeight = getChatWindowHeight();
     const bubbleTextSize = getBubbleTextSize();
-    const bubbleTextAlign = getBubbleTextAlign();
     const bubblePadding = getBubblePadding();
     const deviceSettings = getDeviceSettings();
     const widgetPosition = deviceSettings.position || 'right';
@@ -708,34 +701,38 @@
         flex-direction: column;
         overflow: hidden;
       }
+      /* =======================================================
+         MACt chat messages – Flexbox layout (Messenger-style)
+         Based on: https://ishadeed.com/article/facebook-messenger-chat-component/
+         ======================================================= */
+
+      /* Messages container - flex column */
       .mact-messages {
         flex: 1;
         overflow-y: auto;
         padding: 10px;
         display: flex;
         flex-direction: column;
-        gap: 4px;
+        gap: 6px;
         background: #ffffff;
       }
 
-      /* =======================================================
-         MACt chat messages – clean, compact bubble layout
-         ======================================================= */
-
-      /* Message row wrapper */
+      /* Message row - flex container with max-width constraint */
       .mact-message {
         display: flex;
         align-items: flex-end;
-        margin: 4px 0;
+        gap: 6px;
+        max-width: 85%;
       }
 
-      /* Align by sender */
+      /* User messages - align entire row to right */
       .mact-message-user {
-        justify-content: flex-end;
+        align-self: flex-end;
       }
 
+      /* Bot messages - align entire row to left */
       .mact-message-bot {
-        justify-content: flex-start;
+        align-self: flex-start;
       }
 
       /* Avatar */
@@ -747,47 +744,30 @@
         align-items: center;
         justify-content: center;
         flex-shrink: 0;
-        margin-right: 6px;
       }
       .mact-msg-avatar svg {
         width: 14px;
         height: 14px;
       }
 
-      /* Actual bubble - WhatsApp-style tight bubbles */
+      /* Bubble - block display, controlled by padding settings */
       .mact-msg-bubble {
-        display: inline-block !important;
-        max-width: 80% !important;
-        padding: ${bubblePadding} !important;
-        margin: 0 !important;
-        border-radius: 10px !important;
-        border: none !important;
-        box-sizing: border-box !important;
-
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif !important;
-        font-size: ${bubbleTextSize}px !important;
-        line-height: 1.35 !important;
-        text-align: ${bubbleTextAlign} !important;
-
-        white-space: pre-wrap !important;
-        word-break: break-word !important;
+        padding: ${bubblePadding};
+        border-radius: 12px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+        font-size: ${bubbleTextSize}px;
+        line-height: 1.4;
+        word-break: break-word;
+        white-space: pre-wrap;
       }
 
-      /* Make sure nested tags don't add space */
-      .mact-msg-bubble * {
-        margin: 0;
-        padding: 0;
-        font-size: inherit;
-        line-height: inherit;
-      }
-
-      /* User bubble colours */
+      /* User bubble colors */
       .mact-msg-bubble-user {
         background: ${primaryColor};
         color: #ffffff;
       }
 
-      /* Bot bubble colours */
+      /* Bot bubble colors */
       .mact-msg-bubble-bot {
         background: #f1f5f9;
         color: #1e293b;
