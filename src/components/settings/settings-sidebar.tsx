@@ -16,6 +16,7 @@ import {
   History,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ADMIN_VERSION, WIDGET_VERSION } from "@/lib/version";
 
 interface SettingsNavItem {
   id: string;
@@ -76,17 +77,24 @@ export function SettingsSidebar() {
   };
 
   return (
-    <div className="w-56 border-r bg-white">
+    <div className="flex w-56 flex-col border-r bg-white">
       <div className="border-b p-4">
         <h2 className="text-lg font-semibold text-slate-900">Settings</h2>
       </div>
-      <ScrollArea className="h-[calc(100vh-130px)]">
+      <ScrollArea className="flex-1">
         <div className="p-2">
           {renderNavSection("CHANNELS")}
           {renderNavSection("PERSONAL")}
           {renderNavSection("GENERAL")}
         </div>
       </ScrollArea>
+      {/* Version Footer */}
+      <div className="border-t p-3">
+        <div className="text-xs text-slate-400">
+          <div>Admin v{ADMIN_VERSION}</div>
+          <div>Widget v{WIDGET_VERSION}</div>
+        </div>
+      </div>
     </div>
   );
 }
