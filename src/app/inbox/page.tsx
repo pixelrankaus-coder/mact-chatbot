@@ -20,7 +20,6 @@ import {
   Phone,
   Mail,
   MapPin,
-  StickyNote,
   Tag,
   Plus,
   Clock,
@@ -36,7 +35,6 @@ import {
   UserCheck,
   Bell,
   Monitor,
-  Globe,
   ExternalLink,
   Eye,
   Wifi,
@@ -859,9 +857,9 @@ export default function InboxPage() {
               </TabsList>
             </div>
 
-            <ScrollArea className="flex-1">
-              {/* Info Tab */}
-              <TabsContent value="info" className="m-0 p-4">
+            {/* Info Tab */}
+            <TabsContent value="info" className="m-0 flex-1 overflow-hidden">
+              <ScrollArea className="h-full p-4">
                 {/* Customer Data Section */}
                 <div className="mb-6">
                   <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
@@ -1008,10 +1006,12 @@ export default function InboxPage() {
                   <Clock className="h-4 w-4" />
                   See the history
                 </button>
-              </TabsContent>
+              </ScrollArea>
+            </TabsContent>
 
-              {/* Viewed Pages Tab */}
-              <TabsContent value="pages" className="m-0 p-4">
+            {/* Viewed Pages Tab */}
+            <TabsContent value="pages" className="m-0 flex-1 overflow-hidden">
+              <ScrollArea className="h-full p-4">
                 <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
                   Page History
                 </h3>
@@ -1036,10 +1036,12 @@ export default function InboxPage() {
                 ) : (
                   <p className="text-sm text-slate-500">No pages viewed yet</p>
                 )}
-              </TabsContent>
+              </ScrollArea>
+            </TabsContent>
 
-              {/* Notes Tab */}
-              <TabsContent value="notes" className="m-0 p-4">
+            {/* Notes Tab */}
+            <TabsContent value="notes" className="m-0 flex-1 overflow-hidden">
+              <ScrollArea className="h-full p-4">
                 <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
                   Internal Notes
                 </h3>
@@ -1066,8 +1068,8 @@ export default function InboxPage() {
                     "Save Notes"
                   )}
                 </Button>
-              </TabsContent>
-            </ScrollArea>
+              </ScrollArea>
+            </TabsContent>
           </Tabs>
         </div>
       )}
