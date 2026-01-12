@@ -2,7 +2,7 @@
   'use strict';
 
   // Widget version - increment on each release
-  const WIDGET_VERSION = '1.0.8';
+  const WIDGET_VERSION = '1.0.9';
 
   // Get script configuration
   const scriptTag = document.currentScript;
@@ -1251,6 +1251,11 @@
     window.addEventListener('resize', handleResize);
 
     console.log(`MACt Chat Widget v${WIDGET_VERSION} initialized (Shadow DOM mode)`);
+    console.log('MACt Settings:', {
+      textAlign: settings?.appearance?.bubbleTextAlign,
+      padding: settings?.appearance?.bubblePadding,
+      textSize: settings?.appearance?.bubbleTextSize
+    });
   }
 
   // Wait for DOM ready
