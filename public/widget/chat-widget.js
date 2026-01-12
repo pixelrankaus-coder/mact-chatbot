@@ -2,7 +2,7 @@
   'use strict';
 
   // Widget version - increment on each release
-  const WIDGET_VERSION = '1.0.7';
+  const WIDGET_VERSION = '1.0.8';
 
   // Get script configuration
   const scriptTag = document.currentScript;
@@ -331,6 +331,8 @@
 
     const primaryColor = settings?.appearance?.primaryColor || settings?.appearance?.actionColor || '#2563eb';
     const textSize = getBubbleTextSize();
+    const textAlign = getBubbleTextAlign();
+    const padding = getBubblePadding();
 
     messagesContainer.innerHTML = messages.map(msg => {
       // Support both old format (sender) and new format (sender_type)
@@ -374,7 +376,7 @@
               <path d="M12 8V4H8"/><rect x="8" y="8" width="8" height="12" rx="2"/><circle cx="10" cy="13" r="1"/><circle cx="14" cy="13" r="1"/>
             </svg>
           </div>` : ''}
-          <div class="mact-msg-bubble ${isUser ? 'mact-msg-bubble-user' : 'mact-msg-bubble-bot'}" style="display:inline-block;padding:4px 8px !important;margin:0;border-radius:10px;font-size:${textSize}px;line-height:1.35;box-sizing:border-box;${isUser ? `background:${primaryColor};color:#fff;` : 'background:#f1f5f9;color:#1e293b;'}${hasError ? 'opacity:0.6;' : ''}">
+          <div class="mact-msg-bubble ${isUser ? 'mact-msg-bubble-user' : 'mact-msg-bubble-bot'}" style="display:inline-block;padding:${padding} !important;margin:0;border-radius:10px;font-size:${textSize}px;line-height:1.35;text-align:${textAlign};box-sizing:border-box;${isUser ? `background:${primaryColor};color:#fff;` : 'background:#f1f5f9;color:#1e293b;'}${hasError ? 'opacity:0.6;' : ''}">
             ${msg.content}
             ${hasError ? '<div style="font-size: 10px; margin-top: 4px;">Failed to send</div>' : ''}
           </div>
@@ -545,6 +547,18 @@
     return sizes[size] || 14;
   }
 
+  // Get bubble text alignment
+  function getBubbleTextAlign() {
+    return settings?.appearance?.bubbleTextAlign || 'left';
+  }
+
+  // Get bubble padding
+  function getBubblePadding() {
+    const size = settings?.appearance?.bubblePadding || 'normal';
+    const paddings = { compact: '2px 6px', normal: '4px 8px', spacious: '6px 12px' };
+    return paddings[size] || '4px 8px';
+  }
+
   // Create widget styles - returns style element for shadow DOM
   function createStyles() {
     const primaryColor = settings?.appearance?.primaryColor || settings?.appearance?.actionColor || '#2563eb';
@@ -554,6 +568,8 @@
     const bubbleIconColor = settings?.appearance?.bubbleIconColor || '#ffffff';
     const chatWindowHeight = getChatWindowHeight();
     const bubbleTextSize = getBubbleTextSize();
+    const bubbleTextAlign = getBubbleTextAlign();
+    const bubblePadding = getBubblePadding();
     const deviceSettings = getDeviceSettings();
     const widgetPosition = deviceSettings.position || 'right';
 
@@ -757,7 +773,7 @@
       .mact-msg-bubble {
         display: inline-block !important;
         max-width: 80% !important;
-        padding: 4px 8px !important;
+        padding: ${bubblePadding} !important;
         margin: 0 !important;
         border-radius: 10px !important;
         border: none !important;
@@ -766,6 +782,7 @@
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif !important;
         font-size: ${bubbleTextSize}px !important;
         line-height: 1.35 !important;
+        text-align: ${bubbleTextAlign} !important;
 
         white-space: pre-wrap !important;
         word-break: break-word !important;

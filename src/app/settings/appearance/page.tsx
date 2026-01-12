@@ -97,6 +97,8 @@ export default function AppearancePage() {
 
   // Bubble text settings
   const [bubbleTextSize, setBubbleTextSize] = useState<"small" | "medium" | "large">("medium");
+  const [bubbleTextAlign, setBubbleTextAlign] = useState<"left" | "center" | "right">("left");
+  const [bubblePadding, setBubblePadding] = useState<"compact" | "normal" | "spacious">("normal");
 
   // Advanced settings
   const [showWhenOffline, setShowWhenOffline] = useState(true);
@@ -141,6 +143,8 @@ export default function AppearancePage() {
 
       // Bubble text settings
       setBubbleTextSize((settings.bubbleTextSize as "small" | "medium" | "large") || "medium");
+      setBubbleTextAlign((settings.bubbleTextAlign as "left" | "center" | "right") || "left");
+      setBubblePadding((settings.bubblePadding as "compact" | "normal" | "spacious") || "normal");
 
       // Advanced settings
       setShowWhenOffline(settings.showWhenOffline !== false);
@@ -181,6 +185,8 @@ export default function AppearancePage() {
         chatWindowHeight,
         // Bubble text settings
         bubbleTextSize,
+        bubbleTextAlign,
+        bubblePadding,
         // Advanced settings
         showWhenOffline,
         enableSounds,
@@ -731,20 +737,51 @@ export default function AppearancePage() {
                   </div>
                 </div>
 
-                {/* Bubble Text Size */}
+                {/* Bubble Text Size & Alignment */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="mb-2 block text-sm font-medium">Message text size</Label>
+                    <Select value={bubbleTextSize} onValueChange={(v) => setBubbleTextSize(v as "small" | "medium" | "large")}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="small">Small (12px)</SelectItem>
+                        <SelectItem value="medium">Medium (14px)</SelectItem>
+                        <SelectItem value="large">Large (16px)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label className="mb-2 block text-sm font-medium">Text alignment</Label>
+                    <Select value={bubbleTextAlign} onValueChange={(v) => setBubbleTextAlign(v as "left" | "center" | "right")}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="left">Left</SelectItem>
+                        <SelectItem value="center">Center</SelectItem>
+                        <SelectItem value="right">Right</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Bubble Padding */}
                 <div>
-                  <Label className="mb-2 block text-sm font-medium">Message text size</Label>
-                  <Select value={bubbleTextSize} onValueChange={(v) => setBubbleTextSize(v as "small" | "medium" | "large")}>
+                  <Label className="mb-2 block text-sm font-medium">Bubble padding</Label>
+                  <Select value={bubblePadding} onValueChange={(v) => setBubblePadding(v as "compact" | "normal" | "spacious")}>
                     <SelectTrigger className="w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="small">Small (12px)</SelectItem>
-                      <SelectItem value="medium">Medium (14px)</SelectItem>
-                      <SelectItem value="large">Large (16px)</SelectItem>
+                      <SelectItem value="compact">Compact (2px 6px)</SelectItem>
+                      <SelectItem value="normal">Normal (4px 8px)</SelectItem>
+                      <SelectItem value="spacious">Spacious (6px 12px)</SelectItem>
                     </SelectContent>
                   </Select>
-                  <p className="mt-1 text-xs text-slate-500">Controls the font size of chat message bubbles</p>
+                  <p className="mt-1 text-xs text-slate-500">Controls the spacing inside message bubbles</p>
                 </div>
 
                 {/* Bubble Icon Color */}
