@@ -535,10 +535,11 @@
     const styles = document.createElement('style');
     styles.id = 'mact-widget-styles';
     styles.textContent = `
-      /* Base reset - only box-sizing and font on container */
+      /* Base reset - keep it light */
       .mact-widget-container {
         box-sizing: border-box !important;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif !important;
+        font-size: 14px !important;
         letter-spacing: normal !important;
         text-transform: none !important;
         text-decoration: none !important;
@@ -548,7 +549,7 @@
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
       }
-      /* Descendants inherit box-sizing only - no global padding/margin/font-size reset */
+      /* Descendants inherit box-sizing and font-family */
       .mact-widget-container * {
         box-sizing: inherit;
         font-family: inherit;
@@ -725,16 +726,26 @@
         width: 11px !important;
         height: 11px !important;
       }
+      /* Chat bubble container */
       .mact-widget-container .mact-msg-bubble {
+        display: inline-block !important;
+        max-width: 88% !important;
         margin: 0 !important;
         padding: 6px 10px !important;
         border: none !important;
-        font-size: 13px !important;
-        line-height: 1.35 !important;
         word-wrap: break-word !important;
         overflow-wrap: break-word !important;
         white-space: pre-wrap !important;
-        max-width: 100% !important;
+      }
+      /* Tight typography INSIDE bubbles - kills theme p/div styles */
+      .mact-widget-container .mact-msg-bubble,
+      .mact-widget-container .mact-msg-bubble * {
+        font-size: 13px !important;
+        line-height: 1.35 !important;
+        margin: 0 !important;
+      }
+      .mact-widget-container .mact-msg-bubble * {
+        padding: 0 !important;
       }
       .mact-widget-container .mact-msg-bubble-bot {
         background: #f1f5f9 !important;
