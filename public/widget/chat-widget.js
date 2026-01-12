@@ -348,6 +348,24 @@
         `;
       }
 
+      // Inline styles to guarantee bubble sizing regardless of external CSS
+      const bubbleInlineStyle = `
+        display: inline-block;
+        padding: 8px 14px;
+        margin: 0;
+        border-radius: 18px;
+        font-size: 14px;
+        line-height: 1.4;
+        height: auto;
+        min-height: unset;
+        max-height: none;
+        box-sizing: border-box;
+        ${isUser
+          ? `background: ${primaryColor}; color: #fff;`
+          : 'background: #f1f5f9; color: #1e293b;'}
+        ${hasError ? 'opacity: 0.6;' : ''}
+      `.replace(/\s+/g, ' ').trim();
+
       return `
         <div class="mact-message ${isUser ? 'mact-message-user' : 'mact-message-bot'}">
           ${!isUser ? `<div class="mact-msg-avatar" style="background-color: ${primaryColor}20; color: ${primaryColor};">
@@ -355,7 +373,7 @@
               <path d="M12 8V4H8"/><rect x="8" y="8" width="8" height="12" rx="2"/><circle cx="10" cy="13" r="1"/><circle cx="14" cy="13" r="1"/>
             </svg>
           </div>` : ''}
-          <div class="mact-msg-bubble ${isUser ? 'mact-msg-bubble-user' : 'mact-msg-bubble-bot'}" ${hasError ? 'style="opacity: 0.6;"' : ''}>
+          <div class="mact-msg-bubble ${isUser ? 'mact-msg-bubble-user' : 'mact-msg-bubble-bot'}" style="${bubbleInlineStyle}">
             ${msg.content}
             ${hasError ? '<div style="font-size: 10px; margin-top: 4px;">Failed to send</div>' : ''}
           </div>
