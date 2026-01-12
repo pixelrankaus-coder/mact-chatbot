@@ -20,6 +20,8 @@
   let isMobile = window.innerWidth <= 768;
 
   // DOM elements
+  let shadowHost = null;
+  let shadowRoot = null;
   let container = null;
   let bubble = null;
   let chatWindow = null;
@@ -517,12 +519,11 @@
     return sizes[size] || 550;
   }
 
-  // Create widget styles
+  // Create widget styles - returns style element for shadow DOM
   function createStyles() {
     const primaryColor = settings?.appearance?.primaryColor || settings?.appearance?.actionColor || '#2563eb';
     const offsetX = settings?.appearance?.offsetX ?? 20;
     const offsetY = settings?.appearance?.offsetY ?? 80;
-    const zIndex = settings?.appearance?.zIndex ?? 999999;
     const bubbleSize = getBubbleSize();
     const bubbleIconColor = settings?.appearance?.bubbleIconColor || '#ffffff';
     const chatWindowHeight = getChatWindowHeight();
@@ -533,44 +534,37 @@
     const iconSize = Math.round(bubbleSize * 0.55);
 
     const styles = document.createElement('style');
-    styles.id = 'mact-widget-styles';
     styles.textContent = `
-      /* Base reset - keep it light */
+      /* Shadow DOM CSS - no !important needed, fully isolated */
+      :host {
+        all: initial;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
       .mact-widget-container {
-        box-sizing: border-box !important;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif !important;
-        font-size: 14px !important;
-        letter-spacing: normal !important;
-        text-transform: none !important;
-        text-decoration: none !important;
-        position: fixed;
-        z-index: ${zIndex};
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+        font-size: 14px;
+        line-height: 1.4;
+        letter-spacing: normal;
+        text-transform: none;
+        text-decoration: none;
         color: #1e293b;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
       }
-      /* Descendants inherit box-sizing and font-family */
-      .mact-widget-container * {
-        box-sizing: inherit;
-        font-family: inherit;
-      }
+
       .mact-widget-container.position-right {
-        bottom: ${offsetY}px;
-        right: ${offsetX}px;
+        /* Position set on host */
       }
       .mact-widget-container.position-left {
-        bottom: ${offsetY}px;
-        left: ${offsetX}px;
+        /* Position set on host */
       }
-      /* Legacy support */
-      .mact-widget-container.bottom-right {
-        bottom: ${offsetY}px;
-        right: ${offsetX}px;
-      }
-      .mact-widget-container.bottom-left {
-        bottom: ${offsetY}px;
-        left: ${offsetX}px;
-      }
+
       .mact-launcher {
         display: flex;
         align-items: center;
@@ -626,12 +620,10 @@
         opacity: 0;
         transform: scale(0.95);
       }
-      .mact-widget-container.position-right .mact-chat-window,
-      .mact-widget-container.bottom-right .mact-chat-window {
+      .mact-widget-container.position-right .mact-chat-window {
         right: 0;
       }
-      .mact-widget-container.position-left .mact-chat-window,
-      .mact-widget-container.bottom-left .mact-chat-window {
+      .mact-widget-container.position-left .mact-chat-window {
         left: 0;
       }
       .mact-header {
@@ -657,17 +649,18 @@
         justify-content: center;
       }
       .mact-header-text h3 {
-        font-size: 15px !important;
-        font-weight: 600 !important;
-        line-height: 1.3 !important;
-        color: white !important;
+        font-size: 15px;
+        font-weight: 600;
+        line-height: 1.3;
+        color: white;
+        margin: 0;
       }
       .mact-header-text p {
-        margin-top: 2px !important;
-        font-size: 11px !important;
-        opacity: 0.9 !important;
-        line-height: 1.3 !important;
-        color: white !important;
+        margin: 2px 0 0 0;
+        font-size: 11px;
+        opacity: 0.9;
+        line-height: 1.3;
+        color: white;
       }
       .mact-header-close {
         background: none;
@@ -688,80 +681,77 @@
         overflow: hidden;
       }
       .mact-messages {
-        flex: 1 !important;
-        overflow-y: auto !important;
-        padding: 10px !important;
-        display: flex !important;
-        flex-direction: column !important;
-        gap: 4px !important;
-        background: #ffffff !important;
+        flex: 1;
+        overflow-y: auto;
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        background: #ffffff;
       }
+
       /* Chat message rows */
-      .mact-widget-container .mact-message {
-        display: flex !important;
-        margin: 2px 0 !important;
-        padding: 0 !important;
-        gap: 6px !important;
-        max-width: 85% !important;
-        min-width: 40px !important;
+      .mact-message {
+        display: flex;
+        margin: 2px 0;
+        gap: 6px;
+        max-width: 85%;
+        min-width: 40px;
       }
-      .mact-widget-container .mact-message-user {
-        align-self: flex-end !important;
-        flex-direction: row-reverse !important;
-        justify-content: flex-end !important;
+      .mact-message-user {
+        align-self: flex-end;
+        flex-direction: row-reverse;
+        justify-content: flex-end;
       }
-      .mact-widget-container .mact-message-bot {
-        align-self: flex-start !important;
-        justify-content: flex-start !important;
+      .mact-message-bot {
+        align-self: flex-start;
+        justify-content: flex-start;
       }
-      .mact-widget-container .mact-msg-avatar {
-        width: 20px !important;
-        height: 20px !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        border-radius: 50% !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        flex-shrink: 0 !important;
+      .mact-msg-avatar {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
       }
-      .mact-widget-container .mact-msg-avatar svg {
-        width: 10px !important;
-        height: 10px !important;
+      .mact-msg-avatar svg {
+        width: 10px;
+        height: 10px;
       }
+
       /* Chat bubbles - compact style */
-      .mact-widget-container .mact-msg-bubble {
-        display: inline-block !important;
-        max-width: 80% !important;
-        padding: 4px 8px !important;
-        border-radius: 6px !important;
-        border: none !important;
-        word-wrap: break-word !important;
-        overflow-wrap: break-word !important;
-        white-space: pre-wrap !important;
+      .mact-msg-bubble {
+        display: inline-block;
+        max-width: 80%;
+        padding: 6px 10px;
+        border-radius: 6px;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        white-space: pre-wrap;
+        font-size: 13px;
+        line-height: 1.35;
       }
-      /* Typography inside bubbles - tighter */
-      .mact-widget-container .mact-msg-bubble,
-      .mact-widget-container .mact-msg-bubble * {
-        font-size: 12px !important;
-        line-height: 1.2 !important;
-        margin: 0 !important;
-        padding: 0 !important;
+      .mact-msg-bubble p,
+      .mact-msg-bubble div,
+      .mact-msg-bubble span {
+        margin: 0;
+        padding: 0;
+        font-size: inherit;
+        line-height: inherit;
       }
-      /* Restore bubble padding after * reset */
-      .mact-widget-container .mact-msg-bubble {
-        padding: 4px 8px !important;
+      .mact-msg-bubble-bot {
+        background: #f1f5f9;
+        color: #1e293b;
+        border-radius: 6px 6px 6px 2px;
       }
-      .mact-widget-container .mact-msg-bubble-bot {
-        background: #f1f5f9 !important;
-        color: #1e293b !important;
-        border-radius: 6px 6px 6px 2px !important;
+      .mact-msg-bubble-user {
+        background: ${primaryColor};
+        color: white;
+        border-radius: 6px 6px 2px 6px;
       }
-      .mact-widget-container .mact-msg-bubble-user {
-        background: ${primaryColor} !important;
-        color: white !important;
-        border-radius: 6px 6px 2px 6px !important;
-      }
+
       .mact-typing {
         display: flex;
         gap: 6px;
@@ -786,17 +776,36 @@
         0%, 80%, 100% { transform: translateY(0); }
         40% { transform: translateY(-6px); }
       }
+
+      .mact-input-area {
+        padding: 10px 12px;
+        border-top: 1px solid #e2e8f0;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        background: white;
+      }
+      .mact-input-row {
+        display: flex;
+        gap: 6px;
+      }
       .mact-input {
         flex: 1;
         border: 1px solid #e2e8f0;
         border-radius: 20px;
         padding: 8px 14px;
         font-size: 14px;
+        font-family: inherit;
         outline: none;
         transition: border-color 0.2s;
+        background: white;
+        color: #1e293b;
       }
       .mact-input:focus {
         border-color: ${primaryColor};
+      }
+      .mact-input::placeholder {
+        color: #94a3b8;
       }
       .mact-send {
         width: 36px;
@@ -814,6 +823,7 @@
       .mact-send:hover {
         opacity: 0.9;
       }
+
       .mact-footer {
         padding: 8px;
         text-align: center;
@@ -828,6 +838,7 @@
       .mact-footer a:hover {
         text-decoration: underline;
       }
+
       .mact-loading {
         flex: 1;
         display: flex;
@@ -848,19 +859,7 @@
       @keyframes mact-spin {
         to { transform: rotate(360deg); }
       }
-      /* Input row with human link */
-      .mact-input-area {
-        padding: 10px 12px;
-        border-top: 1px solid #e2e8f0;
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-        background: white;
-      }
-      .mact-input-row {
-        display: flex;
-        gap: 6px;
-      }
+
       .mact-human-link {
         display: flex;
         align-items: center;
@@ -870,6 +869,7 @@
         border: none;
         color: #64748b;
         font-size: 12px;
+        font-family: inherit;
         cursor: pointer;
         padding: 4px 8px;
         transition: color 0.2s;
@@ -880,6 +880,7 @@
       .mact-human-link svg {
         opacity: 0.7;
       }
+
       /* System messages */
       .mact-message-system {
         align-self: center;
@@ -901,6 +902,7 @@
         flex-shrink: 0;
         margin-top: 2px;
       }
+
       /* Handoff form overlay */
       .mact-handoff-overlay {
         position: absolute;
@@ -941,8 +943,9 @@
         margin-bottom: 12px;
         outline: none;
         transition: border-color 0.2s;
-        box-sizing: border-box;
         font-family: inherit;
+        background: white;
+        color: #1e293b;
       }
       .mact-handoff-form input:focus,
       .mact-handoff-form textarea:focus {
@@ -963,6 +966,7 @@
         background: white;
         border-radius: 8px;
         font-size: 14px;
+        font-family: inherit;
         cursor: pointer;
         transition: background 0.2s;
       }
@@ -977,6 +981,7 @@
         border-radius: 8px;
         font-size: 14px;
         font-weight: 500;
+        font-family: inherit;
         cursor: pointer;
         transition: opacity 0.2s;
       }
@@ -987,6 +992,7 @@
         opacity: 0.7;
         cursor: not-allowed;
       }
+
       @media (max-width: 768px) {
         .mact-chat-window {
           width: calc(100vw - 32px);
@@ -997,32 +1003,19 @@
         .mact-launcher-text {
           display: none;
         }
-        .mact-widget-container.bottom-right,
-        .mact-widget-container.bottom-left,
-        .mact-widget-container.position-right,
-        .mact-widget-container.position-left {
-          right: 16px;
-          left: auto;
-        }
-        .mact-widget-container.position-left,
-        .mact-widget-container.bottom-left {
-          left: 16px;
-          right: auto;
-        }
-        .mact-widget-container .mact-chat-window {
-          right: 0;
-          left: 0;
-        }
       }
     `;
-    document.head.appendChild(styles);
+    return styles;
   }
 
-  // Create widget DOM
+  // Create widget DOM with Shadow DOM for CSS isolation
   function createWidget() {
     const deviceSettings = getDeviceSettings();
     const primaryColor = settings?.appearance?.primaryColor || settings?.appearance?.actionColor || '#2563eb';
     const companyName = settings?.appearance?.companyName || settings?.aiAgent?.name || 'Support';
+    const offsetX = settings?.appearance?.offsetX ?? 20;
+    const offsetY = settings?.appearance?.offsetY ?? 80;
+    const zIndex = settings?.appearance?.zIndex ?? 999999;
 
     // Check if widget should be displayed on this device
     if (!deviceSettings.display) {
@@ -1030,11 +1023,30 @@
       return;
     }
 
-    // Determine position class - prefer new format, fall back to legacy
+    // Determine position - prefer new format, fall back to legacy
     const widgetPosition = deviceSettings.position || 'right';
     const positionClass = `position-${widgetPosition}`;
 
-    // Container
+    // Create shadow host (this is the only element in the light DOM)
+    shadowHost = document.createElement('div');
+    shadowHost.id = 'mact-chat-widget-host';
+    // Position the host element - this stays in light DOM but uses inline styles
+    shadowHost.style.cssText = `
+      position: fixed;
+      ${widgetPosition === 'left' ? 'left' : 'right'}: ${offsetX}px;
+      bottom: ${offsetY}px;
+      z-index: ${zIndex};
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    `;
+
+    // Attach shadow root
+    shadowRoot = shadowHost.attachShadow({ mode: 'open' });
+
+    // Add styles to shadow root
+    const styles = createStyles();
+    shadowRoot.appendChild(styles);
+
+    // Container (inside shadow DOM)
     container = document.createElement('div');
     container.className = `mact-widget-container ${positionClass}`;
     container.id = 'mact-chat-widget';
@@ -1132,10 +1144,13 @@
       }
     });
 
-    // Assemble and append
+    // Assemble inside shadow DOM
     container.appendChild(chatWindow);
     container.appendChild(launcher);
-    document.body.appendChild(container);
+    shadowRoot.appendChild(container);
+
+    // Append shadow host to document body
+    document.body.appendChild(shadowHost);
   }
 
   // Handle viewport resize
@@ -1144,14 +1159,28 @@
     isMobile = window.innerWidth <= 768;
 
     // If device type changed, we may need to update visibility
-    if (wasIsMobile !== isMobile && container) {
+    if (wasIsMobile !== isMobile && shadowHost) {
       const deviceSettings = getDeviceSettings();
+      const offsetX = settings?.appearance?.offsetX ?? 20;
+      const offsetY = settings?.appearance?.offsetY ?? 80;
+      const zIndex = settings?.appearance?.zIndex ?? 999999;
+      const widgetPosition = deviceSettings.position || 'right';
+
       if (!deviceSettings.display) {
-        container.style.display = 'none';
+        shadowHost.style.display = 'none';
       } else {
-        container.style.display = 'block';
-        // Update position class
-        container.className = `mact-widget-container position-${deviceSettings.position || 'right'}`;
+        // Update host position
+        shadowHost.style.cssText = `
+          position: fixed;
+          ${widgetPosition === 'left' ? 'left' : 'right'}: ${offsetX}px;
+          bottom: ${offsetY}px;
+          z-index: ${zIndex};
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        `;
+        // Update container position class
+        if (container) {
+          container.className = `mact-widget-container position-${widgetPosition}`;
+        }
       }
     }
   }
@@ -1160,13 +1189,12 @@
   async function init() {
     visitorId = getVisitorId();
     await fetchSettings();
-    createStyles();
-    createWidget();
+    createWidget(); // createStyles() is called inside createWidget() now
 
     // Listen for viewport changes
     window.addEventListener('resize', handleResize);
 
-    console.log('MACt Chat Widget initialized');
+    console.log('MACt Chat Widget initialized (Shadow DOM mode)');
   }
 
   // Wait for DOM ready
