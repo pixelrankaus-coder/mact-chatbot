@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+// Using simple state-based tabs instead of Radix Tabs to avoid context issues
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import {
@@ -67,6 +67,7 @@ export default function InboxPage() {
   const [savingNote, setSavingNote] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
   const [generatingAI, setGeneratingAI] = useState(false);
+  const [sidebarTab, setSidebarTab] = useState<"info" | "pages" | "notes">("info");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Get selected conversation
@@ -500,22 +501,21 @@ export default function InboxPage() {
 
         {/* Filter Tabs */}
         <div className="border-b px-2 py-2">
-          <Tabs value={activeFilter} onValueChange={(v) => setActiveFilter(v as FilterTab)}>
-            <TabsList className="grid w-full grid-cols-4 bg-slate-100">
-              <TabsTrigger value="all" className="text-xs">
-                All
-              </TabsTrigger>
-              <TabsTrigger value="pending" className="text-xs">
-                Unassigned
-              </TabsTrigger>
-              <TabsTrigger value="active" className="text-xs">
-                Active
-              </TabsTrigger>
-              <TabsTrigger value="resolved" className="text-xs">
-                Resolved
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <div className="grid w-full grid-cols-4 bg-slate-100 rounded-lg p-1">
+            {(["all", "pending", "active", "resolved"] as const).map((filter) => (
+              <button
+                key={filter}
+                onClick={() => setActiveFilter(filter)}
+                className={`text-xs py-1.5 px-2 rounded-md font-medium transition-colors ${
+                  activeFilter === filter
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                {filter === "all" ? "All" : filter === "pending" ? "Unassigned" : filter === "active" ? "Active" : "Resolved"}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Conversation List */}
@@ -841,25 +841,45 @@ export default function InboxPage() {
       {/* RIGHT: Customer Details Panel */}
       {selectedConversation && (
         <div className="flex w-80 flex-col border-l bg-white">
-          {/* Tabs Header */}
-          <Tabs defaultValue="info" className="flex flex-1 flex-col">
-            <div className="border-b px-4">
-              <TabsList className="w-full justify-start gap-4 bg-transparent h-12">
-                <TabsTrigger value="info" className="px-0 pb-3 data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none">
-                  Info
-                </TabsTrigger>
-                <TabsTrigger value="pages" className="px-0 pb-3 data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none">
-                  Viewed pages
-                </TabsTrigger>
-                <TabsTrigger value="notes" className="px-0 pb-3 data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none">
-                  Notes
-                </TabsTrigger>
-              </TabsList>
-            </div>
+          {/* Simple Tab Buttons */}
+          <div className="flex border-b px-4 h-12">
+            <button
+              onClick={() => setSidebarTab("info")}
+              className={`px-3 pb-3 pt-3 text-sm font-medium ${
+                sidebarTab === "info"
+                  ? "border-b-2 border-blue-600 text-blue-600"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              Info
+            </button>
+            <button
+              onClick={() => setSidebarTab("pages")}
+              className={`px-3 pb-3 pt-3 text-sm font-medium ${
+                sidebarTab === "pages"
+                  ? "border-b-2 border-blue-600 text-blue-600"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              Viewed pages
+            </button>
+            <button
+              onClick={() => setSidebarTab("notes")}
+              className={`px-3 pb-3 pt-3 text-sm font-medium ${
+                sidebarTab === "notes"
+                  ? "border-b-2 border-blue-600 text-blue-600"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              Notes
+            </button>
+          </div>
 
+          {/* Tab Content */}
+          <div className="flex-1 overflow-auto p-4">
             {/* Info Tab */}
-            <TabsContent value="info" className="m-0 flex-1 overflow-hidden">
-              <ScrollArea className="h-full p-4">
+            {sidebarTab === "info" && (
+              <div>
                 {/* Customer Data Section */}
                 <div className="mb-6">
                   <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
@@ -889,18 +909,13 @@ export default function InboxPage() {
                           {getVisitorInfo(selectedConversation).location || selectedConversation.visitor_location || "Unknown"}
                         </span>
                       </div>
-                      {getVisitorInfo(selectedConversation).location && (
-                        <Badge variant="outline" className="flex-shrink-0 text-xs text-green-600 border-green-200 bg-green-50">
-                          <span className="mr-1">&#127757;</span>
-                        </Badge>
-                      )}
                     </div>
 
                     {/* Phone */}
                     <div className="flex items-start gap-3">
                       <Phone className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-400" />
                       <span className="text-sm text-slate-500">
-                        {selectedConversation.visitor_phone || "Phone..."}
+                        {selectedConversation.visitor_phone || "Not provided"}
                       </span>
                     </div>
 
@@ -912,9 +927,6 @@ export default function InboxPage() {
                           {getVisitorInfo(selectedConversation).browser || "Unknown"}, {getVisitorInfo(selectedConversation).os || "Unknown"}
                         </span>
                       </div>
-                      <Badge variant="outline" className="flex-shrink-0 text-xs text-green-600 border-green-200 bg-green-50">
-                        <span className="mr-1">&#127760;</span>
-                      </Badge>
                     </div>
 
                     {/* IP Address */}
@@ -923,9 +935,6 @@ export default function InboxPage() {
                       <span className="text-sm text-slate-900">
                         {getVisitorInfo(selectedConversation).ip || "Unknown"}
                       </span>
-                      <Badge variant="outline" className="flex-shrink-0 text-xs text-green-600 border-green-200 bg-green-50">
-                        <span className="mr-1">&#127760;</span>
-                      </Badge>
                     </div>
                   </div>
                 </div>
@@ -936,7 +945,7 @@ export default function InboxPage() {
                 <div className="mb-6">
                   <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
                     <Tag className="h-3 w-3" />
-                    Add a customer tag...
+                    Tags
                   </h3>
                   <div className="flex flex-wrap gap-2">
                     {getTags(selectedConversation).map((tag) => (
@@ -979,39 +988,34 @@ export default function InboxPage() {
                   </h3>
                   {getVisitorInfo(selectedConversation).currentPage ? (
                     <div className="rounded-lg border bg-slate-50 p-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs text-slate-500">
-                            {formatPageViewTime(getVisitorInfo(selectedConversation).pagesViewed?.slice(-1)[0]?.visitedAt || new Date().toISOString())}
-                          </p>
-                          <a
-                            href={getVisitorInfo(selectedConversation).currentPage}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="mt-1 flex items-center gap-1 text-sm text-blue-600 hover:underline"
-                          >
-                            <span className="truncate">{formatPageUrl(getVisitorInfo(selectedConversation).currentPage || "")}</span>
-                            <ExternalLink className="h-3 w-3 flex-shrink-0" />
-                          </a>
-                        </div>
-                      </div>
+                      <a
+                        href={getVisitorInfo(selectedConversation).currentPage}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-sm text-blue-600 hover:underline"
+                      >
+                        <span className="truncate">{formatPageUrl(getVisitorInfo(selectedConversation).currentPage || "")}</span>
+                        <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                      </a>
                     </div>
                   ) : (
                     <p className="text-sm text-slate-500">No page data available</p>
                   )}
                 </div>
 
-                {/* See History Link */}
-                <button className="flex items-center gap-1 text-sm text-blue-600 hover:underline">
+                <button
+                  onClick={() => setSidebarTab("pages")}
+                  className="flex items-center gap-1 text-sm text-blue-600 hover:underline"
+                >
                   <Clock className="h-4 w-4" />
-                  See the history
+                  See page history
                 </button>
-              </ScrollArea>
-            </TabsContent>
+              </div>
+            )}
 
             {/* Viewed Pages Tab */}
-            <TabsContent value="pages" className="m-0 flex-1 overflow-hidden">
-              <ScrollArea className="h-full p-4">
+            {sidebarTab === "pages" && (
+              <div>
                 <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
                   Page History
                 </h3>
@@ -1036,12 +1040,12 @@ export default function InboxPage() {
                 ) : (
                   <p className="text-sm text-slate-500">No pages viewed yet</p>
                 )}
-              </ScrollArea>
-            </TabsContent>
+              </div>
+            )}
 
             {/* Notes Tab */}
-            <TabsContent value="notes" className="m-0 flex-1 overflow-hidden">
-              <ScrollArea className="h-full p-4">
+            {sidebarTab === "notes" && (
+              <div>
                 <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
                   Internal Notes
                 </h3>
@@ -1068,9 +1072,9 @@ export default function InboxPage() {
                     "Save Notes"
                   )}
                 </Button>
-              </ScrollArea>
-            </TabsContent>
-          </Tabs>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
