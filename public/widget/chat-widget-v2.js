@@ -451,8 +451,79 @@
     }
 
     showHandoffForm() {
-      // TODO: Implement handoff form
-      alert('Handoff feature coming soon!');
+      const content = this.shadowRoot.querySelector('.mact-messages');
+      if (!content) return;
+
+      // Create overlay
+      const overlay = document.createElement('div');
+      overlay.className = 'mact-handoff-overlay';
+      overlay.innerHTML = `
+        <div class="mact-handoff-form">
+          <h4>Talk to a Human</h4>
+          <p>Leave your details and we'll get back to you shortly.</p>
+          <input type="text" class="mact-handoff-name" placeholder="Your name" />
+          <input type="email" class="mact-handoff-email" placeholder="Your email" />
+          <textarea class="mact-handoff-message" placeholder="How can we help? (optional)" rows="3"></textarea>
+          <div class="mact-handoff-buttons">
+            <button class="mact-handoff-cancel">Cancel</button>
+            <button class="mact-handoff-submit">Connect Me</button>
+          </div>
+        </div>
+      `;
+
+      content.parentElement.appendChild(overlay);
+
+      // Event listeners
+      overlay.querySelector('.mact-handoff-cancel').addEventListener('click', () => overlay.remove());
+      overlay.querySelector('.mact-handoff-submit').addEventListener('click', async () => {
+        const name = overlay.querySelector('.mact-handoff-name').value;
+        const email = overlay.querySelector('.mact-handoff-email').value;
+        const message = overlay.querySelector('.mact-handoff-message').value;
+
+        if (!email) {
+          alert('Please enter your email address');
+          return;
+        }
+
+        const btn = overlay.querySelector('.mact-handoff-submit');
+        btn.textContent = 'Connecting...';
+        btn.disabled = true;
+
+        await this.requestHandoff(name, email, message);
+        overlay.remove();
+      });
+    }
+
+    async requestHandoff(name, email, message) {
+      if (!this.conversation) return;
+
+      try {
+        const response = await fetch(`${apiBase}/api/widget/conversations/${this.conversation.id}/handoff`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            visitorName: name,
+            visitorEmail: email,
+            message: message,
+            reason: 'user_requested',
+          }),
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          this.messages.push({
+            id: 'handoff_' + Date.now(),
+            sender_type: 'system',
+            content: data.message || 'Your request has been submitted. An agent will be with you shortly.',
+            created_at: new Date().toISOString(),
+          });
+          this.renderMessages();
+          this.scrollToBottom();
+        }
+      } catch (error) {
+        console.error('MACt Widget: Handoff request failed', error);
+      }
     }
 
     // ============================================================
