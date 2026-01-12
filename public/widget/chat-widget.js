@@ -348,17 +348,14 @@
         `;
       }
 
-      // Inline styles to guarantee bubble sizing regardless of external CSS
+      // Inline styles - compact WhatsApp/Telegram style bubbles
       const bubbleInlineStyle = `
         display: inline-block;
-        padding: 8px 14px;
+        padding: 6px 10px;
         margin: 0;
-        border-radius: 18px;
+        border-radius: 12px;
         font-size: 14px;
-        line-height: 1.4;
-        height: auto;
-        min-height: unset;
-        max-height: none;
+        line-height: 1.3;
         box-sizing: border-box;
         ${isUser
           ? `background: ${primaryColor}; color: #fff;`
@@ -744,26 +741,22 @@
         height: 14px;
       }
 
-      /* Actual bubble */
+      /* Actual bubble - compact WhatsApp/Telegram style */
       .mact-msg-bubble {
         display: inline-block;
         max-width: 80%;
-        padding: 6px 12px;
+        padding: 6px 10px;
         margin: 0;
-        border-radius: 16px;
+        border-radius: 12px;
         border: none;
         box-sizing: border-box;
 
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
         font-size: 14px;
-        line-height: 1.2;
+        line-height: 1.3;
 
         white-space: pre-wrap;
         word-break: break-word;
-
-        height: auto !important;
-        min-height: 0 !important;
-        max-height: none !important;
       }
 
       /* Make sure nested tags don't add space */
