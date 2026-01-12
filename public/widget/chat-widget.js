@@ -351,11 +351,11 @@
       // Inline styles - compact WhatsApp/Telegram style bubbles
       const bubbleInlineStyle = `
         display: inline-block;
-        padding: 6px 10px;
+        padding: 3px 7px;
         margin: 0;
-        border-radius: 12px;
-        font-size: 14px;
-        line-height: 1.3;
+        border-radius: 10px;
+        font-size: 12px;
+        line-height: 1.15;
         box-sizing: border-box;
         ${isUser
           ? `background: ${primaryColor}; color: #fff;`
@@ -745,15 +745,15 @@
       .mact-msg-bubble {
         display: inline-block;
         max-width: 80%;
-        padding: 6px 10px;
+        padding: 3px 7px;
         margin: 0;
-        border-radius: 12px;
+        border-radius: 10px;
         border: none;
         box-sizing: border-box;
 
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
-        font-size: 14px;
-        line-height: 1.3;
+        font-size: 12px;
+        line-height: 1.15;
 
         white-space: pre-wrap;
         word-break: break-word;
