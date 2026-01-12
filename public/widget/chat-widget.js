@@ -2,7 +2,7 @@
   'use strict';
 
   // Widget version - increment on each release
-  const WIDGET_VERSION = '1.0.4';
+  const WIDGET_VERSION = '1.0.5';
 
   // Get script configuration
   const scriptTag = document.currentScript;
@@ -354,11 +354,11 @@
       // Inline styles - WhatsApp-style tight bubbles
       const bubbleInlineStyle = `
         display: inline-block;
-        padding: 6px 12px;
+        padding: 4px 8px;
         margin: 0;
-        border-radius: 18px;
-        font-size: 14px;
-        line-height: 1.4;
+        border-radius: 10px;
+        font-size: 13px;
+        line-height: 1.25;
         box-sizing: border-box;
         ${isUser
           ? `background: ${primaryColor}; color: #fff;`
@@ -748,15 +748,15 @@
       .mact-msg-bubble {
         display: inline-block !important;
         max-width: 80% !important;
-        padding: 6px 12px !important;
+        padding: 4px 8px !important;
         margin: 0 !important;
-        border-radius: 18px !important;
+        border-radius: 10px !important;
         border: none !important;
         box-sizing: border-box !important;
 
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif !important;
-        font-size: 14px !important;
-        line-height: 1.4 !important;
+        font-size: 13px !important;
+        line-height: 1.25 !important;
 
         white-space: pre-wrap !important;
         word-break: break-word !important;
