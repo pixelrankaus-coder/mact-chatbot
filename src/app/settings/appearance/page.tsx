@@ -95,6 +95,9 @@ export default function AppearancePage() {
   // Chat window settings
   const [chatWindowHeight, setChatWindowHeight] = useState<"small" | "medium" | "large">("medium");
 
+  // Bubble text settings
+  const [bubbleTextSize, setBubbleTextSize] = useState<"small" | "medium" | "large">("medium");
+
   // Advanced settings
   const [showWhenOffline, setShowWhenOffline] = useState(true);
   const [enableSounds, setEnableSounds] = useState(false);
@@ -136,6 +139,9 @@ export default function AppearancePage() {
       // Chat window settings
       setChatWindowHeight((settings.chatWindowHeight as "small" | "medium" | "large") || "medium");
 
+      // Bubble text settings
+      setBubbleTextSize((settings.bubbleTextSize as "small" | "medium" | "large") || "medium");
+
       // Advanced settings
       setShowWhenOffline(settings.showWhenOffline !== false);
       setEnableSounds(settings.enableSounds === true);
@@ -173,6 +179,8 @@ export default function AppearancePage() {
         showBubbleText,
         // Chat window settings
         chatWindowHeight,
+        // Bubble text settings
+        bubbleTextSize,
         // Advanced settings
         showWhenOffline,
         enableSounds,
@@ -691,7 +699,7 @@ export default function AppearancePage() {
             <div className="rounded-lg border bg-white p-4">
               <h3 className="mb-4 font-semibold text-slate-900">Bubble & Chat Window</h3>
               <div className="space-y-4">
-                {/* Bubble Size */}
+                {/* Bubble Size & Chat Window Height */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="mb-2 block text-sm font-medium">Bubble size</Label>
@@ -721,6 +729,22 @@ export default function AppearancePage() {
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
+
+                {/* Bubble Text Size */}
+                <div>
+                  <Label className="mb-2 block text-sm font-medium">Message text size</Label>
+                  <Select value={bubbleTextSize} onValueChange={(v) => setBubbleTextSize(v as "small" | "medium" | "large")}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="small">Small (12px)</SelectItem>
+                      <SelectItem value="medium">Medium (14px)</SelectItem>
+                      <SelectItem value="large">Large (16px)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="mt-1 text-xs text-slate-500">Controls the font size of chat message bubbles</p>
                 </div>
 
                 {/* Bubble Icon Color */}

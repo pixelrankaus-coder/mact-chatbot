@@ -2,7 +2,7 @@
   'use strict';
 
   // Widget version - increment on each release
-  const WIDGET_VERSION = '1.0.6';
+  const WIDGET_VERSION = '1.0.7';
 
   // Get script configuration
   const scriptTag = document.currentScript;
@@ -330,6 +330,7 @@
     if (!messagesContainer) return;
 
     const primaryColor = settings?.appearance?.primaryColor || settings?.appearance?.actionColor || '#2563eb';
+    const textSize = getBubbleTextSize();
 
     messagesContainer.innerHTML = messages.map(msg => {
       // Support both old format (sender) and new format (sender_type)
@@ -373,7 +374,7 @@
               <path d="M12 8V4H8"/><rect x="8" y="8" width="8" height="12" rx="2"/><circle cx="10" cy="13" r="1"/><circle cx="14" cy="13" r="1"/>
             </svg>
           </div>` : ''}
-          <div class="mact-msg-bubble ${isUser ? 'mact-msg-bubble-user' : 'mact-msg-bubble-bot'}" style="display:inline-block;padding:4px 8px !important;margin:0;border-radius:10px;font-size:13px;line-height:1.25;box-sizing:border-box;${isUser ? `background:${primaryColor};color:#fff;` : 'background:#f1f5f9;color:#1e293b;'}${hasError ? 'opacity:0.6;' : ''}">
+          <div class="mact-msg-bubble ${isUser ? 'mact-msg-bubble-user' : 'mact-msg-bubble-bot'}" style="display:inline-block;padding:4px 8px !important;margin:0;border-radius:10px;font-size:${textSize}px;line-height:1.35;box-sizing:border-box;${isUser ? `background:${primaryColor};color:#fff;` : 'background:#f1f5f9;color:#1e293b;'}${hasError ? 'opacity:0.6;' : ''}">
             ${msg.content}
             ${hasError ? '<div style="font-size: 10px; margin-top: 4px;">Failed to send</div>' : ''}
           </div>
@@ -537,6 +538,13 @@
     return sizes[size] || 550;
   }
 
+  // Get bubble text size in pixels
+  function getBubbleTextSize() {
+    const size = settings?.appearance?.bubbleTextSize || 'medium';
+    const sizes = { small: 12, medium: 14, large: 16 };
+    return sizes[size] || 14;
+  }
+
   // Create widget styles - returns style element for shadow DOM
   function createStyles() {
     const primaryColor = settings?.appearance?.primaryColor || settings?.appearance?.actionColor || '#2563eb';
@@ -545,6 +553,7 @@
     const bubbleSize = getBubbleSize();
     const bubbleIconColor = settings?.appearance?.bubbleIconColor || '#ffffff';
     const chatWindowHeight = getChatWindowHeight();
+    const bubbleTextSize = getBubbleTextSize();
     const deviceSettings = getDeviceSettings();
     const widgetPosition = deviceSettings.position || 'right';
 
@@ -755,8 +764,8 @@
         box-sizing: border-box !important;
 
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif !important;
-        font-size: 13px !important;
-        line-height: 1.25 !important;
+        font-size: ${bubbleTextSize}px !important;
+        line-height: 1.35 !important;
 
         white-space: pre-wrap !important;
         word-break: break-word !important;

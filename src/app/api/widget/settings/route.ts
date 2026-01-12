@@ -65,6 +65,8 @@ export async function GET() {
       showBubbleText: false,
       // Chat window settings
       chatWindowHeight: "medium", // small: 450px, medium: 550px, large: 650px
+      // Bubble text settings
+      bubbleTextSize: "medium", // small: 12px, medium: 14px, large: 16px
       // Advanced
       showWhenOffline: true,
       enableSounds: false,
