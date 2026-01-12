@@ -690,23 +690,27 @@
         background: #ffffff;
       }
 
-      /* Chat message rows */
+      /* =======================================================
+         MACt chat messages – clean, compact bubble layout
+         ======================================================= */
+
+      /* Message row wrapper */
       .mact-message {
         display: flex;
-        margin: 2px 0;
-        gap: 6px;
-        max-width: 85%;
-        min-width: 40px;
+        align-items: flex-end;
+        margin: 4px 0;
       }
+
+      /* Align by sender */
       .mact-message-user {
-        align-self: flex-end;
-        flex-direction: row-reverse;
         justify-content: flex-end;
       }
+
       .mact-message-bot {
-        align-self: flex-start;
         justify-content: flex-start;
       }
+
+      /* Avatar */
       .mact-msg-avatar {
         width: 20px;
         height: 20px;
@@ -715,41 +719,52 @@
         align-items: center;
         justify-content: center;
         flex-shrink: 0;
+        margin-right: 6px;
       }
       .mact-msg-avatar svg {
         width: 10px;
         height: 10px;
       }
 
-      /* Chat bubbles - compact style */
+      /* Actual bubble */
       .mact-msg-bubble {
         display: inline-block;
         max-width: 80%;
-        padding: 6px 10px;
-        border-radius: 6px;
-        word-wrap: break-word;
-        overflow-wrap: break-word;
-        white-space: pre-wrap;
+        padding: 4px 8px;
+        margin: 0;
+        border-radius: 14px;
+        border: none;
+        box-sizing: border-box;
+
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
         font-size: 13px;
-        line-height: 1.35;
+        line-height: 1.3;
+
+        white-space: pre-wrap;
+        word-break: break-word;
+
+        height: auto;
+        min-height: 0;
       }
-      .mact-msg-bubble p,
-      .mact-msg-bubble div,
-      .mact-msg-bubble span {
+
+      /* Make sure nested tags don't add space */
+      .mact-msg-bubble * {
         margin: 0;
         padding: 0;
         font-size: inherit;
         line-height: inherit;
       }
+
+      /* User bubble colours */
+      .mact-msg-bubble-user {
+        background: ${primaryColor};
+        color: #ffffff;
+      }
+
+      /* Bot bubble colours */
       .mact-msg-bubble-bot {
         background: #f1f5f9;
         color: #1e293b;
-        border-radius: 6px 6px 6px 2px;
-      }
-      .mact-msg-bubble-user {
-        background: ${primaryColor};
-        color: white;
-        border-radius: 6px 6px 2px 6px;
       }
 
       .mact-typing {
