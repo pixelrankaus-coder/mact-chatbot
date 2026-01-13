@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@supabase/supabase-js";
 import { generateAIResponse } from "@/lib/ai";
 import {
   detectOrderIntent,
@@ -8,6 +8,13 @@ import {
   formatOrderForChat,
   formatOrdersListForChat,
 } from "@/lib/woocommerce";
+
+// Create supabase client at runtime for server-side usage
+function getSupabase() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  return createClient(supabaseUrl, supabaseKey);
+}
 
 // CORS headers for widget
 const corsHeaders = {
@@ -21,6 +28,8 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const supabase = getSupabase();
+
   try {
     const { id } = await params;
     const { searchParams } = new URL(request.url);
@@ -55,6 +64,8 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const supabase = getSupabase();
+
   try {
     const { id } = await params;
     const body = await request.json();

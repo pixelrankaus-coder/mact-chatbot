@@ -1,8 +1,17 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@supabase/supabase-js";
+
+// Create supabase client at runtime for server-side usage
+function getSupabase() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  return createClient(supabaseUrl, supabaseKey);
+}
 
 // GET /api/widget/settings - Public endpoint for widget to fetch appearance settings
 export async function GET() {
+  const supabase = getSupabase();
+
   try {
     // Fetch appearance settings
     const { data: appearance, error: appearanceError } = await supabase
