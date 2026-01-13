@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create new conversation with visitor info
-    const { data: conversation, error } = await supabase
+    const { data: conversation, error: insertError } = await supabase
       .from("conversations")
       .insert({
         visitor_id: visitorId,
@@ -154,7 +154,20 @@ export async function POST(request: NextRequest) {
       .select()
       .single();
 
-    if (error) throw error;
+    if (insertError) {
+      console.error("Supabase insert error:", JSON.stringify(insertError));
+      return NextResponse.json(
+        { error: "Database insert failed", details: insertError.message, code: insertError.code },
+        { status: 500, headers: corsHeaders }
+      );
+    }
+
+    if (!conversation) {
+      return NextResponse.json(
+        { error: "No conversation returned after insert" },
+        { status: 500, headers: corsHeaders }
+      );
+    }
 
     // Add welcome message from AI
     const { data: aiSettings } = await supabase
@@ -179,8 +192,15 @@ export async function POST(request: NextRequest) {
       { status: 201, headers: corsHeaders }
     );
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error("Failed to create conversation:", errorMessage, error);
+    let errorMessage = "Unknown error";
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    } else if (typeof error === "object" && error !== null) {
+      errorMessage = JSON.stringify(error);
+    } else {
+      errorMessage = String(error);
+    }
+    console.error("Failed to create conversation:", errorMessage);
     return NextResponse.json(
       { error: "Failed to create conversation", details: errorMessage },
       { status: 500, headers: corsHeaders }
