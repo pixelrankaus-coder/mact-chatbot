@@ -51,9 +51,20 @@ async function getLocationFromIP(ip: string): Promise<{ city?: string; region?: 
 
 // POST /api/widget/conversations - Create a new conversation
 export async function POST(request: NextRequest) {
-  const supabase = getSupabase();
-
   try {
+    // Check env vars are available
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      console.error("Missing Supabase env vars:", { supabaseUrl: !!supabaseUrl, supabaseKey: !!supabaseKey });
+      return NextResponse.json(
+        { error: "Server configuration error" },
+        { status: 500, headers: corsHeaders }
+      );
+    }
+
+    const supabase = getSupabase();
     const body = await request.json();
     const { visitorId, visitorName, visitorEmail, visitorInfo } = body;
 
@@ -66,7 +77,14 @@ export async function POST(request: NextRequest) {
 
     // Get visitor IP and location
     const clientIP = getClientIP(request);
-    const location = await getLocationFromIP(clientIP);
+
+    // Skip location lookup for now to simplify debugging
+    let location = null;
+    try {
+      location = await getLocationFromIP(clientIP);
+    } catch (locErr) {
+      console.error("Location lookup failed:", locErr);
+    }
 
     // Build metadata with visitor info
     const metadata = {
@@ -160,10 +178,11 @@ export async function POST(request: NextRequest) {
       { conversation, isExisting: false },
       { status: 201, headers: corsHeaders }
     );
-  } catch (error) {
-    console.error("Failed to create conversation:", error);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Failed to create conversation:", errorMessage, error);
     return NextResponse.json(
-      { error: "Failed to create conversation" },
+      { error: "Failed to create conversation", details: errorMessage },
       { status: 500, headers: corsHeaders }
     );
   }
