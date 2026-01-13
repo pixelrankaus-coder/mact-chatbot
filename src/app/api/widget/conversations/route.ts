@@ -8,6 +8,38 @@ function getSupabase() {
   return createClient(supabaseUrl, supabaseKey);
 }
 
+// Get client IP from request headers
+function getClientIP(request: NextRequest): string {
+  const forwarded = request.headers.get("x-forwarded-for");
+  if (forwarded) {
+    return forwarded.split(",")[0].trim();
+  }
+  const realIP = request.headers.get("x-real-ip");
+  if (realIP) {
+    return realIP;
+  }
+  return "unknown";
+}
+
+// Get location from IP using free ipapi.co service
+async function getLocationFromIP(ip: string): Promise<string | null> {
+  if (ip === "unknown" || ip === "127.0.0.1" || ip.startsWith("192.168.") || ip.startsWith("10.")) {
+    return null;
+  }
+  try {
+    const response = await fetch(`https://ipapi.co/${ip}/json/`, {
+      headers: { "User-Agent": "MACt-Chatbot/1.0" },
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (data.error) return null;
+    const parts = [data.city, data.region, data.country_name].filter(Boolean);
+    return parts.length > 0 ? parts.join(", ") : null;
+  } catch {
+    return null;
+  }
+}
+
 // CORS headers for widget
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -32,7 +64,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabase();
     const body = await request.json();
-    const { visitorId, visitorName, visitorEmail } = body;
+    const { visitorId, visitorName, visitorEmail, visitorInfo } = body;
 
     if (!visitorId) {
       return NextResponse.json(
@@ -40,6 +72,17 @@ export async function POST(request: NextRequest) {
         { status: 400, headers: corsHeaders }
       );
     }
+
+    // Get client IP and location
+    const clientIP = getClientIP(request);
+    const location = await getLocationFromIP(clientIP);
+
+    // Build metadata object from widget's visitorInfo + server-side data
+    const metadata = {
+      ...(visitorInfo || {}),
+      ip: clientIP,
+      serverTimestamp: new Date().toISOString(),
+    };
 
     // Check if there's an existing open conversation for this visitor
     const { data: existing, error: existingError } = await supabase
@@ -52,6 +95,15 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (existing && !existingError) {
+      // Update existing conversation with latest visitor info
+      await supabase
+        .from("conversations")
+        .update({
+          metadata: metadata,
+          visitor_location: location,
+        })
+        .eq("id", existing.id);
+
       // Return existing conversation
       return NextResponse.json(
         { conversation: existing, isExisting: true },
@@ -59,13 +111,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create new conversation - only use columns that definitely exist in DB
+    // Create new conversation with visitor info
     const { data: conversation, error: insertError } = await supabase
       .from("conversations")
       .insert({
         visitor_id: visitorId,
         visitor_name: visitorName || "Website Visitor",
         visitor_email: visitorEmail || null,
+        visitor_location: location,
+        metadata: metadata,
         status: "active",
       })
       .select()
