@@ -1,6 +1,7 @@
 "use client";
 
-import { BubbleMenu, type Editor } from "@tiptap/react";
+import { BubbleMenu } from "@tiptap/react/menus";
+import type { Editor } from "@tiptap/core";
 import { BoldToolbar } from "../toolbars/bold";
 import { ItalicToolbar } from "../toolbars/italic";
 import { UnderlineToolbar } from "../toolbars/underline";
@@ -42,10 +43,8 @@ export function FloatingToolbar({ editor }: { editor: Editor | null }) {
     return (
       <TooltipProvider>
         <BubbleMenu
-          tippyOptions={{
-            duration: 100,
-            placement: "bottom",
-            offset: [0, 10]
+          options={{
+            placement: "bottom"
           }}
           shouldShow={() => {
             // Show toolbar when editor is focused and has selection

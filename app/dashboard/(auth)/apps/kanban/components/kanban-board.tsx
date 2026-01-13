@@ -674,7 +674,7 @@ export default function KanbanBoard() {
                                         r="16"
                                         fill="none"
                                         className="stroke-current text-gray-200 dark:text-neutral-700"
-                                        stroke-width="2"></circle>
+                                        strokeWidth="2"></circle>
                                       <circle
                                         cx="18"
                                         cy="18"
@@ -685,13 +685,13 @@ export default function KanbanBoard() {
                                           "text-orange-500!":
                                             task.progress > 50 && task.progress < 100
                                         })}
-                                        stroke-width="2"
+                                        strokeWidth="2"
                                         strokeDasharray={2 * Math.PI * 16}
                                         strokeDashoffset={
                                           2 * Math.PI * 16 -
                                           (2 * Math.PI * 16 * task.progress) / 100
                                         }
-                                        stroke-linecap="round"></circle>
+                                        strokeLinecap="round"></circle>
                                     </svg>
                                   </div>
                                   {`${task.progress}%`}

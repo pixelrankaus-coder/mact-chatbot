@@ -10,7 +10,7 @@ import Link from "@tiptap/extension-link";
 import Subscript from "@tiptap/extension-subscript";
 import Superscript from "@tiptap/extension-superscript";
 import TextAlign from "@tiptap/extension-text-align";
-import TextStyle from "@tiptap/extension-text-style";
+import { TextStyleKit } from "@tiptap/extension-text-style";
 import Typography from "@tiptap/extension-typography";
 import Underline from "@tiptap/extension-underline";
 import { EditorContent, type Extension, useEditor, type Content } from "@tiptap/react";
@@ -59,7 +59,7 @@ const createExtensions = (placeholderText?: string) => [
   TextAlign.configure({
     types: ["heading", "paragraph"]
   }),
-  TextStyle,
+  TextStyleKit,
   Subscript,
   Superscript,
   Underline,
