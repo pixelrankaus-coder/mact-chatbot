@@ -108,47 +108,33 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (existing && !existingError) {
-      // Update existing conversation with new page view
-      const existingMetadata = (existing.metadata || {}) as Record<string, unknown>;
-      const existingPages = (existingMetadata.pagesViewed || []) as Array<{ url: string; title: string; visitedAt: string }>;
-
-      // Add current page if different from last viewed
-      if (visitorInfo?.currentPage) {
-        const lastPage = existingPages[existingPages.length - 1];
-        if (!lastPage || lastPage.url !== visitorInfo.currentPage) {
-          existingPages.push({
-            url: visitorInfo.currentPage,
-            title: visitorInfo.pageTitle,
-            visitedAt: visitorInfo.visitedAt,
-          });
-        }
+      // Return existing conversation (skip metadata update since column doesn't exist)
+      const updatedLocation = metadata.location || existing.visitor_location;
+      if (updatedLocation !== existing.visitor_location) {
+        await supabase
+          .from("conversations")
+          .update({ visitor_location: updatedLocation })
+          .eq("id", existing.id);
       }
 
-      // Update metadata
-      await supabase
-        .from("conversations")
-        .update({
-          metadata: { ...existingMetadata, ...metadata, pagesViewed: existingPages },
-          visitor_location: metadata.location || existing.visitor_location,
-        })
-        .eq("id", existing.id);
-
-      // Return existing conversation with updated metadata
       return NextResponse.json(
-        { conversation: { ...existing, metadata: { ...existingMetadata, ...metadata, pagesViewed: existingPages } }, isExisting: true },
+        { conversation: { ...existing, visitor_location: updatedLocation }, isExisting: true },
         { headers: corsHeaders }
       );
     }
 
     // Create new conversation with visitor info
+    // Note: metadata column may not exist in DB yet, so we store key info in visitor_location
+    const locationString = metadata.location ||
+      (visitorInfo?.browser && visitorInfo?.os ? `${visitorInfo.browser}, ${visitorInfo.os}` : null);
+
     const { data: conversation, error: insertError } = await supabase
       .from("conversations")
       .insert({
         visitor_id: visitorId,
         visitor_name: visitorName || "Website Visitor",
         visitor_email: visitorEmail || null,
-        visitor_location: metadata.location,
-        metadata,
+        visitor_location: locationString,
         status: "active",
       })
       .select()
