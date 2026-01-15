@@ -1,36 +1,69 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MACt Chatbot
+
+AI-powered customer service chatbot for MACt (Mining & Cement Technology).
+
+## Quick Links
+
+- [Project Overview](./docs/PROJECT-OVERVIEW.md)
+- [API Reference](./docs/API-REFERENCE.md)
+- [Widget Installation](./docs/WIDGET-GUIDE.md)
+- [Deployment Guide](./docs/DEPLOYMENT.md)
+- [Task Template](./docs/MASTER-TASK-TEMPLATE.md)
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+npm install
+cp .env.local.example .env.local
+# Fill in environment variables
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) to access the admin panel.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Tech Stack
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Frontend:** Next.js 16 + TypeScript
+- **Styling:** Tailwind CSS 4 + shadcn/ui
+- **Database:** Supabase (PostgreSQL + Realtime)
+- **AI:** OpenAI GPT-4o-mini
+- **Hosting:** Vercel
+- **Widget:** Vanilla JS with Shadow DOM
 
-## Learn More
+## Features
 
-To learn more about Next.js, take a look at the following resources:
+- AI-powered chat responses with knowledge base
+- Human handoff to support agents
+- WooCommerce order status lookup
+- Embeddable widget for any website
+- WordPress plugin for easy integration
+- Visitor tracking and analytics
+- Customizable appearance and personality
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Documentation
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+See the [docs/](./docs/) folder for full documentation:
 
-## Deploy on Vercel
+| Document | Description |
+|----------|-------------|
+| [PROJECT-OVERVIEW.md](./docs/PROJECT-OVERVIEW.md) | Architecture, tech stack, key files |
+| [API-REFERENCE.md](./docs/API-REFERENCE.md) | All API endpoints |
+| [WIDGET-GUIDE.md](./docs/WIDGET-GUIDE.md) | Widget installation and customization |
+| [DEPLOYMENT.md](./docs/DEPLOYMENT.md) | Deployment and infrastructure |
+| [MASTER-TASK-TEMPLATE.md](./docs/MASTER-TASK-TEMPLATE.md) | Task template for development |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Environment Variables
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+SUPABASE_SERVICE_ROLE_KEY=eyJ...
+OPENAI_API_KEY=sk-...
+WOOCOMMERCE_URL=https://your-store.com
+WOOCOMMERCE_CONSUMER_KEY=ck_...
+WOOCOMMERCE_CONSUMER_SECRET=cs_...
+```
+
+## License
+
+Proprietary - MACt
