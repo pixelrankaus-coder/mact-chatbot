@@ -25,6 +25,9 @@
       this.pollInterval = null;
       this.lastMessageTime = null;
       this.isSending = false;
+      this.viewedPages = [];
+      this.showPreChatForm = false;
+      this.visitorData = null;
     }
 
     connectedCallback() {
@@ -40,6 +43,7 @@
     // ============================================================
     async init() {
       await this.loadSettings();
+      this.initPageTracking();
       this.render();
       this.attachEventListeners();
       console.log(`MACt Chat Widget v${WIDGET_VERSION} initialized`);
@@ -61,65 +65,172 @@
     // ============================================================
     // Visitor Info Collection
     // ============================================================
-    collectVisitorInfo() {
+    collectVisitorData() {
       const ua = navigator.userAgent;
 
-      // Detect browser
+      return {
+        // Browser detection
+        browser: this.detectBrowser(ua),
+
+        // OS detection
+        os: this.detectOS(ua),
+
+        // Device type
+        deviceType: this.detectDevice(),
+
+        // Screen info
+        screenResolution: `${window.screen.width}x${window.screen.height}`,
+
+        // Timezone
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+
+        // Language
+        language: navigator.language,
+
+        // Current page
+        currentPage: window.location.href,
+
+        // Page title
+        pageTitle: document.title,
+
+        // Referrer
+        referrer: document.referrer || 'Direct',
+
+        // User agent
+        userAgent: ua,
+
+        // Timestamp
+        firstVisit: new Date().toISOString()
+      };
+    }
+
+    detectBrowser(ua) {
       let browser = 'Unknown';
-      if (ua.includes('Firefox/')) browser = 'Firefox';
-      else if (ua.includes('Edg/')) browser = 'Edge';
-      else if (ua.includes('Chrome/')) browser = 'Chrome';
-      else if (ua.includes('Safari/') && !ua.includes('Chrome')) browser = 'Safari';
-      else if (ua.includes('Opera') || ua.includes('OPR/')) browser = 'Opera';
+      let version = '';
 
-      // Extract browser version
-      let browserVersion = '';
-      const versionMatch = ua.match(new RegExp(`${browser === 'Edge' ? 'Edg' : browser}/([\\d.]+)`));
-      if (versionMatch) browserVersion = versionMatch[1].split('.')[0];
-
-      // Detect OS
-      let os = 'Unknown';
-      if (ua.includes('Windows NT 10')) os = 'Windows';
-      else if (ua.includes('Windows')) os = 'Windows';
-      else if (ua.includes('Mac OS X')) os = 'macOS';
-      else if (ua.includes('Linux')) os = 'Linux';
-      else if (ua.includes('Android')) os = 'Android';
-      else if (ua.includes('iPhone') || ua.includes('iPad')) os = 'iOS';
-
-      // Detect device type
-      let deviceType = 'Desktop';
-      if (/Mobile|Android|iPhone|iPad|iPod/i.test(ua)) {
-        deviceType = /iPad|Tablet/i.test(ua) ? 'Tablet' : 'Mobile';
+      if (ua.includes('Firefox/')) {
+        browser = 'Firefox';
+        const match = ua.match(/Firefox\/(\d+)/);
+        if (match) version = match[1];
+      } else if (ua.includes('Edg/')) {
+        browser = 'Edge';
+        const match = ua.match(/Edg\/(\d+)/);
+        if (match) version = match[1];
+      } else if (ua.includes('Chrome/')) {
+        browser = 'Chrome';
+        const match = ua.match(/Chrome\/(\d+)/);
+        if (match) version = match[1];
+      } else if (ua.includes('Safari/') && !ua.includes('Chrome')) {
+        browser = 'Safari';
+        const match = ua.match(/Version\/(\d+)/);
+        if (match) version = match[1];
+      } else if (ua.includes('Opera') || ua.includes('OPR/')) {
+        browser = 'Opera';
+        const match = ua.match(/(?:Opera|OPR)\/(\d+)/);
+        if (match) version = match[1];
       }
 
-      // Get screen info
-      const screenWidth = window.screen.width;
-      const screenHeight = window.screen.height;
+      return version ? `${browser} ${version}` : browser;
+    }
 
-      // Get page info
-      const currentPage = window.location.href;
-      const referrer = document.referrer || null;
-      const pageTitle = document.title;
+    detectOS(ua) {
+      if (ua.includes('Windows NT 10')) return 'Windows 10';
+      if (ua.includes('Windows NT 11') || (ua.includes('Windows NT 10') && ua.includes('Win64'))) return 'Windows 11';
+      if (ua.includes('Windows')) return 'Windows';
+      if (ua.includes('Mac OS X')) return 'macOS';
+      if (ua.includes('Linux')) return 'Linux';
+      if (ua.includes('Android')) return 'Android';
+      if (ua.includes('iPhone') || ua.includes('iPad')) return 'iOS';
+      return 'Unknown';
+    }
 
-      // Get timezone
-      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    detectDevice() {
+      const ua = navigator.userAgent;
+      if (/Mobi|Android/i.test(ua) && !/Tablet|iPad/i.test(ua)) return 'Mobile';
+      if (/Tablet|iPad/i.test(ua)) return 'Tablet';
+      return 'Desktop';
+    }
 
-      // Get language
-      const language = navigator.language || navigator.userLanguage;
+    // ============================================================
+    // Page Tracking
+    // ============================================================
+    initPageTracking() {
+      this.viewedPages = this.loadViewedPages();
+      this.trackCurrentPage();
 
-      return {
-        browser: `${browser}${browserVersion ? ' ' + browserVersion : ''}`,
-        os,
-        deviceType,
-        screenResolution: `${screenWidth}x${screenHeight}`,
-        currentPage,
-        pageTitle,
-        referrer,
-        timezone,
-        language,
-        userAgent: ua,
-        visitedAt: new Date().toISOString(),
+      // Track navigation changes (for SPAs)
+      window.addEventListener('popstate', () => this.trackCurrentPage());
+
+      // Override pushState for SPA tracking
+      const originalPushState = history.pushState;
+      const self = this;
+      history.pushState = function(...args) {
+        originalPushState.apply(history, args);
+        self.trackCurrentPage();
       };
+
+      // Override replaceState for SPA tracking
+      const originalReplaceState = history.replaceState;
+      history.replaceState = function(...args) {
+        originalReplaceState.apply(history, args);
+        self.trackCurrentPage();
+      };
+    }
+
+    loadViewedPages() {
+      try {
+        const stored = localStorage.getItem('mact_viewed_pages');
+        return stored ? JSON.parse(stored) : [];
+      } catch {
+        return [];
+      }
+    }
+
+    trackCurrentPage() {
+      const page = {
+        url: window.location.href,
+        title: document.title,
+        visitedAt: new Date().toISOString()
+      };
+
+      // Avoid duplicates within 5 seconds
+      const lastPage = this.viewedPages[this.viewedPages.length - 1];
+      if (lastPage && lastPage.url === page.url) {
+        const timeDiff = new Date(page.visitedAt) - new Date(lastPage.visitedAt);
+        if (timeDiff < 5000) return;
+      }
+
+      this.viewedPages.push(page);
+
+      // Keep only last 20 pages
+      if (this.viewedPages.length > 20) {
+        this.viewedPages = this.viewedPages.slice(-20);
+      }
+
+      localStorage.setItem('mact_viewed_pages', JSON.stringify(this.viewedPages));
+
+      // Update conversation if active
+      if (this.conversation) {
+        this.updateVisitorData();
+      }
+    }
+
+    async updateVisitorData() {
+      if (!this.conversation) return;
+
+      try {
+        await fetch(`${apiBase}/api/widget/conversations/${this.conversation.id}/visitor`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pagesViewed: this.viewedPages,
+            currentPage: window.location.href,
+            pageTitle: document.title
+          })
+        });
+      } catch (error) {
+        console.error('MACt Widget: Failed to update visitor data', error);
+      }
     }
 
     // ============================================================
@@ -142,6 +253,14 @@
             name: 'Assistant',
             welcomeMessage: 'Hi there! How can I help you today?',
           },
+          preChatForm: {
+            enabled: false,
+            fields: {
+              name: 'required',
+              email: 'required',
+              phone: 'optional'
+            }
+          }
         };
       }
     }
@@ -162,18 +281,126 @@
       return this.settings?.appearance?.offsetY ?? 20;
     }
 
+    get preChatFormEnabled() {
+      return this.settings?.preChatForm?.enabled ?? false;
+    }
+
+    get preChatFormFields() {
+      return this.settings?.preChatForm?.fields ?? {
+        name: 'required',
+        email: 'required',
+        phone: 'optional'
+      };
+    }
+
+    // ============================================================
+    // Pre-Chat Form
+    // ============================================================
+    hasVisitorInfo() {
+      try {
+        const stored = localStorage.getItem('mact_visitor_info');
+        if (stored) {
+          const info = JSON.parse(stored);
+          // Check if we have required fields
+          const fields = this.preChatFormFields;
+          if (fields.name === 'required' && !info.name) return false;
+          if (fields.email === 'required' && !info.email) return false;
+          return true;
+        }
+        return false;
+      } catch {
+        return false;
+      }
+    }
+
+    getStoredVisitorInfo() {
+      try {
+        const stored = localStorage.getItem('mact_visitor_info');
+        return stored ? JSON.parse(stored) : null;
+      } catch {
+        return null;
+      }
+    }
+
+    saveVisitorInfo(info) {
+      try {
+        localStorage.setItem('mact_visitor_info', JSON.stringify(info));
+        this.visitorData = info;
+      } catch (error) {
+        console.error('MACt Widget: Failed to save visitor info', error);
+      }
+    }
+
+    handlePreChatSubmit(e) {
+      e.preventDefault();
+
+      const form = e.target;
+      const name = form.querySelector('#mact-prechat-name')?.value?.trim() || '';
+      const email = form.querySelector('#mact-prechat-email')?.value?.trim() || '';
+      const phone = form.querySelector('#mact-prechat-phone')?.value?.trim() || '';
+
+      const fields = this.preChatFormFields;
+
+      // Validate required fields
+      if (fields.name === 'required' && !name) {
+        this.showPreChatError('Name is required');
+        return;
+      }
+      if (fields.email === 'required' && !email) {
+        this.showPreChatError('Email is required');
+        return;
+      }
+
+      // Validate email format
+      if (email && !this.isValidEmail(email)) {
+        this.showPreChatError('Please enter a valid email address');
+        return;
+      }
+
+      // Save visitor info
+      this.saveVisitorInfo({ name, email, phone });
+
+      // Hide pre-chat form and show chat
+      this.showPreChatForm = false;
+      this.render();
+      this.attachEventListeners();
+
+      // Initialize conversation with visitor info
+      this.initConversation();
+    }
+
+    isValidEmail(email) {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    }
+
+    showPreChatError(message) {
+      const errorEl = this.shadowRoot.querySelector('.mact-prechat-error');
+      if (errorEl) {
+        errorEl.textContent = message;
+        errorEl.style.display = 'block';
+      }
+    }
+
     // ============================================================
     // Conversation & Messages API
     // ============================================================
     async createConversation() {
       try {
-        const visitorInfo = this.collectVisitorInfo();
+        const visitorInfo = this.collectVisitorData();
+        const storedInfo = this.getStoredVisitorInfo();
+
         const response = await fetch(`${apiBase}/api/widget/conversations`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             visitorId: this.visitorId,
-            visitorInfo,
+            visitorName: storedInfo?.name || null,
+            visitorEmail: storedInfo?.email || null,
+            visitorInfo: {
+              ...visitorInfo,
+              phone: storedInfo?.phone || null,
+              pagesViewed: this.viewedPages
+            }
           }),
         });
         if (!response.ok) throw new Error('Failed to create conversation');
@@ -327,7 +554,12 @@
       }
 
       if (this.isOpen) {
-        if (!this.conversation) {
+        // Check if pre-chat form should be shown
+        if (this.preChatFormEnabled && !this.hasVisitorInfo() && !this.conversation) {
+          this.showPreChatForm = true;
+          this.render();
+          this.attachEventListeners();
+        } else if (!this.conversation) {
           this.initConversation();
         }
         this.startPolling();
@@ -356,7 +588,7 @@
         <style>${this.getStyles()}</style>
 
         <!-- Chat Window -->
-        <div class="mact-chat-window">
+        <div class="mact-chat-window ${this.isOpen ? 'open' : ''}">
           <div class="mact-chat-header">
             <div class="mact-header-avatar">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -374,35 +606,7 @@
             </button>
           </div>
 
-          <div class="mact-messages"></div>
-
-          <div class="mact-typing" style="display: none;">
-            <div class="mact-typing-avatar">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 8V4H8"/><rect x="8" y="8" width="8" height="12" rx="2"/><circle cx="10" cy="13" r="1"/><circle cx="14" cy="13" r="1"/>
-              </svg>
-            </div>
-            <div class="mact-typing-bubble">
-              <span></span><span></span><span></span>
-            </div>
-          </div>
-
-          <div class="mact-input-area">
-            <div class="mact-input-row">
-              <input type="text" class="mact-input" placeholder="Type your message..." />
-              <button class="mact-send-btn" aria-label="Send message">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
-                </svg>
-              </button>
-            </div>
-            <button class="mact-handoff-link">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
-              </svg>
-              Talk to a human
-            </button>
-          </div>
+          ${this.showPreChatForm ? this.renderPreChatForm() : this.renderChatContent()}
 
           <div class="mact-footer">
             Powered by <a href="https://mact.au" target="_blank" rel="noopener">MACt</a>
@@ -411,7 +615,7 @@
         </div>
 
         <!-- Launcher Button -->
-        <button class="mact-launcher" aria-label="Open chat">
+        <button class="mact-launcher ${this.isOpen ? 'open' : ''}" aria-label="Open chat">
           <svg class="mact-icon-chat" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
           </svg>
@@ -422,6 +626,75 @@
       `;
 
       this.renderMessages();
+    }
+
+    renderPreChatForm() {
+      const fields = this.preChatFormFields;
+
+      return `
+        <div class="mact-prechat-form">
+          <div class="mact-prechat-header">
+            <h3>Start a conversation</h3>
+            <p>Please introduce yourself</p>
+          </div>
+          <div class="mact-prechat-error" style="display: none;"></div>
+          <form id="mact-prechat" class="mact-prechat-fields">
+            ${fields.name !== 'hidden' ? `
+              <div class="mact-field">
+                <label for="mact-prechat-name">Name ${fields.name === 'required' ? '*' : ''}</label>
+                <input type="text" id="mact-prechat-name" name="name" ${fields.name === 'required' ? 'required' : ''} placeholder="Your name">
+              </div>
+            ` : ''}
+            ${fields.email !== 'hidden' ? `
+              <div class="mact-field">
+                <label for="mact-prechat-email">Email ${fields.email === 'required' ? '*' : ''}</label>
+                <input type="email" id="mact-prechat-email" name="email" ${fields.email === 'required' ? 'required' : ''} placeholder="your@email.com">
+              </div>
+            ` : ''}
+            ${fields.phone !== 'hidden' ? `
+              <div class="mact-field">
+                <label for="mact-prechat-phone">Phone ${fields.phone === 'required' ? '*' : ''}</label>
+                <input type="tel" id="mact-prechat-phone" name="phone" ${fields.phone === 'required' ? 'required' : ''} placeholder="+61 4XX XXX XXX">
+              </div>
+            ` : ''}
+            <button type="submit" class="mact-prechat-submit">Start Chat</button>
+          </form>
+        </div>
+      `;
+    }
+
+    renderChatContent() {
+      return `
+        <div class="mact-messages"></div>
+
+        <div class="mact-typing" style="display: none;">
+          <div class="mact-typing-avatar">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 8V4H8"/><rect x="8" y="8" width="8" height="12" rx="2"/><circle cx="10" cy="13" r="1"/><circle cx="14" cy="13" r="1"/>
+            </svg>
+          </div>
+          <div class="mact-typing-bubble">
+            <span></span><span></span><span></span>
+          </div>
+        </div>
+
+        <div class="mact-input-area">
+          <div class="mact-input-row">
+            <input type="text" class="mact-input" placeholder="Type your message..." />
+            <button class="mact-send-btn" aria-label="Send message">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+              </svg>
+            </button>
+          </div>
+          <button class="mact-handoff-link">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+            </svg>
+            Talk to a human
+          </button>
+        </div>
+      `;
     }
 
     renderMessages() {
@@ -490,6 +763,10 @@
       const closeBtn = this.shadowRoot.querySelector('.mact-chat-close');
       closeBtn?.addEventListener('click', () => this.toggle());
 
+      // Pre-chat form submit
+      const preChatForm = this.shadowRoot.querySelector('#mact-prechat');
+      preChatForm?.addEventListener('submit', (e) => this.handlePreChatSubmit(e));
+
       // Send message
       const input = this.shadowRoot.querySelector('.mact-input');
       const sendBtn = this.shadowRoot.querySelector('.mact-send-btn');
@@ -522,6 +799,8 @@
       const content = this.shadowRoot.querySelector('.mact-messages');
       if (!content) return;
 
+      const storedInfo = this.getStoredVisitorInfo();
+
       // Create overlay
       const overlay = document.createElement('div');
       overlay.className = 'mact-handoff-overlay';
@@ -529,8 +808,8 @@
         <div class="mact-handoff-form">
           <h4>Talk to a Human</h4>
           <p>Leave your details and we'll get back to you shortly.</p>
-          <input type="text" class="mact-handoff-name" placeholder="Your name" />
-          <input type="email" class="mact-handoff-email" placeholder="Your email" />
+          <input type="text" class="mact-handoff-name" placeholder="Your name" value="${storedInfo?.name || ''}" />
+          <input type="email" class="mact-handoff-email" placeholder="Your email" value="${storedInfo?.email || ''}" />
           <textarea class="mact-handoff-message" placeholder="How can we help? (optional)" rows="3"></textarea>
           <div class="mact-handoff-buttons">
             <button class="mact-handoff-cancel">Cancel</button>
@@ -745,6 +1024,99 @@
 
         .mact-chat-close:hover {
           opacity: 1;
+        }
+
+        /* ========================================
+           Pre-Chat Form
+           ======================================== */
+        .mact-prechat-form {
+          flex: 1;
+          padding: 24px;
+          display: flex;
+          flex-direction: column;
+          background: #f8fafc;
+        }
+
+        .mact-prechat-header {
+          text-align: center;
+          margin-bottom: 24px;
+        }
+
+        .mact-prechat-header h3 {
+          margin: 0 0 8px;
+          font-size: 18px;
+          font-weight: 600;
+          color: #1e293b;
+        }
+
+        .mact-prechat-header p {
+          margin: 0;
+          font-size: 14px;
+          color: #64748b;
+        }
+
+        .mact-prechat-error {
+          background: #fef2f2;
+          border: 1px solid #fecaca;
+          color: #dc2626;
+          padding: 10px 14px;
+          border-radius: 8px;
+          font-size: 13px;
+          margin-bottom: 16px;
+        }
+
+        .mact-prechat-fields {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+        }
+
+        .mact-field {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        .mact-field label {
+          font-size: 13px;
+          font-weight: 500;
+          color: #374151;
+        }
+
+        .mact-field input {
+          width: 100%;
+          padding: 10px 12px;
+          border: 1px solid #d1d5db;
+          border-radius: 8px;
+          font-size: 14px;
+          font-family: inherit;
+          transition: border-color 0.2s, box-shadow 0.2s;
+          background: white;
+        }
+
+        .mact-field input:focus {
+          outline: none;
+          border-color: var(--primary-color);
+          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .mact-prechat-submit {
+          width: 100%;
+          padding: 12px;
+          background: var(--primary-color);
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-size: 14px;
+          font-weight: 500;
+          font-family: inherit;
+          cursor: pointer;
+          margin-top: 8px;
+          transition: filter 0.2s;
+        }
+
+        .mact-prechat-submit:hover {
+          filter: brightness(1.1);
         }
 
         /* ========================================
@@ -980,6 +1352,112 @@
         }
 
         /* ========================================
+           Handoff Overlay
+           ======================================== */
+        .mact-handoff-overlay {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+          z-index: 10;
+        }
+
+        .mact-handoff-form {
+          background: white;
+          border-radius: 12px;
+          padding: 24px;
+          width: 100%;
+          max-width: 320px;
+        }
+
+        .mact-handoff-form h4 {
+          margin: 0 0 8px;
+          font-size: 18px;
+          font-weight: 600;
+          color: #1e293b;
+        }
+
+        .mact-handoff-form p {
+          margin: 0 0 16px;
+          font-size: 14px;
+          color: #64748b;
+        }
+
+        .mact-handoff-form input,
+        .mact-handoff-form textarea {
+          width: 100%;
+          padding: 10px 12px;
+          border: 1px solid #d1d5db;
+          border-radius: 8px;
+          font-size: 14px;
+          font-family: inherit;
+          margin-bottom: 12px;
+          background: white;
+          color: #1e293b;
+        }
+
+        .mact-handoff-form input:focus,
+        .mact-handoff-form textarea:focus {
+          outline: none;
+          border-color: var(--primary-color);
+        }
+
+        .mact-handoff-form textarea {
+          resize: none;
+        }
+
+        .mact-handoff-buttons {
+          display: flex;
+          gap: 8px;
+          margin-top: 8px;
+        }
+
+        .mact-handoff-cancel {
+          flex: 1;
+          padding: 10px;
+          background: #f1f5f9;
+          border: none;
+          border-radius: 8px;
+          font-size: 14px;
+          font-family: inherit;
+          cursor: pointer;
+          color: #64748b;
+          transition: background 0.2s;
+        }
+
+        .mact-handoff-cancel:hover {
+          background: #e2e8f0;
+        }
+
+        .mact-handoff-submit {
+          flex: 1;
+          padding: 10px;
+          background: var(--primary-color);
+          border: none;
+          border-radius: 8px;
+          font-size: 14px;
+          font-family: inherit;
+          cursor: pointer;
+          color: white;
+          transition: filter 0.2s;
+        }
+
+        .mact-handoff-submit:hover {
+          filter: brightness(1.1);
+        }
+
+        .mact-handoff-submit:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        /* ========================================
            Footer
            ======================================== */
         .mact-footer {
@@ -1041,6 +1519,7 @@
     open: () => widget.isOpen || widget.toggle(),
     close: () => widget.isOpen && widget.toggle(),
     toggle: () => widget.toggle(),
+    isOpen: () => widget.isOpen,
   };
 
 })();

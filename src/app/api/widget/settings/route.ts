@@ -90,10 +90,21 @@ export async function GET() {
       personality: "professional",
     };
 
+    // Default pre-chat form settings
+    const defaultPreChatForm = {
+      enabled: false,
+      fields: {
+        name: "required",
+        email: "required",
+        phone: "optional",
+      },
+    };
+
     const settings = {
       appearance: appearance?.value || defaultAppearance,
       aiAgent: aiAgent?.value || defaultAiAgent,
       operatingHours: operatingHours?.value || null,
+      preChatForm: aiAgent?.value?.preChatForm || defaultPreChatForm,
     };
 
     // Add CORS headers for cross-origin widget requests

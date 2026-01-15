@@ -42,6 +42,7 @@ import {
   User,
   AlertCircle,
   X,
+  UserCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAIAgentSettings } from "@/hooks/use-settings";
@@ -83,6 +84,14 @@ export default function AIAgentPage() {
   const [responseLength, setResponseLength] = useState([50]);
   const [fallbackAction, setFallbackAction] = useState<"clarify" | "transfer" | "email">("clarify");
 
+  // Pre-chat form state
+  const [preChatEnabled, setPreChatEnabled] = useState(false);
+  const [preChatFields, setPreChatFields] = useState({
+    name: "required" as "required" | "optional" | "hidden",
+    email: "required" as "required" | "optional" | "hidden",
+    phone: "optional" as "required" | "optional" | "hidden",
+  });
+
   // Knowledge base state
   const [documents, setDocuments] = useState<UploadedDocument[]>([]);
   const [loadingDocs, setLoadingDocs] = useState(true);
@@ -106,6 +115,12 @@ export default function AIAgentPage() {
       setPersonality(settings.personality || "professional");
       setResponseLength([settings.responseLength || 50]);
       setFallbackAction(settings.fallbackAction || "clarify");
+      setPreChatEnabled(settings.preChatForm?.enabled ?? false);
+      setPreChatFields({
+        name: settings.preChatForm?.fields?.name || "required",
+        email: settings.preChatForm?.fields?.email || "required",
+        phone: settings.preChatForm?.fields?.phone || "optional",
+      });
 
       // Initialize test messages with welcome message
       setTestMessages([{
@@ -147,6 +162,10 @@ export default function AIAgentPage() {
         personality,
         responseLength: responseLength[0],
         fallbackAction,
+        preChatForm: {
+          enabled: preChatEnabled,
+          fields: preChatFields,
+        },
       });
       toast.success("AI Agent settings saved successfully!");
     } catch (error) {
@@ -870,6 +889,105 @@ export default function AIAgentPage() {
                       </>
                     ) : (
                       "Save Settings"
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Pre-Chat Form Settings */}
+              <Card className="border-0 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <UserCircle className="h-5 w-5 text-green-600" />
+                    Pre-Chat Form
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <HelpCircle className="h-4 w-4 text-slate-400" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        Collect visitor information before the chat begins
+                      </TooltipContent>
+                    </Tooltip>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-slate-700">Enable Pre-Chat Form</p>
+                      <p className="text-xs text-slate-500">Collect visitor info before chat starts</p>
+                    </div>
+                    <Switch
+                      checked={preChatEnabled}
+                      onCheckedChange={setPreChatEnabled}
+                    />
+                  </div>
+
+                  {preChatEnabled && (
+                    <div className="space-y-3 border-t pt-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-slate-700">Name field</span>
+                        <Select
+                          value={preChatFields.name}
+                          onValueChange={(v) => setPreChatFields({ ...preChatFields, name: v as "required" | "optional" | "hidden" })}
+                        >
+                          <SelectTrigger className="w-32">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="required">Required</SelectItem>
+                            <SelectItem value="optional">Optional</SelectItem>
+                            <SelectItem value="hidden">Hidden</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-slate-700">Email field</span>
+                        <Select
+                          value={preChatFields.email}
+                          onValueChange={(v) => setPreChatFields({ ...preChatFields, email: v as "required" | "optional" | "hidden" })}
+                        >
+                          <SelectTrigger className="w-32">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="required">Required</SelectItem>
+                            <SelectItem value="optional">Optional</SelectItem>
+                            <SelectItem value="hidden">Hidden</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-slate-700">Phone field</span>
+                        <Select
+                          value={preChatFields.phone}
+                          onValueChange={(v) => setPreChatFields({ ...preChatFields, phone: v as "required" | "optional" | "hidden" })}
+                        >
+                          <SelectTrigger className="w-32">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="required">Required</SelectItem>
+                            <SelectItem value="optional">Optional</SelectItem>
+                            <SelectItem value="hidden">Hidden</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
+
+                  <Button
+                    onClick={handleSave}
+                    disabled={saving}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    {saving ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      "Save Pre-Chat Settings"
                     )}
                   </Button>
                 </CardContent>
