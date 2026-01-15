@@ -48,12 +48,21 @@ export async function PATCH(
       currentPage: visitorData.currentPage || currentMetadata.currentPage,
       pageTitle: visitorData.pageTitle || currentMetadata.pageTitle,
       lastActivity: new Date().toISOString(),
+      // Email capture data
+      ...(visitorData.visitorEmail && { visitorEmail: visitorData.visitorEmail }),
+      ...(visitorData.newsletterOptIn !== undefined && { newsletterOptIn: visitorData.newsletterOptIn }),
     };
+
+    // Build update object - include visitor_email at top level if provided
+    const updateData: Record<string, unknown> = { metadata: updatedMetadata };
+    if (visitorData.visitorEmail) {
+      updateData.visitor_email = visitorData.visitorEmail;
+    }
 
     // Update conversation
     const { error: updateError } = await supabase
       .from("conversations")
-      .update({ metadata: updatedMetadata })
+      .update(updateData)
       .eq("id", id);
 
     if (updateError) {
