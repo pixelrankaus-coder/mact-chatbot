@@ -1,7 +1,7 @@
 (function() {
   'use strict';
 
-  const WIDGET_VERSION = '2.5.0';
+  const WIDGET_VERSION = '2.6.0';
 
   // Get script configuration
   const scriptTag = document.currentScript;
@@ -41,6 +41,11 @@
       // Typing indicator state
       this.visitorTypingTimeout = null;
       this.isAgentTyping = false;
+
+      // Online/Offline status state
+      this.isOnline = true;
+      this.statusMessage = "We typically reply within minutes";
+      this.statusCheckInterval = null;
     }
 
     connectedCallback() {
@@ -49,6 +54,7 @@
 
     disconnectedCallback() {
       this.stopPolling();
+      this.stopStatusCheck();
     }
 
     // ============================================================
@@ -371,18 +377,6 @@
       }
     }
 
-    dismissEmailCapture() {
-      // User dismissed - send message anyway without email
-      this.showEmailCapture = false;
-      this.renderEmailCapturePanel();
-
-      if (this.pendingMessage) {
-        const message = this.pendingMessage;
-        this.pendingMessage = null;
-        this.sendMessageDirect(message);
-      }
-    }
-
     // ============================================================
     // Markdown to HTML Conversion (for clickable links)
     // ============================================================
@@ -501,6 +495,113 @@
     hideAgentTypingIndicator() {
       this.isAgentTyping = false;
       this.setTyping(false);
+    }
+
+    // ============================================================
+    // Online/Offline Status
+    // ============================================================
+    async checkOnlineStatus() {
+      try {
+        const response = await fetch(`${apiBase}/api/widget/status`);
+        if (!response.ok) throw new Error('Failed to check status');
+        const data = await response.json();
+
+        this.isOnline = data.online;
+        this.statusMessage = data.online
+          ? "We're online"
+          : (data.message || "We'll reply soon");
+
+        this.updateStatusIndicator();
+      } catch (error) {
+        console.error('MACt Widget: Failed to check online status', error);
+        // Default to online if check fails
+        this.isOnline = true;
+        this.statusMessage = "We typically reply within minutes";
+      }
+    }
+
+    startStatusCheck() {
+      // Check status immediately
+      this.checkOnlineStatus();
+
+      // Re-check every 5 minutes while widget is open
+      this.statusCheckInterval = setInterval(() => {
+        if (this.isOpen) {
+          this.checkOnlineStatus();
+        }
+      }, 300000); // 5 minutes
+    }
+
+    stopStatusCheck() {
+      if (this.statusCheckInterval) {
+        clearInterval(this.statusCheckInterval);
+        this.statusCheckInterval = null;
+      }
+    }
+
+    updateStatusIndicator() {
+      const statusDot = this.shadowRoot.querySelector('.mact-status-dot');
+      const statusText = this.shadowRoot.querySelector('.mact-header-info p');
+
+      if (statusDot) {
+        statusDot.classList.toggle('online', this.isOnline);
+        statusDot.classList.toggle('offline', !this.isOnline);
+      }
+
+      if (statusText) {
+        statusText.textContent = this.statusMessage;
+      }
+
+      // Update email capture behavior based on online status
+      this.updateEmailCaptureForOffline();
+    }
+
+    updateEmailCaptureForOffline() {
+      // If offline, hide the dismiss button on email capture
+      const dismissBtn = this.shadowRoot.querySelector('.mact-email-capture-dismiss');
+      const captureTitle = this.shadowRoot.querySelector('.mact-email-capture-title');
+      const offlineNote = this.shadowRoot.querySelector('.mact-offline-note');
+
+      if (dismissBtn) {
+        dismissBtn.style.display = this.isOnline ? 'flex' : 'none';
+      }
+
+      if (captureTitle) {
+        captureTitle.textContent = this.isOnline
+          ? 'Please introduce yourself:'
+          : 'Leave us a message:';
+      }
+
+      // Add or update offline note
+      if (!this.isOnline && !offlineNote) {
+        const form = this.shadowRoot.querySelector('.mact-email-capture-form');
+        if (form) {
+          const note = document.createElement('p');
+          note.className = 'mact-offline-note';
+          note.textContent = "We'll reply as soon as we're back online.";
+          form.insertBefore(note, form.firstChild);
+        }
+      } else if (this.isOnline && offlineNote) {
+        offlineNote.remove();
+      }
+    }
+
+    // Override dismissEmailCapture to prevent dismissal when offline
+    dismissEmailCapture() {
+      // When offline, email is required - don't allow dismissal
+      if (!this.isOnline) {
+        return;
+      }
+
+      // User dismissed - send message anyway without email
+      this.showEmailCapture = false;
+      this.renderEmailCapturePanel();
+
+      if (this.pendingMessage) {
+        const message = this.pendingMessage;
+        this.pendingMessage = null;
+        this.sendMessageDirect(message);
+      }
     }
 
     // ============================================================
@@ -703,6 +804,9 @@
       }
 
       if (this.isOpen) {
+        // Check online status when opening
+        this.startStatusCheck();
+
         // Always initialize conversation immediately (no blocking pre-chat form)
         if (!this.conversation) {
           this.initConversation();
@@ -715,6 +819,7 @@
       } else {
         this.stopPolling();
         this.stopInactivityTimer();
+        this.stopStatusCheck();
       }
     }
 
@@ -743,8 +848,11 @@
               </svg>
             </div>
             <div class="mact-header-info">
-              <h3>${this.companyName}</h3>
-              <p>We typically reply within minutes</p>
+              <h3>
+                <span class="mact-status-dot ${this.isOnline ? 'online' : 'offline'}"></span>
+                ${this.companyName}
+              </h3>
+              <p>${this.statusMessage}</p>
             </div>
             <button class="mact-chat-close" aria-label="Close chat">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1206,12 +1314,33 @@
           font-size: 16px;
           font-weight: 600;
           margin: 0;
+          display: flex;
+          align-items: center;
+          gap: 6px;
         }
 
         .mact-header-info p {
           font-size: 13px;
           opacity: 0.9;
           margin: 2px 0 0;
+        }
+
+        /* Status Dot */
+        .mact-status-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          display: inline-block;
+          flex-shrink: 0;
+        }
+
+        .mact-status-dot.online {
+          background: #22c55e;
+          box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.3);
+        }
+
+        .mact-status-dot.offline {
+          background: #9ca3af;
         }
 
         .mact-chat-close {
@@ -1562,6 +1691,17 @@
 
         .mact-email-capture-submit:hover {
           filter: brightness(1.1);
+        }
+
+        /* Offline note in email capture */
+        .mact-offline-note {
+          font-size: 13px;
+          color: #64748b;
+          text-align: center;
+          margin-bottom: 12px;
+          padding: 8px 12px;
+          background: #f1f5f9;
+          border-radius: 8px;
         }
 
         /* ========================================
