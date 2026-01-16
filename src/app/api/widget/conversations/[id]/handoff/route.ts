@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { sendHandoffRequestEmail } from "@/lib/email";
 
 // Create supabase client at runtime for server-side usage
 function getSupabase() {
@@ -147,7 +148,33 @@ export async function POST(
       content: systemMessage,
     });
 
-    // Trigger notification (for logging now, email later)
+    // Get recent messages for context (optional summary)
+    const { data: recentMessages } = await supabase
+      .from("messages")
+      .select("sender_type, content")
+      .eq("conversation_id", id)
+      .order("created_at", { ascending: false })
+      .limit(5);
+
+    // Build conversation summary from recent messages
+    const conversationSummary = recentMessages
+      ?.reverse()
+      .map((m) => {
+        const sender = m.sender_type === "visitor" ? "Visitor" : "Bot";
+        return `${sender}: ${m.content.substring(0, 100)}${m.content.length > 100 ? "..." : ""}`;
+      })
+      .join("\n") || "";
+
+    // Send handoff notification email (non-blocking)
+    sendHandoffRequestEmail({
+      visitorName: visitorName || conversation.visitor_name,
+      visitorEmail: visitorEmail || conversation.visitor_email,
+      reason: reason || message || "Human handoff requested",
+      conversationId: id,
+      conversationSummary,
+    }).catch((err) => console.error("Failed to send handoff email:", err));
+
+    // Also trigger the existing notification endpoint (for logging)
     try {
       await fetch(`${request.nextUrl.origin}/api/notifications`, {
         method: "POST",

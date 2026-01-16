@@ -8,6 +8,7 @@ import {
   formatOrderForChat,
   formatOrdersListForChat,
 } from "@/lib/woocommerce";
+import { sendNewConversationEmail } from "@/lib/email";
 
 // Create supabase client at runtime for server-side usage
 function getSupabase() {
@@ -113,6 +114,32 @@ export async function POST(
       .single();
 
     if (msgError) throw msgError;
+
+    // Check if this is the first visitor message (for email notification)
+    const { count: visitorMsgCount } = await supabase
+      .from("messages")
+      .select("*", { count: "exact", head: true })
+      .eq("conversation_id", id)
+      .eq("sender_type", "visitor");
+
+    const isFirstVisitorMessage = visitorMsgCount === 1;
+
+    // Send email notification for first visitor message
+    if (isFirstVisitorMessage) {
+      // Get visitor location from conversation metadata
+      const visitorLocation = conversation.visitor_location ||
+        conversation.metadata?.location ||
+        null;
+
+      // Send notification email (non-blocking)
+      sendNewConversationEmail({
+        visitorName: conversation.visitor_name,
+        visitorEmail: conversation.visitor_email,
+        visitorLocation: visitorLocation,
+        firstMessage: content.trim(),
+        conversationId: id,
+      }).catch((err) => console.error("Failed to send notification email:", err));
+    }
 
     // Update conversation timestamp
     await supabase
