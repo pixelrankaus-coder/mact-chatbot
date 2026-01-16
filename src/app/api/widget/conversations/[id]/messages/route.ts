@@ -222,6 +222,13 @@ export async function POST(
         knowledgeContent = knowledgeContent + orderContext;
       }
 
+      // Get LLM provider settings
+      const { data: llmSettings } = await supabase
+        .from("llm_settings")
+        .select("*")
+        .eq("store_id", "default")
+        .single();
+
       // Generate AI response
       try {
         const aiResponse = await generateAIResponse(
@@ -233,7 +240,13 @@ export async function POST(
             responseLength: aiSettings?.value?.responseLength || 50,
             fallbackAction: aiSettings?.value?.fallbackAction || "clarify",
           },
-          knowledgeContent
+          knowledgeContent,
+          llmSettings ? {
+            provider: llmSettings.provider,
+            model: llmSettings.model,
+            temperature: llmSettings.temperature,
+            maxTokens: llmSettings.max_tokens,
+          } : undefined
         );
 
         // Insert bot response

@@ -10,27 +10,38 @@ export function useSettings<T extends Json>(key: string, defaultValue: T) {
   const [error, setError] = useState<Error | null>(null);
   const defaultValueRef = useRef(defaultValue);
 
-  // Fetch setting by key
+  // Fetch setting by key with timeout
   const fetchSetting = useCallback(async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from("settings")
-        .select("value")
-        .eq("key", key)
-        .single();
 
-      if (error) {
+      // Create a timeout promise
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("Request timeout")), 10000);
+      });
+
+      // Race between the actual request and timeout
+      const result = await Promise.race([
+        supabase
+          .from("settings")
+          .select("value")
+          .eq("key", key)
+          .single(),
+        timeoutPromise
+      ]);
+
+      if (result.error) {
         // If not found, use default value
-        if (error.code === "PGRST116") {
+        if (result.error.code === "PGRST116") {
           setValue(defaultValueRef.current);
         } else {
-          throw error;
+          throw result.error;
         }
       } else {
-        setValue(data.value as T);
+        setValue(result.data.value as T);
       }
     } catch (err) {
+      console.error(`Failed to fetch setting "${key}":`, err);
       setError(err as Error);
       setValue(defaultValueRef.current);
     } finally {

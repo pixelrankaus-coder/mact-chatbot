@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import { chat, type LLMConfig, type LLMProvider, PRICING } from "./llm";
 
 // Types for AI provider abstraction
 export interface AIMessage {
@@ -21,36 +21,35 @@ export interface AIResponse {
     completionTokens: number;
     totalTokens: number;
   };
+  cost?: number;
 }
 
-// GPT-4o-mini pricing (as of 2024)
-// Input: $0.15 per 1M tokens
-// Output: $0.60 per 1M tokens
-const MODEL_PRICING: Record<string, { input: number; output: number }> = {
-  "gpt-4o-mini": { input: 0.15, output: 0.60 },
-  "gpt-4o-mini-2024-07-18": { input: 0.15, output: 0.60 },
-  "gpt-4o": { input: 2.50, output: 10.00 },
-  "gpt-4-turbo": { input: 10.00, output: 30.00 },
-};
+// Re-export LLMProvider type
+export type AIProvider = LLMProvider;
 
 // Calculate cost in USD based on token usage and model
 export function calculateTokenCost(
   model: string,
   promptTokens: number,
-  completionTokens: number
+  completionTokens: number,
+  provider: LLMProvider = "openai"
 ): number {
-  // Find matching pricing (default to gpt-4o-mini if unknown)
-  const pricing = MODEL_PRICING[model] || MODEL_PRICING["gpt-4o-mini"];
+  const providerPricing = PRICING[provider];
+  const modelPricing = providerPricing?.[model] || providerPricing?.[Object.keys(providerPricing || {})[0]];
 
-  // Cost per token (pricing is per 1M tokens)
-  const inputCost = (promptTokens / 1_000_000) * pricing.input;
-  const outputCost = (completionTokens / 1_000_000) * pricing.output;
+  if (!modelPricing) {
+    // Fallback to OpenAI gpt-4o-mini pricing
+    const fallback = PRICING.openai["gpt-4o-mini"];
+    const inputCost = (promptTokens / 1_000_000) * fallback.input;
+    const outputCost = (completionTokens / 1_000_000) * fallback.output;
+    return inputCost + outputCost;
+  }
+
+  const inputCost = (promptTokens / 1_000_000) * modelPricing.input;
+  const outputCost = (completionTokens / 1_000_000) * modelPricing.output;
 
   return inputCost + outputCost;
 }
-
-// AI Provider type for future extensibility
-export type AIProvider = "openai" | "anthropic";
 
 // Build system prompt based on AI settings and knowledge base
 export function buildSystemPrompt(
@@ -159,58 +158,12 @@ ${knowledgeContent ? `## Additional Knowledge Base Content\n${knowledgeContent}`
 Remember: You represent MACt. Be helpful, accurate, and professional in all interactions.`;
 }
 
-// OpenAI provider implementation
-class OpenAIProvider {
-  private client: OpenAI;
-  private model: string;
-
-  constructor(apiKey?: string, model: string = "gpt-4o-mini") {
-    this.client = new OpenAI({
-      apiKey: apiKey || process.env.OPENAI_API_KEY,
-    });
-    this.model = model;
-  }
-
-  async generateResponse(messages: AIMessage[]): Promise<AIResponse> {
-    const response = await this.client.chat.completions.create({
-      model: this.model,
-      messages: messages.map((m) => ({
-        role: m.role,
-        content: m.content,
-      })),
-      max_tokens: 1024,
-      temperature: 0.7,
-    });
-
-    const content = response.choices[0]?.message?.content ||
-      "I apologize, but I was unable to generate a response. Please try again.";
-
-    return {
-      content,
-      model: response.model,
-      usage: response.usage ? {
-        promptTokens: response.usage.prompt_tokens,
-        completionTokens: response.usage.completion_tokens,
-        totalTokens: response.usage.total_tokens,
-      } : undefined,
-    };
-  }
-}
-
-// Factory function to get AI provider
-export function getAIProvider(
-  provider: AIProvider = "openai",
-  options?: { apiKey?: string; model?: string }
-) {
-  switch (provider) {
-    case "openai":
-      return new OpenAIProvider(options?.apiKey, options?.model || "gpt-4o-mini");
-    case "anthropic":
-      // Placeholder for future Anthropic support
-      throw new Error("Anthropic provider not currently implemented. Use OpenAI.");
-    default:
-      throw new Error(`Unknown AI provider: ${provider}`);
-  }
+// LLM Configuration interface
+export interface LLMSettings {
+  provider: LLMProvider;
+  model: string;
+  temperature?: number;
+  maxTokens?: number;
 }
 
 // Main function to generate AI response
@@ -219,24 +172,39 @@ export async function generateAIResponse(
   newMessage: string,
   settings: AISettings,
   knowledgeContent?: string,
-  options?: { provider?: AIProvider; model?: string }
+  llmSettings?: LLMSettings
 ): Promise<AIResponse> {
-  const provider = getAIProvider(options?.provider || "openai", {
-    model: options?.model,
-  });
+  // Default LLM settings if not provided
+  const config: LLMConfig = {
+    provider: llmSettings?.provider || "openai",
+    model: llmSettings?.model || "gpt-4o-mini",
+    temperature: llmSettings?.temperature ?? 0.7,
+    maxTokens: llmSettings?.maxTokens ?? 1000,
+  };
 
   // Build system prompt
   const systemPrompt = buildSystemPrompt(settings, knowledgeContent);
 
-  // Build messages array
-  const messages: AIMessage[] = [
-    { role: "system", content: systemPrompt },
+  // Build messages array (excluding system prompt - it's passed separately)
+  const messages = [
     ...conversationHistory.map((msg) => ({
       role: msg.role as "user" | "assistant",
       content: msg.content,
     })),
-    { role: "user", content: newMessage },
+    { role: "user" as const, content: newMessage },
   ];
 
-  return provider.generateResponse(messages);
+  try {
+    const response = await chat(config, systemPrompt, messages);
+
+    return {
+      content: response.content,
+      model: `${config.provider}/${response.model}`,
+      usage: response.usage,
+      cost: response.cost,
+    };
+  } catch (error) {
+    console.error(`LLM error (${config.provider}/${config.model}):`, error);
+    throw error;
+  }
 }

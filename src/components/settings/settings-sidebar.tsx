@@ -14,6 +14,7 @@ import {
   Users,
   Plug,
   History,
+  Cpu,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ADMIN_VERSION, WIDGET_VERSION } from "@/lib/version";
@@ -31,6 +32,7 @@ const settingsNav: SettingsNavItem[] = [
   { id: "appearance", label: "Appearance", href: "/settings/appearance", icon: <Palette className="h-4 w-4" />, section: "CHANNELS" },
   { id: "installation", label: "Installation", href: "/settings/installation", icon: <Code className="h-4 w-4" />, section: "CHANNELS" },
   { id: "chat-page", label: "Chat page", href: "/settings/chat-page", icon: <Globe className="h-4 w-4" />, section: "CHANNELS" },
+  { id: "ai-provider", label: "AI Provider", href: "/settings/ai-provider", icon: <Cpu className="h-4 w-4" />, section: "CHANNELS" },
   { id: "account", label: "Account", href: "/settings/account", icon: <User className="h-4 w-4" />, section: "PERSONAL" },
   { id: "notifications", label: "Notifications", href: "/settings/notifications", icon: <Bell className="h-4 w-4" />, section: "PERSONAL" },
   { id: "operating-hours", label: "Operating hours", href: "/settings/operating-hours", icon: <Clock className="h-4 w-4" />, section: "PERSONAL" },
