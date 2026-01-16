@@ -1,7 +1,7 @@
 (function() {
   'use strict';
 
-  const WIDGET_VERSION = '2.2.0';
+  const WIDGET_VERSION = '2.3.0';
 
   // Get script configuration
   const scriptTag = document.currentScript;
@@ -32,6 +32,11 @@
       this.pendingMessage = null;
       this.visitorEmail = localStorage.getItem('mact_visitor_email') || null;
       this.newsletterOptIn = false;
+
+      // Inactivity follow-up state
+      this.inactivityTimer = null;
+      this.followUpShown = false;
+      this.lastUserActivity = Date.now();
     }
 
     connectedCallback() {
@@ -373,6 +378,90 @@
     }
 
     // ============================================================
+    // Markdown to HTML Conversion (for clickable links)
+    // ============================================================
+    parseMarkdownLinks(text) {
+      if (!text) return '';
+
+      // Escape HTML first to prevent XSS
+      let html = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+      // Convert markdown links [text](url) to clickable HTML
+      html = html.replace(
+        /\[([^\]]+)\]\(([^)]+)\)/g,
+        '<a href="$2" target="_blank" rel="noopener noreferrer" class="mact-link">$1</a>'
+      );
+
+      // Convert bare URLs to clickable links (but not already converted ones)
+      html = html.replace(
+        /(?<!href="|">)(https?:\/\/[^\s<]+)/g,
+        '<a href="$1" target="_blank" rel="noopener noreferrer" class="mact-link">$1</a>'
+      );
+
+      // Convert **bold** text
+      html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+
+      // Convert *italic* text
+      html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+
+      // Convert line breaks
+      html = html.replace(/\n/g, '<br>');
+
+      return html;
+    }
+
+    // ============================================================
+    // Inactivity Follow-up Prompt
+    // ============================================================
+    startInactivityTimer() {
+      this.stopInactivityTimer();
+      this.lastUserActivity = Date.now();
+
+      // Only start timer if chat is open, conversation exists, and follow-up hasn't been shown
+      if (!this.isOpen || !this.conversation || this.followUpShown) return;
+
+      // 30 second inactivity timer
+      this.inactivityTimer = setTimeout(() => {
+        this.showFollowUpPrompt();
+      }, 30000);
+    }
+
+    stopInactivityTimer() {
+      if (this.inactivityTimer) {
+        clearTimeout(this.inactivityTimer);
+        this.inactivityTimer = null;
+      }
+    }
+
+    resetInactivityTimer() {
+      this.lastUserActivity = Date.now();
+      if (this.isOpen && this.conversation && !this.followUpShown) {
+        this.startInactivityTimer();
+      }
+    }
+
+    showFollowUpPrompt() {
+      if (this.followUpShown || !this.conversation) return;
+      this.followUpShown = true;
+
+      // Add follow-up message from assistant
+      const followUpMessage = {
+        id: 'followup_' + Date.now(),
+        sender_type: 'ai',
+        content: "Is there anything else I can help you with? Feel free to ask about our GFRC products, pricing, or installation process!",
+        created_at: new Date().toISOString(),
+        isFollowUp: true
+      };
+
+      this.messages.push(followUpMessage);
+      this.renderMessages();
+      this.scrollToBottom();
+    }
+
+    // ============================================================
     // Conversation & Messages API
     // ============================================================
     async createConversation() {
@@ -459,6 +548,7 @@
       if (!content.trim() || !this.conversation || this.isSending) return;
       this.isSending = true;
       this.stopPolling();
+      this.resetInactivityTimer();
 
       // Optimistic UI update
       const tempMessage = {
@@ -571,11 +661,13 @@
           this.initConversation();
         }
         this.startPolling();
+        this.startInactivityTimer();
         this.scrollToBottom();
         const input = this.shadowRoot.querySelector('.mact-input');
         if (input) setTimeout(() => input.focus(), 100);
       } else {
         this.stopPolling();
+        this.stopInactivityTimer();
       }
     }
 
@@ -723,6 +815,21 @@
       }
     }
 
+    formatTimestamp(dateString) {
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffMs = now - date;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+
+      if (diffMins < 1) return 'Just now';
+      if (diffMins < 60) return `${diffMins}m ago`;
+      if (diffHours < 24) return `${diffHours}h ago`;
+
+      // Format as time for older messages
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
     renderMessages() {
       const container = this.shadowRoot.querySelector('.mact-messages');
       if (!container) return;
@@ -733,7 +840,9 @@
         const senderType = msg.sender_type || msg.sender;
         const isVisitor = senderType === 'visitor' || senderType === 'user';
         const isSystem = senderType === 'system';
+        const isAI = senderType === 'ai' || senderType === 'bot' || senderType === 'assistant' || senderType === 'agent';
         const hasError = msg.error;
+        const timestamp = msg.created_at ? this.formatTimestamp(msg.created_at) : '';
 
         if (isSystem) {
           return `
@@ -759,7 +868,8 @@
           `;
         }
 
-        // AI/Agent message
+        // AI/Agent message with parsed markdown and timestamp
+        const parsedContent = this.parseMarkdownLinks(msg.content);
         return `
           <div class="mact-message mact-message-assistant">
             <div class="mact-avatar" style="background-color: ${color}20; color: ${color};">
@@ -767,8 +877,11 @@
                 <path d="M12 8V4H8"/><rect x="8" y="8" width="8" height="12" rx="2"/><circle cx="10" cy="13" r="1"/><circle cx="14" cy="13" r="1"/>
               </svg>
             </div>
-            <div class="mact-bubble mact-bubble-assistant">
-              ${msg.content}
+            <div class="mact-message-content">
+              <div class="mact-bubble mact-bubble-assistant">
+                ${parsedContent}
+              </div>
+              ${timestamp ? `<div class="mact-timestamp">${timestamp}</div>` : ''}
             </div>
           </div>
         `;
@@ -1153,6 +1266,42 @@
           font-size: 11px;
           margin-top: 4px;
           opacity: 0.8;
+        }
+
+        /* Message content wrapper (for timestamp positioning) */
+        .mact-message-content {
+          display: flex;
+          flex-direction: column;
+          max-width: 100%;
+        }
+
+        /* Timestamps */
+        .mact-timestamp {
+          font-size: 11px;
+          color: #94a3b8;
+          margin-top: 4px;
+          padding-left: 2px;
+        }
+
+        /* Clickable links in messages */
+        .mact-link {
+          color: var(--primary-color);
+          text-decoration: underline;
+          cursor: pointer;
+          word-break: break-word;
+        }
+
+        .mact-link:hover {
+          opacity: 0.8;
+        }
+
+        .mact-bubble-assistant .mact-link {
+          color: var(--primary-color);
+        }
+
+        .mact-bubble-visitor .mact-link {
+          color: white;
+          opacity: 0.9;
         }
 
         /* System bubble */
