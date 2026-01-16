@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { generateAIResponse } from "@/lib/ai";
+import { generateAIResponse, calculateTokenCost } from "@/lib/ai";
 import {
   detectOrderIntent,
   lookupOrderByNumber,
@@ -250,6 +250,25 @@ export async function POST(
 
         if (!botError) {
           botMessage = botMsg;
+
+          // Log token usage if available
+          if (aiResponse.usage) {
+            const cost = calculateTokenCost(
+              aiResponse.model,
+              aiResponse.usage.promptTokens,
+              aiResponse.usage.completionTokens
+            );
+
+            await supabase.from("token_usage").insert({
+              conversation_id: id,
+              message_id: botMsg.id,
+              model: aiResponse.model,
+              prompt_tokens: aiResponse.usage.promptTokens,
+              completion_tokens: aiResponse.usage.completionTokens,
+              total_tokens: aiResponse.usage.totalTokens,
+              cost_usd: cost,
+            });
+          }
         }
       } catch (aiError) {
         console.error("AI response error:", aiError);

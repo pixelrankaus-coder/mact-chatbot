@@ -23,6 +23,32 @@ export interface AIResponse {
   };
 }
 
+// GPT-4o-mini pricing (as of 2024)
+// Input: $0.15 per 1M tokens
+// Output: $0.60 per 1M tokens
+const MODEL_PRICING: Record<string, { input: number; output: number }> = {
+  "gpt-4o-mini": { input: 0.15, output: 0.60 },
+  "gpt-4o-mini-2024-07-18": { input: 0.15, output: 0.60 },
+  "gpt-4o": { input: 2.50, output: 10.00 },
+  "gpt-4-turbo": { input: 10.00, output: 30.00 },
+};
+
+// Calculate cost in USD based on token usage and model
+export function calculateTokenCost(
+  model: string,
+  promptTokens: number,
+  completionTokens: number
+): number {
+  // Find matching pricing (default to gpt-4o-mini if unknown)
+  const pricing = MODEL_PRICING[model] || MODEL_PRICING["gpt-4o-mini"];
+
+  // Cost per token (pricing is per 1M tokens)
+  const inputCost = (promptTokens / 1_000_000) * pricing.input;
+  const outputCost = (completionTokens / 1_000_000) * pricing.output;
+
+  return inputCost + outputCost;
+}
+
 // AI Provider type for future extensibility
 export type AIProvider = "openai" | "anthropic";
 

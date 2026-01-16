@@ -9,6 +9,7 @@ import {
   Bot,
   CheckCircle,
 } from "lucide-react";
+import { TokenUsageWidget } from "@/components/dashboard/TokenUsageWidget";
 
 const stats = [
   {
@@ -119,6 +120,11 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
           ))}
+        </div>
+
+        {/* Token Usage Widget */}
+        <div className="mb-8">
+          <TokenUsageWidget />
         </div>
 
         {/* Recent Conversations */}
