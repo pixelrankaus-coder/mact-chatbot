@@ -1,7 +1,7 @@
 (function() {
   'use strict';
 
-  const WIDGET_VERSION = '2.3.0';
+  const WIDGET_VERSION = '2.3.1';
 
   // Get script configuration
   const scriptTag = document.currentScript;
@@ -288,7 +288,9 @@
     }
 
     get emailCaptureEnabled() {
-      return this.settings?.preChatForm?.enabled ?? false;
+      // Email capture is enabled by default (Tidio-style behavior)
+      // Can be disabled via preChatForm.enabled = false
+      return this.settings?.preChatForm?.enabled !== false;
     }
 
     get collectNewsletter() {
