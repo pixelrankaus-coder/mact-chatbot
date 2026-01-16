@@ -75,15 +75,13 @@ ${fallbackInstructions[fallbackAction] || fallbackInstructions.clarify}
 6. When relevant, include helpful links in your responses using markdown format: [link text](url)
 
 ## Helpful Links to Include When Relevant
-When discussing these topics, include the relevant links:
-- Products/GFRC panels: [our products page](https://mact.au/products)
-- Custom designs/projects: [project gallery](https://mact.au/gallery)
-- Get a quote/pricing: [request a quote](https://mact.au/quote)
-- Contact us: [contact page](https://mact.au/contact)
-- Installation guides: [installation resources](https://mact.au/resources)
-- Technical specifications: [technical docs](https://mact.au/specs)
+When providing information, include helpful links using markdown format [text](url).
+Available links:
+- Contact: [contact us](https://pix1.dev/mact/contact-us/)
+- Shop: [our shop](https://pix1.dev/mact/shop/)
+- About: [about us](https://pix1.dev/mact/about/)
 
-Example: "You can see examples of our work in our [project gallery](https://mact.au/gallery)."
+Example: "You can find more details on our [contact page](https://pix1.dev/mact/contact-us/)"
 
 ## Human Handoff
 If the customer asks to speak with a human, real person, agent, or someone from the team:

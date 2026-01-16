@@ -1,7 +1,7 @@
 (function() {
   'use strict';
 
-  const WIDGET_VERSION = '2.3.1';
+  const WIDGET_VERSION = '2.4.0';
 
   // Get script configuration
   const scriptTag = document.currentScript;
@@ -453,7 +453,7 @@
       const followUpMessage = {
         id: 'followup_' + Date.now(),
         sender_type: 'ai',
-        content: "Is there anything else I can help you with? Feel free to ask about our GFRC products, pricing, or installation process!",
+        content: "If you still need help with your question, I'm here to assist you. Would you like to provide more details?",
         created_at: new Date().toISOString(),
         isFollowUp: true
       };
@@ -817,19 +817,21 @@
       }
     }
 
-    formatTimestamp(dateString) {
+    formatTimestamp(dateString, agentName = 'MACt Assistant') {
       const date = new Date(dateString);
       const now = new Date();
-      const diffMs = now - date;
-      const diffMins = Math.floor(diffMs / 60000);
-      const diffHours = Math.floor(diffMs / 3600000);
 
-      if (diffMins < 1) return 'Just now';
-      if (diffMins < 60) return `${diffMins}m ago`;
-      if (diffHours < 24) return `${diffHours}h ago`;
+      const time = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
-      // Format as time for older messages
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const isToday = date.toDateString() === now.toDateString();
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const isYesterday = date.toDateString() === yesterday.toDateString();
+
+      const dateLabel = isToday ? 'Today' : isYesterday ? 'Yesterday' :
+        date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+
+      return `${agentName} - ${dateLabel}, ${time}`;
     }
 
     renderMessages() {
