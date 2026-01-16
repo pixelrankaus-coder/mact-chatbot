@@ -1,7 +1,7 @@
 (function() {
   'use strict';
 
-  const WIDGET_VERSION = '2.4.0';
+  const WIDGET_VERSION = '2.5.0';
 
   // Get script configuration
   const scriptTag = document.currentScript;
@@ -37,6 +37,10 @@
       this.inactivityTimer = null;
       this.followUpShown = false;
       this.lastUserActivity = Date.now();
+
+      // Typing indicator state
+      this.visitorTypingTimeout = null;
+      this.isAgentTyping = false;
     }
 
     connectedCallback() {
@@ -464,6 +468,42 @@
     }
 
     // ============================================================
+    // Typing Indicators
+    // ============================================================
+    sendTypingStatus(isTyping) {
+      if (!this.conversation) return;
+
+      fetch(`${apiBase}/api/widget/conversations/${this.conversation.id}/typing`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isTyping, sender: 'visitor' })
+      }).catch(err => console.error('MACt Widget: Failed to send typing status', err));
+    }
+
+    onVisitorTyping() {
+      // Send typing = true
+      this.sendTypingStatus(true);
+
+      // Clear previous timeout
+      clearTimeout(this.visitorTypingTimeout);
+
+      // Set typing = false after 3 seconds of no typing
+      this.visitorTypingTimeout = setTimeout(() => {
+        this.sendTypingStatus(false);
+      }, 3000);
+    }
+
+    showAgentTypingIndicator() {
+      this.isAgentTyping = true;
+      this.setTyping(true);
+    }
+
+    hideAgentTypingIndicator() {
+      this.isAgentTyping = false;
+      this.setTyping(false);
+    }
+
+    // ============================================================
     // Conversation & Messages API
     // ============================================================
     async createConversation() {
@@ -552,6 +592,10 @@
       this.stopPolling();
       this.resetInactivityTimer();
 
+      // Clear visitor typing status when message is sent
+      this.sendTypingStatus(false);
+      clearTimeout(this.visitorTypingTimeout);
+
       // Optimistic UI update
       const tempMessage = {
         id: 'temp_' + Date.now(),
@@ -563,8 +607,8 @@
       this.renderMessages();
       this.scrollToBottom();
 
-      // Show typing
-      this.setTyping(true);
+      // Show typing indicator (AI is generating response)
+      this.showAgentTypingIndicator();
 
       try {
         const response = await fetch(`${apiBase}/api/widget/conversations/${this.conversation.id}/messages`, {
@@ -589,12 +633,13 @@
           this.lastMessageTime = data.botMessage.created_at;
         }
 
-        this.setTyping(false);
+        // Hide typing indicator when response is received
+        this.hideAgentTypingIndicator();
         this.renderMessages();
         this.scrollToBottom();
       } catch (error) {
         console.error('MACt Widget: Failed to send message', error);
-        this.setTyping(false);
+        this.hideAgentTypingIndicator();
         const tempIndex = this.messages.findIndex(m => m.id === tempMessage.id);
         if (tempIndex !== -1) {
           this.messages[tempIndex].error = true;
@@ -917,6 +962,13 @@
       // Send message
       const input = this.shadowRoot.querySelector('.mact-input');
       const sendBtn = this.shadowRoot.querySelector('.mact-send-btn');
+
+      // Track visitor typing
+      input?.addEventListener('input', () => {
+        if (input.value.trim()) {
+          this.onVisitorTyping();
+        }
+      });
 
       input?.addEventListener('keypress', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {

@@ -70,6 +70,10 @@ export default function InboxPage() {
   const [sidebarTab, setSidebarTab] = useState<"info" | "pages" | "notes">("info");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Typing indicator state
+  const [visitorTyping, setVisitorTyping] = useState<Record<string, boolean>>({});
+  const agentTypingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // Get selected conversation
   const selectedConversation = conversations.find(
     (c) => c.id === selectedConversationId
@@ -101,6 +105,60 @@ export default function InboxPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Subscribe to typing status changes
+  useEffect(() => {
+    const channel = supabase
+      .channel('typing-status')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'typing_status'
+      }, (payload) => {
+        const data = payload.new as { conversation_id: string; is_visitor_typing: boolean } | null;
+        if (data) {
+          setVisitorTyping(prev => ({
+            ...prev,
+            [data.conversation_id]: data.is_visitor_typing
+          }));
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  // Send agent typing status
+  const sendAgentTypingStatus = async (isTyping: boolean) => {
+    if (!selectedConversationId) return;
+
+    try {
+      await fetch(`/api/widget/conversations/${selectedConversationId}/typing`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isTyping, sender: 'agent' })
+      });
+    } catch (error) {
+      console.error('Failed to send agent typing status:', error);
+    }
+  };
+
+  // Handle agent typing
+  const handleAgentTyping = () => {
+    sendAgentTypingStatus(true);
+
+    // Clear previous timeout
+    if (agentTypingTimeoutRef.current) {
+      clearTimeout(agentTypingTimeoutRef.current);
+    }
+
+    // Set typing = false after 3 seconds
+    agentTypingTimeoutRef.current = setTimeout(() => {
+      sendAgentTypingStatus(false);
+    }, 3000);
+  };
 
   // Filter and sort conversations (handoff requests first, then by date)
   const filteredConversations = conversations
@@ -189,6 +247,12 @@ export default function InboxPage() {
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedConversationId || sendingMessage) return;
+
+    // Clear agent typing status
+    sendAgentTypingStatus(false);
+    if (agentTypingTimeoutRef.current) {
+      clearTimeout(agentTypingTimeoutRef.current);
+    }
 
     setSendingMessage(true);
     try {
@@ -773,6 +837,22 @@ export default function InboxPage() {
             </div>
           </ScrollArea>
 
+          {/* Visitor Typing Indicator */}
+          {selectedConversation && visitorTyping[selectedConversation.id] && (
+            <div className="border-t bg-slate-50 px-4 py-2">
+              <div className="mx-auto max-w-2xl">
+                <div className="flex items-center gap-2 text-sm text-slate-500">
+                  <div className="flex gap-1">
+                    <span className="animate-bounce h-1.5 w-1.5 rounded-full bg-slate-400" style={{ animationDelay: '0ms' }}></span>
+                    <span className="animate-bounce h-1.5 w-1.5 rounded-full bg-slate-400" style={{ animationDelay: '150ms' }}></span>
+                    <span className="animate-bounce h-1.5 w-1.5 rounded-full bg-slate-400" style={{ animationDelay: '300ms' }}></span>
+                  </div>
+                  <span>Visitor is typing...</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Message Input */}
           {selectedConversation && (
             <div className="border-t bg-white p-4">
@@ -782,7 +862,12 @@ export default function InboxPage() {
                     <Textarea
                       placeholder="Type your message..."
                       value={newMessage}
-                      onChange={(e) => setNewMessage(e.target.value)}
+                      onChange={(e) => {
+                        setNewMessage(e.target.value);
+                        if (e.target.value.trim()) {
+                          handleAgentTyping();
+                        }
+                      }}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && !e.shiftKey) {
                           e.preventDefault();
