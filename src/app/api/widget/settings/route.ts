@@ -101,11 +101,21 @@ export async function GET() {
       },
     };
 
+    // Default chat triggers (proactive engagement)
+    const defaultTriggers = {
+      enabled: false,
+      timeDelay: { enabled: false, seconds: 10 },
+      scrollDepth: { enabled: false, percentage: 50 },
+      exitIntent: { enabled: false, message: "Wait! Have a question before you go?" },
+      oncePerSession: true,
+    };
+
     const settings = {
       appearance: appearance?.value || defaultAppearance,
       aiAgent: aiAgent?.value || defaultAiAgent,
       operatingHours: operatingHours?.value || null,
       preChatForm: aiAgent?.value?.preChatForm || defaultPreChatForm,
+      triggers: aiAgent?.value?.triggers || defaultTriggers,
     };
 
     // Add CORS headers for cross-origin widget requests

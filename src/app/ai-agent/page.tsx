@@ -43,6 +43,9 @@ import {
   AlertCircle,
   X,
   UserCircle,
+  Clock,
+  MousePointer,
+  ArrowUpFromLine,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAIAgentSettings } from "@/hooks/use-settings";
@@ -92,6 +95,15 @@ export default function AIAgentPage() {
     phone: "optional" as "required" | "optional" | "hidden",
   });
 
+  // Chat triggers state
+  const [triggersEnabled, setTriggersEnabled] = useState(false);
+  const [timeDelayEnabled, setTimeDelayEnabled] = useState(false);
+  const [timeDelaySeconds, setTimeDelaySeconds] = useState("10");
+  const [scrollDepthEnabled, setScrollDepthEnabled] = useState(false);
+  const [scrollDepthPercent, setScrollDepthPercent] = useState("50");
+  const [exitIntentEnabled, setExitIntentEnabled] = useState(false);
+  const [oncePerSession, setOncePerSession] = useState(true);
+
   // Knowledge base state
   const [documents, setDocuments] = useState<UploadedDocument[]>([]);
   const [loadingDocs, setLoadingDocs] = useState(true);
@@ -121,6 +133,15 @@ export default function AIAgentPage() {
         email: settings.preChatForm?.fields?.email || "required",
         phone: settings.preChatForm?.fields?.phone || "optional",
       });
+
+      // Load triggers settings
+      setTriggersEnabled(settings.triggers?.enabled ?? false);
+      setTimeDelayEnabled(settings.triggers?.timeDelay?.enabled ?? false);
+      setTimeDelaySeconds(String(settings.triggers?.timeDelay?.seconds ?? 10));
+      setScrollDepthEnabled(settings.triggers?.scrollDepth?.enabled ?? false);
+      setScrollDepthPercent(String(settings.triggers?.scrollDepth?.percentage ?? 50));
+      setExitIntentEnabled(settings.triggers?.exitIntent?.enabled ?? false);
+      setOncePerSession(settings.triggers?.oncePerSession ?? true);
 
       // Initialize test messages with welcome message
       setTestMessages([{
@@ -165,6 +186,21 @@ export default function AIAgentPage() {
         preChatForm: {
           enabled: preChatEnabled,
           fields: preChatFields,
+        },
+        triggers: {
+          enabled: triggersEnabled,
+          timeDelay: {
+            enabled: timeDelayEnabled,
+            seconds: parseInt(timeDelaySeconds) || 10,
+          },
+          scrollDepth: {
+            enabled: scrollDepthEnabled,
+            percentage: parseInt(scrollDepthPercent) || 50,
+          },
+          exitIntent: {
+            enabled: exitIntentEnabled,
+          },
+          oncePerSession,
         },
       });
       toast.success("AI Agent settings saved successfully!");
@@ -988,6 +1024,131 @@ export default function AIAgentPage() {
                       </>
                     ) : (
                       "Save Pre-Chat Settings"
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Chat Triggers */}
+              <Card className="border-0 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <MousePointer className="h-5 w-5 text-orange-600" />
+                    Chat Triggers
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <HelpCircle className="h-4 w-4 text-slate-400" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        Proactively open the chat based on visitor behavior to increase engagement
+                      </TooltipContent>
+                    </Tooltip>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-slate-700">Enable Triggers</p>
+                      <p className="text-xs text-slate-500">Auto-open chat based on visitor behavior</p>
+                    </div>
+                    <Switch
+                      checked={triggersEnabled}
+                      onCheckedChange={setTriggersEnabled}
+                    />
+                  </div>
+
+                  {triggersEnabled && (
+                    <div className="space-y-4 border-t pt-4">
+                      {/* Time Delay Trigger */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-slate-400" />
+                          <span className="text-sm text-slate-700">Open after</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={timeDelayEnabled}
+                            onCheckedChange={setTimeDelayEnabled}
+                          />
+                          <Input
+                            type="number"
+                            min="1"
+                            max="300"
+                            value={timeDelaySeconds}
+                            onChange={(e) => setTimeDelaySeconds(e.target.value)}
+                            className="w-20"
+                            disabled={!timeDelayEnabled}
+                          />
+                          <span className="text-sm text-slate-500">seconds</span>
+                        </div>
+                      </div>
+
+                      {/* Scroll Depth Trigger */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <ArrowUpFromLine className="h-4 w-4 text-slate-400" />
+                          <span className="text-sm text-slate-700">Open at scroll</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={scrollDepthEnabled}
+                            onCheckedChange={setScrollDepthEnabled}
+                          />
+                          <Input
+                            type="number"
+                            min="1"
+                            max="100"
+                            value={scrollDepthPercent}
+                            onChange={(e) => setScrollDepthPercent(e.target.value)}
+                            className="w-20"
+                            disabled={!scrollDepthEnabled}
+                          />
+                          <span className="text-sm text-slate-500">%</span>
+                        </div>
+                      </div>
+
+                      {/* Exit Intent Trigger */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <MousePointer className="h-4 w-4 text-slate-400" />
+                          <div>
+                            <span className="text-sm text-slate-700">Exit intent</span>
+                            <p className="text-xs text-slate-500">When mouse leaves viewport</p>
+                          </div>
+                        </div>
+                        <Switch
+                          checked={exitIntentEnabled}
+                          onCheckedChange={setExitIntentEnabled}
+                        />
+                      </div>
+
+                      {/* Once Per Session */}
+                      <div className="flex items-center justify-between border-t pt-4">
+                        <div>
+                          <span className="text-sm text-slate-700">Once per session</span>
+                          <p className="text-xs text-slate-500">Don&apos;t trigger again after refresh</p>
+                        </div>
+                        <Switch
+                          checked={oncePerSession}
+                          onCheckedChange={setOncePerSession}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <Button
+                    onClick={handleSave}
+                    disabled={saving}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    {saving ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      "Save Trigger Settings"
                     )}
                   </Button>
                 </CardContent>

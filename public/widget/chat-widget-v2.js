@@ -1,7 +1,7 @@
 (function() {
   'use strict';
 
-  const WIDGET_VERSION = '2.6.0';
+  const WIDGET_VERSION = '2.7.0';
 
   // Get script configuration
   const scriptTag = document.currentScript;
@@ -46,6 +46,12 @@
       this.isOnline = true;
       this.statusMessage = "We typically reply within minutes";
       this.statusCheckInterval = null;
+
+      // Chat triggers state
+      this.triggerFired = false;
+      this.triggerTimeoutId = null;
+      this.scrollHandler = null;
+      this.exitIntentHandler = null;
     }
 
     connectedCallback() {
@@ -55,6 +61,7 @@
     disconnectedCallback() {
       this.stopPolling();
       this.stopStatusCheck();
+      this.cleanupTriggers();
     }
 
     // ============================================================
@@ -65,6 +72,7 @@
       this.initPageTracking();
       this.render();
       this.attachEventListeners();
+      this.initTriggers();
       console.log(`MACt Chat Widget v${WIDGET_VERSION} initialized`);
     }
 
@@ -601,6 +609,98 @@
         const message = this.pendingMessage;
         this.pendingMessage = null;
         this.sendMessageDirect(message);
+      }
+    }
+
+    // ============================================================
+    // Chat Triggers (Time, Scroll, Exit Intent)
+    // ============================================================
+    initTriggers() {
+      const triggers = this.settings?.triggers;
+      if (!triggers?.enabled) {
+        return;
+      }
+
+      // Check if already triggered this session
+      if (triggers.oncePerSession && sessionStorage.getItem('mact_trigger_fired')) {
+        return;
+      }
+
+      // Time delay trigger
+      if (triggers.timeDelay?.enabled && triggers.timeDelay.seconds > 0) {
+        this.triggerTimeoutId = setTimeout(() => {
+          this.fireTrigger('time');
+        }, triggers.timeDelay.seconds * 1000);
+      }
+
+      // Scroll depth trigger
+      if (triggers.scrollDepth?.enabled && triggers.scrollDepth.percentage > 0) {
+        this.scrollHandler = this.handleScrollTrigger.bind(this);
+        window.addEventListener('scroll', this.scrollHandler, { passive: true });
+      }
+
+      // Exit intent trigger
+      if (triggers.exitIntent?.enabled) {
+        this.exitIntentHandler = this.handleExitIntent.bind(this);
+        document.addEventListener('mouseout', this.exitIntentHandler);
+      }
+    }
+
+    handleScrollTrigger() {
+      if (this.triggerFired || this.isOpen) return;
+
+      const scrollHeight = document.documentElement.scrollHeight - window.innerHeight;
+      if (scrollHeight <= 0) return;
+
+      const scrollPercent = (window.scrollY / scrollHeight) * 100;
+      const targetPercent = this.settings?.triggers?.scrollDepth?.percentage || 50;
+
+      if (scrollPercent >= targetPercent) {
+        this.fireTrigger('scroll');
+      }
+    }
+
+    handleExitIntent(e) {
+      if (this.triggerFired || this.isOpen) return;
+
+      // Only trigger when mouse leaves through top of viewport
+      if (e.clientY < 10 && e.relatedTarget === null) {
+        this.fireTrigger('exit');
+      }
+    }
+
+    fireTrigger(type) {
+      if (this.triggerFired || this.isOpen) return;
+
+      this.triggerFired = true;
+      sessionStorage.setItem('mact_trigger_fired', 'true');
+
+      // Clean up listeners
+      this.cleanupTriggers();
+
+      // Open chat
+      this.toggle();
+
+      console.log(`[MACt] Chat triggered by: ${type}`);
+    }
+
+    cleanupTriggers() {
+      // Clear time trigger
+      if (this.triggerTimeoutId) {
+        clearTimeout(this.triggerTimeoutId);
+        this.triggerTimeoutId = null;
+      }
+
+      // Remove scroll listener
+      if (this.scrollHandler) {
+        window.removeEventListener('scroll', this.scrollHandler);
+        this.scrollHandler = null;
+      }
+
+      // Remove exit intent listener
+      if (this.exitIntentHandler) {
+        document.removeEventListener('mouseout', this.exitIntentHandler);
+        this.exitIntentHandler = null;
       }
     }
 
