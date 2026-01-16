@@ -90,9 +90,10 @@ export async function GET() {
       personality: "professional",
     };
 
-    // Default pre-chat form settings
+    // Default pre-chat form settings (enabled by default for Tidio-style email capture)
     const defaultPreChatForm = {
-      enabled: false,
+      enabled: true,
+      collectNewsletter: true,
       fields: {
         name: "required",
         email: "required",
