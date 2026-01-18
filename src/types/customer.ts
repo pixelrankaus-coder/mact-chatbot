@@ -24,9 +24,10 @@ export interface UnifiedCustomer {
   // Metadata
   lastUpdated: string;
 
-  // Stats (from WooCommerce)
+  // Sales summary stats
   totalOrders?: number;
   totalSpent?: number;
+  lastOrderDate?: string;
 
   // Additional Cin7 fields for detail view
   cin7Data?: {

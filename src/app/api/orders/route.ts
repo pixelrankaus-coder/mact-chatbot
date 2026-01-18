@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { searchSales } from "@/lib/cin7";
 import { listWooOrders } from "@/lib/woocommerce";
 import { mergeOrders, getOrderStats } from "@/lib/order-merge";
-import { OrderSource } from "@/types/order";
+import type { OrderSource } from "@/types/order";
 
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;

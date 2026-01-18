@@ -20,10 +20,12 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   ExternalLink,
   Calendar,
 } from "lucide-react";
-import type { UnifiedOrder, OrderSource, OrderStats } from "@/types/order";
+import type { UnifiedOrder, UnifiedOrderItem, OrderSource, OrderStats } from "@/types/order";
 
 const CIN7_BASE_URL = "https://inventory.dearsystems.com";
 const WOO_BASE_URL = process.env.NEXT_PUBLIC_WOOCOMMERCE_URL || "https://mact.au";
@@ -91,6 +93,80 @@ function SourceFilter({
   );
 }
 
+// Expanded row component to show line items
+function ExpandedOrderRow({
+  order,
+  items,
+  loading,
+}: {
+  order: UnifiedOrder;
+  items: UnifiedOrderItem[];
+  loading: boolean;
+}) {
+  if (loading) {
+    return (
+      <TableRow className="bg-slate-50">
+        <TableCell colSpan={8} className="py-4">
+          <div className="flex items-center justify-center">
+            <Loader2 className="h-5 w-5 animate-spin text-blue-600 mr-2" />
+            <span className="text-sm text-slate-500">Loading order details...</span>
+          </div>
+        </TableCell>
+      </TableRow>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <TableRow className="bg-slate-50">
+        <TableCell colSpan={8} className="py-4">
+          <p className="text-sm text-slate-500 text-center">No line items found for this order</p>
+        </TableCell>
+      </TableRow>
+    );
+  }
+
+  return (
+    <TableRow className="bg-slate-50">
+      <TableCell colSpan={8} className="py-4 px-8">
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium text-slate-700 mb-3">Order Items</h4>
+          <div className="rounded-lg border bg-white">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-100">
+                <tr>
+                  <th className="px-4 py-2 text-left font-medium text-slate-600">Product</th>
+                  <th className="px-4 py-2 text-left font-medium text-slate-600">SKU</th>
+                  <th className="px-4 py-2 text-right font-medium text-slate-600">Qty</th>
+                  <th className="px-4 py-2 text-right font-medium text-slate-600">Price</th>
+                  <th className="px-4 py-2 text-right font-medium text-slate-600">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item, idx) => (
+                  <tr key={idx} className="border-t border-slate-100">
+                    <td className="px-4 py-2 text-slate-800">{item.name || "-"}</td>
+                    <td className="px-4 py-2 text-slate-500">{item.sku || "-"}</td>
+                    <td className="px-4 py-2 text-right text-slate-800">{item.quantity}</td>
+                    <td className="px-4 py-2 text-right text-slate-600">${item.price?.toFixed(2) || "0.00"}</td>
+                    <td className="px-4 py-2 text-right font-medium text-slate-800">${item.total?.toFixed(2) || "0.00"}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="border-t border-slate-200 bg-slate-50">
+                <tr>
+                  <td colSpan={4} className="px-4 py-2 text-right font-medium text-slate-700">Order Total:</td>
+                  <td className="px-4 py-2 text-right font-bold text-slate-900">${order.total.toFixed(2)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}
+
 export default function OrdersPage() {
   const router = useRouter();
   const [orders, setOrders] = useState<UnifiedOrder[]>([]);
@@ -105,6 +181,9 @@ export default function OrdersPage() {
     woocommerce: 0,
     total: 0,
   });
+  const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
+  const [orderDetails, setOrderDetails] = useState<Record<string, UnifiedOrder>>({});
+  const [loadingDetails, setLoadingDetails] = useState<Set<string>>(new Set());
   const limit = 25;
 
   const fetchOrders = useCallback(async () => {
@@ -146,6 +225,38 @@ export default function OrdersPage() {
   const handleSourceChange = (source: OrderSource) => {
     setSourceFilter(source);
     setPage(1);
+  };
+
+  const toggleExpanded = async (orderId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    const newExpanded = new Set(expandedOrders);
+    if (newExpanded.has(orderId)) {
+      newExpanded.delete(orderId);
+    } else {
+      newExpanded.add(orderId);
+
+      // Fetch order details if not already loaded
+      if (!orderDetails[orderId]) {
+        setLoadingDetails((prev) => new Set(prev).add(orderId));
+        try {
+          const res = await fetch(`/api/orders/${orderId}`);
+          if (res.ok) {
+            const data = await res.json();
+            setOrderDetails((prev) => ({ ...prev, [orderId]: data.order }));
+          }
+        } catch (error) {
+          console.error("Failed to fetch order details:", error);
+        } finally {
+          setLoadingDetails((prev) => {
+            const next = new Set(prev);
+            next.delete(orderId);
+            return next;
+          });
+        }
+      }
+    }
+    setExpandedOrders(newExpanded);
   };
 
   const totalPages = Math.ceil(total / limit);
@@ -255,6 +366,7 @@ export default function OrdersPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-10"></TableHead>
                       <TableHead>Source</TableHead>
                       <TableHead>Order #</TableHead>
                       <TableHead>Date</TableHead>
@@ -265,60 +377,90 @@ export default function OrdersPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {orders.map((order) => (
-                      <TableRow
-                        key={order.id}
-                        className="cursor-pointer hover:bg-slate-50"
-                        onClick={() => router.push(`/orders/${order.id}`)}
-                      >
-                        <TableCell>
-                          <SourceBadge source={order.source} />
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {order.orderNumber}
-                        </TableCell>
-                        <TableCell>
-                          <span className="flex items-center gap-1 text-sm text-slate-600">
-                            <Calendar className="h-3 w-3" />
-                            {new Date(order.orderDate).toLocaleDateString("en-AU")}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium text-sm">
-                              {order.customerName || "-"}
-                            </p>
-                            {order.customerEmail && (
-                              <p className="text-xs text-slate-500">
-                                {order.customerEmail}
-                              </p>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={getStatusColor(order.status)}>
-                            {order.statusLabel}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          ${order.total.toFixed(2)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {getExternalUrl(order) && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                window.open(getExternalUrl(order), "_blank");
-                              }}
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                            </Button>
+                    {orders.map((order) => {
+                      const isExpanded = expandedOrders.has(order.id);
+                      const details = orderDetails[order.id];
+                      const isLoadingDetails = loadingDetails.has(order.id);
+
+                      return (
+                        <>
+                          <TableRow
+                            key={order.id}
+                            className="cursor-pointer hover:bg-slate-50"
+                            onClick={() => router.push(`/orders/${order.id}`)}
+                          >
+                            <TableCell className="w-10">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                                onClick={(e) => toggleExpanded(order.id, e)}
+                              >
+                                {isExpanded ? (
+                                  <ChevronUp className="h-4 w-4" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </TableCell>
+                            <TableCell>
+                              <SourceBadge source={order.source} />
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              {order.orderNumber}
+                            </TableCell>
+                            <TableCell>
+                              <span className="flex items-center gap-1 text-sm text-slate-600">
+                                <Calendar className="h-3 w-3" />
+                                {new Date(order.orderDate).toLocaleDateString("en-AU")}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium text-sm">
+                                  {order.customerName || "-"}
+                                </p>
+                                {order.customerEmail && (
+                                  <p className="text-xs text-slate-500">
+                                    {order.customerEmail}
+                                  </p>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={getStatusColor(order.status)}>
+                                {order.statusLabel}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              ${order.total.toFixed(2)}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {getExternalUrl(order) && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    window.open(getExternalUrl(order), "_blank");
+                                  }}
+                                >
+                                  <ExternalLink className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                          {isExpanded && (
+                            <ExpandedOrderRow
+                              key={`${order.id}-expanded`}
+                              order={details || order}
+                              items={details?.items || []}
+                              loading={isLoadingDetails}
+                            />
                           )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                        </>
+                      );
+                    })}
                   </TableBody>
                 </Table>
 

@@ -15,37 +15,94 @@ function getHeaders(): HeadersInit {
 
 // ============ SALES / ORDERS ============
 
-export interface Cin7Sale {
-  ID: string;
+// Response from saleList endpoint (abbreviated data)
+export interface Cin7SaleListItem {
+  SaleID: string;
   OrderNumber: string;
   Status: string;
   OrderDate: string;
-  CustomerName: string;
-  CustomerEmail: string;
-  Total: number;
+  Customer: string;
+  CustomerID: string;
+  InvoiceNumber?: string;
+  CustomerReference?: string;
+  InvoiceAmount: number;
+  SaleInvoicesTotalAmount: number;
+  BaseCurrency: string;
+  CustomerCurrency: string;
+  OrderStatus: string;
+  CombinedTrackingNumbers?: string;
+  CombinedShippingStatus?: string;
+  Updated: string;
+  SourceChannel?: string;
+  Type?: string;
+}
+
+// Full sale response from /sale endpoint
+export interface Cin7Sale {
+  ID: string;
+  Status: string;
+  Customer: string;
+  CustomerID: string;
+  Email?: string;
+  Phone?: string;
+  Contact?: string;
+  SaleOrderDate: string;
+  BaseCurrency?: string;
+  CustomerCurrency?: string;
+  CustomerReference?: string;
+  Carrier?: string;
+  CombinedTrackingNumbers?: string;
   ShippingAddress?: {
-    Line1: string;
-    City: string;
-    State: string;
-    Postcode: string;
-    Country: string;
+    Line1?: string;
+    Line2?: string;
+    City?: string;
+    State?: string;
+    Postcode?: string;
+    Country?: string;
+    Company?: string;
+    Contact?: string;
   };
-  Fulfilments?: Array<{
-    FulfilmentNumber: string;
+  Order?: {
+    SaleOrderNumber: string;
     Status: string;
+    Lines: Array<{
+      ProductID?: string;
+      SKU?: string;
+      Name?: string;
+      Quantity: number;
+      Price: number;
+      Total: number;
+    }>;
+    TotalBeforeTax: number;
+    Tax: number;
+    Total: number;
+  };
+  Invoices?: Array<{
+    InvoiceNumber: string;
+    Status: string;
+    InvoiceDate: string;
+    Lines: Array<{
+      ProductID?: string;
+      SKU?: string;
+      Name?: string;
+      Quantity: number;
+      Price: number;
+      Total: number;
+    }>;
+    Total: number;
+    Paid: number;
+  }>;
+  Fulfilments?: Array<{
+    FulfillmentNumber: number;
+    FulFilmentStatus: string;
     Ship?: {
       Status: string;
-      TrackingNumber: string;
-      Carrier: string;
-      ShipDate: string;
+      Lines?: Array<{
+        TrackingNumber?: string;
+        Carrier?: string;
+        ShipDate?: string;
+      }>;
     };
-  }>;
-  Lines?: Array<{
-    ProductCode: string;
-    ProductName: string;
-    Quantity: number;
-    Price: number;
-    Total: number;
   }>;
 }
 
@@ -63,7 +120,7 @@ export async function getSale(saleId: string): Promise<Cin7Sale | null> {
   }
 }
 
-// Search sales by various criteria
+// Search sales by various criteria (returns abbreviated list data)
 export async function searchSales(params: {
   search?: string; // Order number search
   customerID?: string;
@@ -71,7 +128,7 @@ export async function searchSales(params: {
   modifiedSince?: string; // ISO date
   page?: number;
   limit?: number;
-}): Promise<{ SaleList: Cin7Sale[]; Total: number }> {
+}): Promise<{ SaleList: Cin7SaleListItem[]; Total: number }> {
   try {
     const query = new URLSearchParams();
     if (params.search) query.set("Search", params.search);
@@ -173,7 +230,7 @@ export async function getCustomer(
   }
 }
 
-// List customers with pagination
+// List customers with pagination (single page)
 export async function listCustomers(params: {
   search?: string;
   page?: number;
@@ -193,6 +250,61 @@ export async function listCustomers(params: {
   } catch (error) {
     console.error("Cin7 listCustomers error:", error);
     return { CustomerList: [], Total: 0 };
+  }
+}
+
+// List all customers with automatic pagination
+export async function listAllCustomers(params?: {
+  search?: string;
+  maxPages?: number;
+}): Promise<{ CustomerList: Cin7Customer[]; Total: number }> {
+  const limit = 250; // Max allowed by Cin7 API
+  const maxPages = params?.maxPages || 20; // Safety limit
+  const allCustomers: Cin7Customer[] = [];
+  let page = 1;
+  let total = 0;
+
+  try {
+    // First request to get total count
+    const firstResult = await listCustomers({
+      search: params?.search,
+      page: 1,
+      limit,
+    });
+
+    total = firstResult.Total;
+    allCustomers.push(...(firstResult.CustomerList || []));
+
+    // Calculate remaining pages needed
+    const totalPages = Math.min(Math.ceil(total / limit), maxPages);
+
+    // Fetch remaining pages in parallel (batches of 5 to avoid rate limiting)
+    const remainingPages = Array.from(
+      { length: totalPages - 1 },
+      (_, i) => i + 2
+    );
+
+    for (let i = 0; i < remainingPages.length; i += 5) {
+      const batch = remainingPages.slice(i, i + 5);
+      const results = await Promise.all(
+        batch.map((p) =>
+          listCustomers({
+            search: params?.search,
+            page: p,
+            limit,
+          })
+        )
+      );
+
+      for (const result of results) {
+        allCustomers.push(...(result.CustomerList || []));
+      }
+    }
+
+    return { CustomerList: allCustomers, Total: total };
+  } catch (error) {
+    console.error("Cin7 listAllCustomers error:", error);
+    return { CustomerList: allCustomers, Total: total };
   }
 }
 
@@ -244,42 +356,37 @@ export async function searchProducts(
 // ============ FORMATTERS ============
 
 export function formatSaleForChat(sale: Cin7Sale): string {
+  const orderNumber = sale.Order?.SaleOrderNumber || `Order ${sale.ID.slice(0, 8)}`;
+  const total = sale.Order?.Total || sale.Invoices?.[0]?.Total || 0;
+  const saleLines = sale.Order?.Lines || sale.Invoices?.[0]?.Lines || [];
+
   const lines = [
-    `**Order ${sale.OrderNumber}**`,
+    `**${orderNumber}**`,
     `**Status:** ${sale.Status}`,
-    `**Date:** ${new Date(sale.OrderDate).toLocaleDateString("en-AU")}`,
-    `**Customer:** ${sale.CustomerName}`,
-    `**Total:** $${sale.Total?.toFixed(2) || "0.00"}`,
+    `**Date:** ${new Date(sale.SaleOrderDate).toLocaleDateString("en-AU")}`,
+    `**Customer:** ${sale.Customer}`,
+    `**Total:** $${total.toFixed(2)}`,
   ];
 
   // Add shipping info if available
-  if (sale.Fulfilments && sale.Fulfilments.length > 0) {
-    const fulfilment = sale.Fulfilments[0];
-    if (fulfilment.Ship) {
-      lines.push("");
-      lines.push("**Shipping:**");
-      if (fulfilment.Ship.Carrier)
-        lines.push(`Carrier: ${fulfilment.Ship.Carrier}`);
-      if (fulfilment.Ship.TrackingNumber)
-        lines.push(`Tracking: ${fulfilment.Ship.TrackingNumber}`);
-      if (fulfilment.Ship.Status)
-        lines.push(`Status: ${fulfilment.Ship.Status}`);
-      if (fulfilment.Ship.ShipDate)
-        lines.push(
-          `Shipped: ${new Date(fulfilment.Ship.ShipDate).toLocaleDateString("en-AU")}`
-        );
+  if (sale.Carrier) {
+    lines.push("");
+    lines.push("**Shipping:**");
+    lines.push(`Carrier: ${sale.Carrier}`);
+    if (sale.CombinedTrackingNumbers) {
+      lines.push(`Tracking: ${sale.CombinedTrackingNumbers}`);
     }
   }
 
   // Add line items summary
-  if (sale.Lines && sale.Lines.length > 0) {
+  if (saleLines.length > 0) {
     lines.push("");
     lines.push("**Items:**");
-    sale.Lines.slice(0, 5).forEach((item) => {
-      lines.push(`- ${item.ProductName} x${item.Quantity}`);
+    saleLines.slice(0, 5).forEach((item) => {
+      lines.push(`- ${item.Name || "Item"} x${item.Quantity}`);
     });
-    if (sale.Lines.length > 5) {
-      lines.push(`- ...and ${sale.Lines.length - 5} more items`);
+    if (saleLines.length > 5) {
+      lines.push(`- ...and ${saleLines.length - 5} more items`);
     }
   }
 
@@ -294,19 +401,22 @@ export function formatCustomerForChat(customer: Cin7Customer): string {
     `**Status:** ${customer.Status}`,
   ];
 
-  if (customer.Address) {
+  // Use first address from Addresses array
+  const address = customer.Addresses?.[0];
+  if (address) {
     lines.push("");
     lines.push("**Address:**");
-    lines.push(`${customer.Address.Line1}`);
-    lines.push(
-      `${customer.Address.City}, ${customer.Address.State} ${customer.Address.Postcode}`
-    );
+    if (address.Line1) lines.push(address.Line1);
+    const cityLine = [address.City, address.State, address.Postcode]
+      .filter(Boolean)
+      .join(", ");
+    if (cityLine) lines.push(cityLine);
   }
 
   return lines.join("\n");
 }
 
-export function formatSalesListForChat(sales: Cin7Sale[]): string {
+export function formatSalesListForChat(sales: Cin7SaleListItem[]): string {
   if (sales.length === 0) {
     return "No orders found.";
   }
@@ -314,10 +424,11 @@ export function formatSalesListForChat(sales: Cin7Sale[]): string {
   const lines = [`Found ${sales.length} order(s):\n`];
 
   sales.forEach((sale, index) => {
+    const total = sale.SaleInvoicesTotalAmount || sale.InvoiceAmount || 0;
     lines.push(`**${index + 1}. ${sale.OrderNumber}**`);
     lines.push(`   Status: ${sale.Status}`);
     lines.push(`   Date: ${new Date(sale.OrderDate).toLocaleDateString("en-AU")}`);
-    lines.push(`   Total: $${sale.Total?.toFixed(2) || "0.00"}`);
+    lines.push(`   Total: $${total.toFixed(2)}`);
     lines.push("");
   });
 

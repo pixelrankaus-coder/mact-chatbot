@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listCustomers } from "@/lib/cin7";
+import { listAllCustomers, listCustomers } from "@/lib/cin7";
 import { getWooCustomers } from "@/lib/woocommerce";
 import { mergeCustomers, getCustomerStats } from "@/lib/customer-merge";
-import { CustomerSource } from "@/types/customer";
+import type { CustomerSource } from "@/types/customer";
 
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
@@ -12,13 +12,20 @@ export async function GET(req: NextRequest) {
   const limit = parseInt(searchParams.get("limit") || "50", 10);
 
   try {
-    // Fetch from both sources in parallel
+    // For search queries, use paginated approach for faster response
+    // For full list, fetch all customers to enable proper merging and de-duplication
     const [cin7Result, wooResult] = await Promise.all([
       source !== "woocommerce"
-        ? listCustomers({ search: search || undefined, page, limit })
+        ? search
+          ? listCustomers({ search, page, limit })
+          : listAllCustomers({ maxPages: 15 }) // Fetch up to ~3750 customers
         : Promise.resolve({ CustomerList: [], Total: 0 }),
       source !== "cin7"
-        ? getWooCustomers({ search: search || undefined, page, per_page: limit })
+        ? getWooCustomers({
+            search: search || undefined,
+            page,
+            per_page: search ? limit : 100, // Get more WooCommerce customers when not searching
+          })
         : Promise.resolve({ customers: [], total: 0 }),
     ]);
 

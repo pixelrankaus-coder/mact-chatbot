@@ -138,6 +138,20 @@ export default function CustomerDetailPage({
 
   const totalOrders = cin7Orders.length + wooOrders.length;
 
+  // Calculate sales summary from all orders
+  const cin7Total = cin7Orders.reduce((sum, o) => sum + (o.Total || 0), 0);
+  const wooTotal = wooOrders.reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0);
+  const totalRevenue = cin7Total + wooTotal;
+
+  // Get last order date from both sources
+  const allOrderDates = [
+    ...cin7Orders.map((o) => new Date(o.OrderDate)),
+    ...wooOrders.map((o) => new Date(o.dateCreated)),
+  ].filter((d) => !isNaN(d.getTime()));
+  const lastOrderDate = allOrderDates.length > 0
+    ? new Date(Math.max(...allOrderDates.map((d) => d.getTime())))
+    : null;
+
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
@@ -249,6 +263,49 @@ export default function CustomerDetailPage({
                     <p className="text-xs text-slate-500">Company</p>
                     <p className="text-sm">{customer.company}</p>
                   </div>
+                </div>
+              )}
+
+              {/* Sales Summary */}
+              {totalOrders > 0 && (
+                <div className="border-t pt-3 mt-3">
+                  <p className="text-xs font-medium text-slate-700 mb-2">
+                    Sales Summary
+                  </p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="rounded-lg bg-blue-50 p-3 text-center">
+                      <p className="text-2xl font-bold text-blue-700">{totalOrders}</p>
+                      <p className="text-xs text-blue-600">Total Orders</p>
+                    </div>
+                    <div className="rounded-lg bg-green-50 p-3 text-center">
+                      <p className="text-2xl font-bold text-green-700">
+                        ${totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                      <p className="text-xs text-green-600">Total Revenue</p>
+                    </div>
+                  </div>
+                  {lastOrderDate && (
+                    <div className="mt-3 flex items-center gap-2 text-sm text-slate-600">
+                      <Calendar className="h-4 w-4 text-slate-400" />
+                      <span>Last order: {lastOrderDate.toLocaleDateString("en-AU", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}</span>
+                    </div>
+                  )}
+                  {(cin7Orders.length > 0 && wooOrders.length > 0) && (
+                    <div className="mt-2 flex gap-2 text-xs text-slate-500">
+                      <span className="flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-green-500" />
+                        {cin7Orders.length} Cin7
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-purple-500" />
+                        {wooOrders.length} WooCommerce
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
 

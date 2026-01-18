@@ -3,7 +3,7 @@
  * Converts Cin7 and WooCommerce orders to unified format
  */
 
-import { Cin7Sale } from "./cin7";
+import { Cin7Sale, Cin7SaleListItem } from "./cin7";
 import { WooOrder } from "./woocommerce";
 import {
   UnifiedOrder,
@@ -12,36 +12,80 @@ import {
 } from "@/types/order";
 
 /**
- * Convert Cin7 sale to unified order format
+ * Convert Cin7 sale list item to unified order format
+ * Used for the orders list view (abbreviated data from saleList endpoint)
  */
-export function cin7ToUnifiedOrder(sale: Cin7Sale): UnifiedOrder {
+export function cin7ListItemToUnifiedOrder(sale: Cin7SaleListItem): UnifiedOrder {
   return {
-    id: `cin7-${sale.ID}`,
-    cin7Id: sale.ID,
+    id: `cin7-${sale.SaleID}`,
+    cin7Id: sale.SaleID,
     orderNumber: sale.OrderNumber,
     source: "cin7",
     status: sale.Status,
     statusLabel: CIN7_STATUS_LABELS[sale.Status] || sale.Status,
     orderDate: sale.OrderDate,
-    total: sale.Total || 0,
-    currency: "AUD",
-    customerName: sale.CustomerName,
-    customerEmail: sale.CustomerEmail || "",
+    total: sale.SaleInvoicesTotalAmount || sale.InvoiceAmount || 0,
+    currency: sale.BaseCurrency || "AUD",
+    customerName: sale.Customer || "",
+    customerEmail: "", // Not available in list response
+    customerId: sale.CustomerID,
+    trackingNumber: sale.CombinedTrackingNumbers || undefined,
+    items: [], // Not available in list response
+    lastUpdated: sale.Updated,
+  };
+}
+
+/**
+ * Convert full Cin7 sale to unified order format
+ * Used for order detail view (full data from sale endpoint)
+ */
+export function cin7ToUnifiedOrder(sale: Cin7Sale): UnifiedOrder {
+  // Get total from Order or first Invoice
+  const total =
+    sale.Order?.Total ||
+    sale.Invoices?.[0]?.Total ||
+    0;
+
+  // Get order number from Order object or generate from ID
+  const orderNumber = sale.Order?.SaleOrderNumber || `SO-${sale.ID.slice(0, 8)}`;
+
+  // Get line items from Order or first Invoice
+  const lines = sale.Order?.Lines || sale.Invoices?.[0]?.Lines || [];
+
+  // Get tracking info from fulfilments
+  const shipInfo = sale.Fulfilments?.[0]?.Ship;
+  const trackingLine = shipInfo?.Lines?.[0];
+
+  return {
+    id: `cin7-${sale.ID}`,
+    cin7Id: sale.ID,
+    orderNumber,
+    source: "cin7",
+    status: sale.Status,
+    statusLabel: CIN7_STATUS_LABELS[sale.Status] || sale.Status,
+    orderDate: sale.SaleOrderDate,
+    total,
+    currency: sale.BaseCurrency || "AUD",
+    customerName: sale.Customer || "",
+    customerEmail: sale.Email || "",
+    customerId: sale.CustomerID,
     shippingAddress: sale.ShippingAddress
       ? {
-          address1: sale.ShippingAddress.Line1,
-          city: sale.ShippingAddress.City,
-          state: sale.ShippingAddress.State,
-          postcode: sale.ShippingAddress.Postcode,
-          country: sale.ShippingAddress.Country,
+          address1: [sale.ShippingAddress.Line1, sale.ShippingAddress.Line2]
+            .filter(Boolean)
+            .join(" "),
+          city: sale.ShippingAddress.City || "",
+          state: sale.ShippingAddress.State || "",
+          postcode: sale.ShippingAddress.Postcode || "",
+          country: sale.ShippingAddress.Country || "",
         }
       : undefined,
-    trackingNumber: sale.Fulfilments?.[0]?.Ship?.TrackingNumber,
-    carrier: sale.Fulfilments?.[0]?.Ship?.Carrier,
-    shippedDate: sale.Fulfilments?.[0]?.Ship?.ShipDate,
-    items: (sale.Lines || []).map((line) => ({
-      name: line.ProductName,
-      sku: line.ProductCode,
+    trackingNumber: sale.CombinedTrackingNumbers || trackingLine?.TrackingNumber,
+    carrier: sale.Carrier || trackingLine?.Carrier,
+    shippedDate: trackingLine?.ShipDate,
+    items: lines.map((line) => ({
+      name: line.Name || "",
+      sku: line.SKU,
       quantity: line.Quantity,
       price: line.Price,
       total: line.Total,
@@ -88,16 +132,19 @@ export function wooToUnifiedOrder(order: WooOrder): UnifiedOrder {
 
 /**
  * Merge and sort orders from both sources
+ * Uses list item converter for Cin7 since saleList returns abbreviated data
  */
 export function mergeOrders(
-  cin7Orders: Cin7Sale[],
+  cin7Orders: Cin7SaleListItem[],
   wooOrders: WooOrder[]
 ): UnifiedOrder[] {
   const unified: UnifiedOrder[] = [];
 
-  // Convert Cin7 orders
+  // Convert Cin7 orders (filter out any with missing SaleID)
   for (const sale of cin7Orders) {
-    unified.push(cin7ToUnifiedOrder(sale));
+    if (sale.SaleID) {
+      unified.push(cin7ListItemToUnifiedOrder(sale));
+    }
   }
 
   // Convert WooCommerce orders
