@@ -278,35 +278,38 @@ export function detectCin7OrderIntent(message: string): Cin7OrderIntent {
     "where is",
     "where's",
     "so-",
+    "look up",
+    "lookup",
   ];
 
   const hasOrderIntent = orderKeywords.some((keyword) =>
     lowerMessage.includes(keyword)
   );
 
-  // Extract order number (SO-XXXXX format or just numbers)
-  const orderPatterns = [
-    /\bSO-?(\d{4,})\b/i, // SO-12345 or SO12345
-    /\border\s*#?\s*(\d{5,})\b/i, // order #12345 or order 12345
-    /\b#(\d{5,})\b/, // #12345
-  ];
-
   let orderNumber: string | undefined;
-  for (const pattern of orderPatterns) {
-    const match = message.match(pattern);
-    if (match) {
-      // Normalize to SO-XXXXX format
-      orderNumber = match[1].startsWith("SO")
-        ? match[1]
-        : `SO-${match[1]}`;
-      break;
-    }
+
+  // First, check for SO- prefix format (most specific for Cin7)
+  // Matches: SO-05172, so-05172, SO05172, so05172
+  const soMatch = message.match(/\bSO-?(\d+)\b/i);
+  if (soMatch) {
+    // Normalize to SO-XXXXX format (uppercase with hyphen)
+    orderNumber = `SO-${soMatch[1]}`;
   }
 
-  // Also check for raw SO- prefix
-  const soMatch = message.match(/\b(SO-\d+)\b/i);
-  if (soMatch && !orderNumber) {
-    orderNumber = soMatch[1].toUpperCase();
+  // If no SO- format found, check for generic order number patterns
+  if (!orderNumber) {
+    const orderPatterns = [
+      /\border\s*#?\s*(\d{5,})\b/i, // order #12345 or order 12345
+      /\b#(\d{5,})\b/, // #12345
+    ];
+
+    for (const pattern of orderPatterns) {
+      const match = message.match(pattern);
+      if (match) {
+        orderNumber = match[1];
+        break;
+      }
+    }
   }
 
   // Extract email if present
