@@ -117,18 +117,39 @@ export interface Cin7Customer {
   Name: string;
   Email?: string;
   Phone?: string;
+  Fax?: string;
+  Mobile?: string;
+  Website?: string;
   Status: string;
   Currency?: string;
   PaymentTerm?: string;
   AccountReceivable?: number;
   RevenueAccount?: string;
   TaxRule?: string;
+  TaxNumber?: string;
   Discount?: number;
   CreditLimit?: number;
   Comments?: string;
+  Tags?: string;
+  AttributeSet?: string;
+  AdditionalAttribute1?: string;
+  AdditionalAttribute2?: string;
+  AdditionalAttribute3?: string;
+  AdditionalAttribute4?: string;
+  AdditionalAttribute5?: string;
+  AdditionalAttribute6?: string;
+  AdditionalAttribute7?: string;
+  AdditionalAttribute8?: string;
+  AdditionalAttribute9?: string;
+  AdditionalAttribute10?: string;
+  Carrier?: string;
+  SalesRepresentative?: string;
+  Location?: string;
+  PriceTier?: string;
   Addresses?: Cin7Address[];
   Contacts?: Cin7Contact[];
   LastModifiedOn?: string;
+  CreatedDate?: string;
 }
 
 // Get customer by ID
@@ -140,7 +161,12 @@ export async function getCustomer(
       headers: getHeaders(),
     });
     if (!res.ok) return null;
-    return res.json();
+    const data = await res.json();
+    // Cin7 returns CustomerList array even for single ID lookup
+    if (data.CustomerList && data.CustomerList.length > 0) {
+      return data.CustomerList[0];
+    }
+    return data;
   } catch (error) {
     console.error("Cin7 getCustomer error:", error);
     return null;

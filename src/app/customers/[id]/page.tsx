@@ -27,6 +27,13 @@ import {
   Users,
   CreditCard,
   Calendar,
+  Globe,
+  Tag,
+  Truck,
+  FileText,
+  DollarSign,
+  Percent,
+  Clock,
 } from "lucide-react";
 import type { Cin7Customer, Cin7Sale } from "@/lib/cin7";
 
@@ -162,68 +169,210 @@ export default function CustomerDetailPage({
                 Customer Info
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {customer.Email && (
+            <CardContent className="space-y-3">
+              {/* Contact Info */}
+              {(customer.Email || customer.Contacts?.[0]?.Email) && (
                 <div className="flex items-start gap-3">
                   <Mail className="mt-0.5 h-4 w-4 text-slate-400" />
                   <div>
                     <p className="text-xs text-slate-500">Email</p>
                     <a
-                      href={`mailto:${customer.Email}`}
+                      href={`mailto:${customer.Email || customer.Contacts?.[0]?.Email}`}
                       className="text-sm text-blue-600 hover:underline"
                     >
-                      {customer.Email}
+                      {customer.Email || customer.Contacts?.[0]?.Email}
                     </a>
                   </div>
                 </div>
               )}
-              {customer.Phone && (
+              {(customer.Phone || customer.Contacts?.[0]?.Phone) && (
                 <div className="flex items-start gap-3">
                   <Phone className="mt-0.5 h-4 w-4 text-slate-400" />
                   <div>
                     <p className="text-xs text-slate-500">Phone</p>
                     <a
-                      href={`tel:${customer.Phone}`}
+                      href={`tel:${customer.Phone || customer.Contacts?.[0]?.Phone}`}
                       className="text-sm text-blue-600 hover:underline"
                     >
-                      {customer.Phone}
+                      {customer.Phone || customer.Contacts?.[0]?.Phone}
                     </a>
                   </div>
                 </div>
               )}
-              {customer.Currency && (
+              {customer.Mobile && (
                 <div className="flex items-start gap-3">
-                  <CreditCard className="mt-0.5 h-4 w-4 text-slate-400" />
+                  <Phone className="mt-0.5 h-4 w-4 text-slate-400" />
                   <div>
-                    <p className="text-xs text-slate-500">Currency</p>
-                    <p className="text-sm">{customer.Currency}</p>
+                    <p className="text-xs text-slate-500">Mobile</p>
+                    <a
+                      href={`tel:${customer.Mobile}`}
+                      className="text-sm text-blue-600 hover:underline"
+                    >
+                      {customer.Mobile}
+                    </a>
                   </div>
                 </div>
               )}
-              {customer.PaymentTerm && (
+              {customer.Website && (
                 <div className="flex items-start gap-3">
-                  <Calendar className="mt-0.5 h-4 w-4 text-slate-400" />
+                  <Globe className="mt-0.5 h-4 w-4 text-slate-400" />
                   <div>
-                    <p className="text-xs text-slate-500">Payment Terms</p>
-                    <p className="text-sm">{customer.PaymentTerm}</p>
+                    <p className="text-xs text-slate-500">Website</p>
+                    <a
+                      href={customer.Website.startsWith('http') ? customer.Website : `https://${customer.Website}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-blue-600 hover:underline"
+                    >
+                      {customer.Website}
+                    </a>
                   </div>
                 </div>
               )}
-              {customer.CreditLimit !== undefined && customer.CreditLimit > 0 && (
-                <div className="flex items-start gap-3">
-                  <CreditCard className="mt-0.5 h-4 w-4 text-slate-400" />
-                  <div>
-                    <p className="text-xs text-slate-500">Credit Limit</p>
-                    <p className="text-sm">
-                      ${customer.CreditLimit.toLocaleString()}
-                    </p>
+
+              {/* Business Info */}
+              <div className="border-t pt-3 mt-3">
+                <p className="text-xs font-medium text-slate-700 mb-2">Business Details</p>
+                {customer.Currency && (
+                  <div className="flex items-start gap-3 mb-2">
+                    <DollarSign className="mt-0.5 h-4 w-4 text-slate-400" />
+                    <div>
+                      <p className="text-xs text-slate-500">Currency</p>
+                      <p className="text-sm">{customer.Currency}</p>
+                    </div>
+                  </div>
+                )}
+                {customer.PaymentTerm && (
+                  <div className="flex items-start gap-3 mb-2">
+                    <Calendar className="mt-0.5 h-4 w-4 text-slate-400" />
+                    <div>
+                      <p className="text-xs text-slate-500">Payment Terms</p>
+                      <p className="text-sm">{customer.PaymentTerm}</p>
+                    </div>
+                  </div>
+                )}
+                {customer.CreditLimit !== undefined && customer.CreditLimit > 0 && (
+                  <div className="flex items-start gap-3 mb-2">
+                    <CreditCard className="mt-0.5 h-4 w-4 text-slate-400" />
+                    <div>
+                      <p className="text-xs text-slate-500">Credit Limit</p>
+                      <p className="text-sm">
+                        ${customer.CreditLimit.toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {customer.Discount !== undefined && customer.Discount > 0 && (
+                  <div className="flex items-start gap-3 mb-2">
+                    <Percent className="mt-0.5 h-4 w-4 text-slate-400" />
+                    <div>
+                      <p className="text-xs text-slate-500">Discount</p>
+                      <p className="text-sm">{customer.Discount}%</p>
+                    </div>
+                  </div>
+                )}
+                {customer.PriceTier && (
+                  <div className="flex items-start gap-3 mb-2">
+                    <Tag className="mt-0.5 h-4 w-4 text-slate-400" />
+                    <div>
+                      <p className="text-xs text-slate-500">Price Tier</p>
+                      <p className="text-sm">{customer.PriceTier}</p>
+                    </div>
+                  </div>
+                )}
+                {customer.TaxRule && (
+                  <div className="flex items-start gap-3 mb-2">
+                    <FileText className="mt-0.5 h-4 w-4 text-slate-400" />
+                    <div>
+                      <p className="text-xs text-slate-500">Tax Rule</p>
+                      <p className="text-sm">{customer.TaxRule}</p>
+                    </div>
+                  </div>
+                )}
+                {customer.TaxNumber && (
+                  <div className="flex items-start gap-3 mb-2">
+                    <FileText className="mt-0.5 h-4 w-4 text-slate-400" />
+                    <div>
+                      <p className="text-xs text-slate-500">Tax Number (ABN)</p>
+                      <p className="text-sm">{customer.TaxNumber}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Fulfillment Info */}
+              {(customer.Carrier || customer.Location || customer.SalesRepresentative) && (
+                <div className="border-t pt-3 mt-3">
+                  <p className="text-xs font-medium text-slate-700 mb-2">Fulfillment</p>
+                  {customer.Carrier && (
+                    <div className="flex items-start gap-3 mb-2">
+                      <Truck className="mt-0.5 h-4 w-4 text-slate-400" />
+                      <div>
+                        <p className="text-xs text-slate-500">Default Carrier</p>
+                        <p className="text-sm">{customer.Carrier}</p>
+                      </div>
+                    </div>
+                  )}
+                  {customer.Location && (
+                    <div className="flex items-start gap-3 mb-2">
+                      <MapPin className="mt-0.5 h-4 w-4 text-slate-400" />
+                      <div>
+                        <p className="text-xs text-slate-500">Location</p>
+                        <p className="text-sm">{customer.Location}</p>
+                      </div>
+                    </div>
+                  )}
+                  {customer.SalesRepresentative && (
+                    <div className="flex items-start gap-3 mb-2">
+                      <User className="mt-0.5 h-4 w-4 text-slate-400" />
+                      <div>
+                        <p className="text-xs text-slate-500">Sales Rep</p>
+                        <p className="text-sm">{customer.SalesRepresentative}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Tags */}
+              {customer.Tags && (
+                <div className="border-t pt-3 mt-3">
+                  <p className="text-xs text-slate-500 mb-1">Tags</p>
+                  <div className="flex flex-wrap gap-1">
+                    {customer.Tags.split(',').map((tag, i) => (
+                      <Badge key={i} variant="secondary" className="text-xs">
+                        {tag.trim()}
+                      </Badge>
+                    ))}
                   </div>
                 </div>
               )}
+
+              {/* Dates */}
+              <div className="border-t pt-3 mt-3">
+                <p className="text-xs font-medium text-slate-700 mb-2">Activity</p>
+                {customer.LastModifiedOn && (
+                  <div className="flex items-start gap-3 mb-2">
+                    <Clock className="mt-0.5 h-4 w-4 text-slate-400" />
+                    <div>
+                      <p className="text-xs text-slate-500">Last Modified</p>
+                      <p className="text-sm">
+                        {new Date(customer.LastModifiedOn).toLocaleDateString("en-AU", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Notes */}
               {customer.Comments && (
-                <div className="border-t pt-4">
+                <div className="border-t pt-3 mt-3">
                   <p className="text-xs text-slate-500">Notes</p>
-                  <p className="mt-1 text-sm text-slate-600">
+                  <p className="mt-1 text-sm text-slate-600 whitespace-pre-wrap">
                     {customer.Comments}
                   </p>
                 </div>
@@ -273,8 +422,8 @@ export default function CustomerDetailPage({
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {orders.map((order) => (
-                          <TableRow key={order.ID}>
+                        {orders.map((order, index) => (
+                          <TableRow key={order.ID || `order-${index}`}>
                             <TableCell className="font-medium">
                               {order.OrderNumber}
                             </TableCell>
