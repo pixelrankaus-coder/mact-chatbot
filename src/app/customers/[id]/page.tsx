@@ -24,20 +24,41 @@ import {
   ExternalLink,
   Loader2,
   Package,
-  Users,
   CreditCard,
   Calendar,
-  Globe,
   Tag,
   Truck,
   FileText,
   DollarSign,
   Percent,
   Clock,
+  ShoppingCart,
+  ShoppingBag,
 } from "lucide-react";
-import type { Cin7Customer, Cin7Sale } from "@/lib/cin7";
+import type { UnifiedCustomer } from "@/types/customer";
+import type { Cin7Sale } from "@/lib/cin7";
+import type { WooOrder } from "@/lib/woocommerce";
 
 const CIN7_BASE_URL = "https://inventory.dearsystems.com";
+const WOO_BASE_URL = process.env.NEXT_PUBLIC_WOOCOMMERCE_URL || "https://mact.au";
+
+// Source badges component
+function SourceBadges({ sources }: { sources: string[] }) {
+  return (
+    <div className="flex gap-1">
+      {sources.includes("cin7") && (
+        <Badge variant="outline" className="bg-green-50 text-green-700 text-xs border-green-200">
+          Cin7
+        </Badge>
+      )}
+      {sources.includes("woocommerce") && (
+        <Badge variant="outline" className="bg-purple-50 text-purple-700 text-xs border-purple-200">
+          WooCommerce
+        </Badge>
+      )}
+    </div>
+  );
+}
 
 export default function CustomerDetailPage({
   params,
@@ -46,18 +67,20 @@ export default function CustomerDetailPage({
 }) {
   const { id } = use(params);
   const router = useRouter();
-  const [customer, setCustomer] = useState<Cin7Customer | null>(null);
-  const [orders, setOrders] = useState<Cin7Sale[]>([]);
+  const [customer, setCustomer] = useState<UnifiedCustomer | null>(null);
+  const [cin7Orders, setCin7Orders] = useState<Cin7Sale[]>([]);
+  const [wooOrders, setWooOrders] = useState<WooOrder[]>([]);
   const [loading, setLoading] = useState(true);
-  const [ordersLoading, setOrdersLoading] = useState(true);
 
   useEffect(() => {
     async function fetchCustomer() {
       try {
-        const res = await fetch(`/api/cin7/customers/${id}`);
+        const res = await fetch(`/api/customers/${id}`);
         const data = await res.json();
         if (res.ok) {
           setCustomer(data.customer);
+          setCin7Orders(data.cin7Orders || []);
+          setWooOrders(data.wooOrders || []);
         }
       } catch (error) {
         console.error("Failed to fetch customer:", error);
@@ -66,22 +89,7 @@ export default function CustomerDetailPage({
       }
     }
 
-    async function fetchOrders() {
-      try {
-        const res = await fetch(`/api/cin7/customers/${id}/orders?limit=20`);
-        const data = await res.json();
-        if (res.ok) {
-          setOrders(data.orders || []);
-        }
-      } catch (error) {
-        console.error("Failed to fetch orders:", error);
-      } finally {
-        setOrdersLoading(false);
-      }
-    }
-
     fetchCustomer();
-    fetchOrders();
   }, [id]);
 
   const getStatusColor = (status: string) => {
@@ -98,6 +106,10 @@ export default function CustomerDetailPage({
         return "bg-blue-100 text-blue-700";
       case "invoiced":
         return "bg-purple-100 text-purple-700";
+      case "processing":
+        return "bg-yellow-100 text-yellow-700";
+      case "pending":
+        return "bg-orange-100 text-orange-700";
       default:
         return "bg-slate-100 text-slate-700";
     }
@@ -124,6 +136,8 @@ export default function CustomerDetailPage({
     );
   }
 
+  const totalOrders = cin7Orders.length + wooOrders.length;
+
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
@@ -135,27 +149,56 @@ export default function CustomerDetailPage({
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold text-slate-900">
-                {customer.Name}
+                {customer.name}
               </h1>
-              <Badge className={getStatusColor(customer.Status)}>
-                {customer.Status}
+              <Badge className={getStatusColor(customer.status)}>
+                {customer.status}
               </Badge>
+              <SourceBadges sources={customer.sources} />
             </div>
-            <p className="text-slate-500">Customer ID: {customer.ID}</p>
+            <p className="text-slate-500">
+              {customer.cin7Id && `Cin7: ${customer.cin7Id}`}
+              {customer.cin7Id && customer.wooId && " | "}
+              {customer.wooId && `Woo: ${customer.wooId}`}
+            </p>
           </div>
         </div>
-        <Button
-          variant="outline"
-          onClick={() =>
-            window.open(
-              `${CIN7_BASE_URL}/Customers/View?ID=${customer.ID}`,
-              "_blank"
-            )
-          }
-        >
-          <ExternalLink className="mr-2 h-4 w-4" />
-          Open in Cin7
-        </Button>
+        <div className="flex gap-2">
+          {customer.cin7Id && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                window.open(
+                  `${CIN7_BASE_URL}/Customers/View?ID=${customer.cin7Id}`,
+                  "_blank"
+                )
+              }
+              className="gap-2"
+            >
+              <span className="w-2 h-2 rounded-full bg-green-500" />
+              Open in Cin7
+              <ExternalLink className="h-4 w-4" />
+            </Button>
+          )}
+          {customer.wooId && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                window.open(
+                  `${WOO_BASE_URL}/wp-admin/user-edit.php?user_id=${customer.wooId}`,
+                  "_blank"
+                )
+              }
+              className="gap-2"
+            >
+              <span className="w-2 h-2 rounded-full bg-purple-500" />
+              Open in Woo
+              <ExternalLink className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Content */}
@@ -171,175 +214,190 @@ export default function CustomerDetailPage({
             </CardHeader>
             <CardContent className="space-y-3">
               {/* Contact Info */}
-              {(customer.Email || customer.Contacts?.[0]?.Email) && (
+              {customer.email && (
                 <div className="flex items-start gap-3">
                   <Mail className="mt-0.5 h-4 w-4 text-slate-400" />
                   <div>
                     <p className="text-xs text-slate-500">Email</p>
                     <a
-                      href={`mailto:${customer.Email || customer.Contacts?.[0]?.Email}`}
+                      href={`mailto:${customer.email}`}
                       className="text-sm text-blue-600 hover:underline"
                     >
-                      {customer.Email || customer.Contacts?.[0]?.Email}
+                      {customer.email}
                     </a>
                   </div>
                 </div>
               )}
-              {(customer.Phone || customer.Contacts?.[0]?.Phone) && (
+              {customer.phone && (
                 <div className="flex items-start gap-3">
                   <Phone className="mt-0.5 h-4 w-4 text-slate-400" />
                   <div>
                     <p className="text-xs text-slate-500">Phone</p>
                     <a
-                      href={`tel:${customer.Phone || customer.Contacts?.[0]?.Phone}`}
+                      href={`tel:${customer.phone}`}
                       className="text-sm text-blue-600 hover:underline"
                     >
-                      {customer.Phone || customer.Contacts?.[0]?.Phone}
+                      {customer.phone}
                     </a>
                   </div>
                 </div>
               )}
-              {customer.Mobile && (
+              {customer.company && customer.company !== customer.name && (
                 <div className="flex items-start gap-3">
-                  <Phone className="mt-0.5 h-4 w-4 text-slate-400" />
+                  <Building className="mt-0.5 h-4 w-4 text-slate-400" />
                   <div>
-                    <p className="text-xs text-slate-500">Mobile</p>
-                    <a
-                      href={`tel:${customer.Mobile}`}
-                      className="text-sm text-blue-600 hover:underline"
-                    >
-                      {customer.Mobile}
-                    </a>
-                  </div>
-                </div>
-              )}
-              {customer.Website && (
-                <div className="flex items-start gap-3">
-                  <Globe className="mt-0.5 h-4 w-4 text-slate-400" />
-                  <div>
-                    <p className="text-xs text-slate-500">Website</p>
-                    <a
-                      href={customer.Website.startsWith('http') ? customer.Website : `https://${customer.Website}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-blue-600 hover:underline"
-                    >
-                      {customer.Website}
-                    </a>
+                    <p className="text-xs text-slate-500">Company</p>
+                    <p className="text-sm">{customer.company}</p>
                   </div>
                 </div>
               )}
 
-              {/* Business Info */}
-              <div className="border-t pt-3 mt-3">
-                <p className="text-xs font-medium text-slate-700 mb-2">Business Details</p>
-                {customer.Currency && (
-                  <div className="flex items-start gap-3 mb-2">
-                    <DollarSign className="mt-0.5 h-4 w-4 text-slate-400" />
-                    <div>
-                      <p className="text-xs text-slate-500">Currency</p>
-                      <p className="text-sm">{customer.Currency}</p>
-                    </div>
-                  </div>
-                )}
-                {customer.PaymentTerm && (
-                  <div className="flex items-start gap-3 mb-2">
-                    <Calendar className="mt-0.5 h-4 w-4 text-slate-400" />
-                    <div>
-                      <p className="text-xs text-slate-500">Payment Terms</p>
-                      <p className="text-sm">{customer.PaymentTerm}</p>
-                    </div>
-                  </div>
-                )}
-                {customer.CreditLimit !== undefined && customer.CreditLimit > 0 && (
-                  <div className="flex items-start gap-3 mb-2">
-                    <CreditCard className="mt-0.5 h-4 w-4 text-slate-400" />
-                    <div>
-                      <p className="text-xs text-slate-500">Credit Limit</p>
-                      <p className="text-sm">
-                        ${customer.CreditLimit.toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-                )}
-                {customer.Discount !== undefined && customer.Discount > 0 && (
-                  <div className="flex items-start gap-3 mb-2">
-                    <Percent className="mt-0.5 h-4 w-4 text-slate-400" />
-                    <div>
-                      <p className="text-xs text-slate-500">Discount</p>
-                      <p className="text-sm">{customer.Discount}%</p>
-                    </div>
-                  </div>
-                )}
-                {customer.PriceTier && (
-                  <div className="flex items-start gap-3 mb-2">
-                    <Tag className="mt-0.5 h-4 w-4 text-slate-400" />
-                    <div>
-                      <p className="text-xs text-slate-500">Price Tier</p>
-                      <p className="text-sm">{customer.PriceTier}</p>
-                    </div>
-                  </div>
-                )}
-                {customer.TaxRule && (
-                  <div className="flex items-start gap-3 mb-2">
-                    <FileText className="mt-0.5 h-4 w-4 text-slate-400" />
-                    <div>
-                      <p className="text-xs text-slate-500">Tax Rule</p>
-                      <p className="text-sm">{customer.TaxRule}</p>
-                    </div>
-                  </div>
-                )}
-                {customer.TaxNumber && (
-                  <div className="flex items-start gap-3 mb-2">
-                    <FileText className="mt-0.5 h-4 w-4 text-slate-400" />
-                    <div>
-                      <p className="text-xs text-slate-500">Tax Number (ABN)</p>
-                      <p className="text-sm">{customer.TaxNumber}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Fulfillment Info */}
-              {(customer.Carrier || customer.Location || customer.SalesRepresentative) && (
+              {/* WooCommerce Stats */}
+              {(customer.totalOrders !== undefined || customer.totalSpent !== undefined) && (
                 <div className="border-t pt-3 mt-3">
-                  <p className="text-xs font-medium text-slate-700 mb-2">Fulfillment</p>
-                  {customer.Carrier && (
+                  <p className="text-xs font-medium text-slate-700 mb-2">
+                    WooCommerce Stats
+                  </p>
+                  {customer.totalOrders !== undefined && (
                     <div className="flex items-start gap-3 mb-2">
-                      <Truck className="mt-0.5 h-4 w-4 text-slate-400" />
+                      <ShoppingCart className="mt-0.5 h-4 w-4 text-slate-400" />
                       <div>
-                        <p className="text-xs text-slate-500">Default Carrier</p>
-                        <p className="text-sm">{customer.Carrier}</p>
+                        <p className="text-xs text-slate-500">Total Orders</p>
+                        <p className="text-sm">{customer.totalOrders}</p>
                       </div>
                     </div>
                   )}
-                  {customer.Location && (
+                  {customer.totalSpent !== undefined && customer.totalSpent > 0 && (
                     <div className="flex items-start gap-3 mb-2">
-                      <MapPin className="mt-0.5 h-4 w-4 text-slate-400" />
+                      <DollarSign className="mt-0.5 h-4 w-4 text-slate-400" />
                       <div>
-                        <p className="text-xs text-slate-500">Location</p>
-                        <p className="text-sm">{customer.Location}</p>
-                      </div>
-                    </div>
-                  )}
-                  {customer.SalesRepresentative && (
-                    <div className="flex items-start gap-3 mb-2">
-                      <User className="mt-0.5 h-4 w-4 text-slate-400" />
-                      <div>
-                        <p className="text-xs text-slate-500">Sales Rep</p>
-                        <p className="text-sm">{customer.SalesRepresentative}</p>
+                        <p className="text-xs text-slate-500">Total Spent</p>
+                        <p className="text-sm">${customer.totalSpent.toLocaleString()}</p>
                       </div>
                     </div>
                   )}
                 </div>
               )}
 
-              {/* Tags */}
-              {customer.Tags && (
+              {/* Cin7 Business Info */}
+              {customer.cin7Data && (
+                <div className="border-t pt-3 mt-3">
+                  <p className="text-xs font-medium text-slate-700 mb-2">
+                    Business Details (Cin7)
+                  </p>
+                  {customer.cin7Data.currency && (
+                    <div className="flex items-start gap-3 mb-2">
+                      <DollarSign className="mt-0.5 h-4 w-4 text-slate-400" />
+                      <div>
+                        <p className="text-xs text-slate-500">Currency</p>
+                        <p className="text-sm">{customer.cin7Data.currency}</p>
+                      </div>
+                    </div>
+                  )}
+                  {customer.cin7Data.paymentTerm && (
+                    <div className="flex items-start gap-3 mb-2">
+                      <Calendar className="mt-0.5 h-4 w-4 text-slate-400" />
+                      <div>
+                        <p className="text-xs text-slate-500">Payment Terms</p>
+                        <p className="text-sm">{customer.cin7Data.paymentTerm}</p>
+                      </div>
+                    </div>
+                  )}
+                  {customer.cin7Data.creditLimit !== undefined && customer.cin7Data.creditLimit > 0 && (
+                    <div className="flex items-start gap-3 mb-2">
+                      <CreditCard className="mt-0.5 h-4 w-4 text-slate-400" />
+                      <div>
+                        <p className="text-xs text-slate-500">Credit Limit</p>
+                        <p className="text-sm">
+                          ${customer.cin7Data.creditLimit.toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  {customer.cin7Data.discount !== undefined && customer.cin7Data.discount > 0 && (
+                    <div className="flex items-start gap-3 mb-2">
+                      <Percent className="mt-0.5 h-4 w-4 text-slate-400" />
+                      <div>
+                        <p className="text-xs text-slate-500">Discount</p>
+                        <p className="text-sm">{customer.cin7Data.discount}%</p>
+                      </div>
+                    </div>
+                  )}
+                  {customer.cin7Data.priceTier && (
+                    <div className="flex items-start gap-3 mb-2">
+                      <Tag className="mt-0.5 h-4 w-4 text-slate-400" />
+                      <div>
+                        <p className="text-xs text-slate-500">Price Tier</p>
+                        <p className="text-sm">{customer.cin7Data.priceTier}</p>
+                      </div>
+                    </div>
+                  )}
+                  {customer.cin7Data.taxRule && (
+                    <div className="flex items-start gap-3 mb-2">
+                      <FileText className="mt-0.5 h-4 w-4 text-slate-400" />
+                      <div>
+                        <p className="text-xs text-slate-500">Tax Rule</p>
+                        <p className="text-sm">{customer.cin7Data.taxRule}</p>
+                      </div>
+                    </div>
+                  )}
+                  {customer.cin7Data.taxNumber && (
+                    <div className="flex items-start gap-3 mb-2">
+                      <FileText className="mt-0.5 h-4 w-4 text-slate-400" />
+                      <div>
+                        <p className="text-xs text-slate-500">Tax Number (ABN)</p>
+                        <p className="text-sm">{customer.cin7Data.taxNumber}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Cin7 Fulfillment Info */}
+              {customer.cin7Data &&
+                (customer.cin7Data.carrier ||
+                  customer.cin7Data.location ||
+                  customer.cin7Data.salesRepresentative) && (
+                  <div className="border-t pt-3 mt-3">
+                    <p className="text-xs font-medium text-slate-700 mb-2">
+                      Fulfillment (Cin7)
+                    </p>
+                    {customer.cin7Data.carrier && (
+                      <div className="flex items-start gap-3 mb-2">
+                        <Truck className="mt-0.5 h-4 w-4 text-slate-400" />
+                        <div>
+                          <p className="text-xs text-slate-500">Default Carrier</p>
+                          <p className="text-sm">{customer.cin7Data.carrier}</p>
+                        </div>
+                      </div>
+                    )}
+                    {customer.cin7Data.location && (
+                      <div className="flex items-start gap-3 mb-2">
+                        <MapPin className="mt-0.5 h-4 w-4 text-slate-400" />
+                        <div>
+                          <p className="text-xs text-slate-500">Location</p>
+                          <p className="text-sm">{customer.cin7Data.location}</p>
+                        </div>
+                      </div>
+                    )}
+                    {customer.cin7Data.salesRepresentative && (
+                      <div className="flex items-start gap-3 mb-2">
+                        <User className="mt-0.5 h-4 w-4 text-slate-400" />
+                        <div>
+                          <p className="text-xs text-slate-500">Sales Rep</p>
+                          <p className="text-sm">{customer.cin7Data.salesRepresentative}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+              {/* Cin7 Tags */}
+              {customer.cin7Data?.tags && (
                 <div className="border-t pt-3 mt-3">
                   <p className="text-xs text-slate-500 mb-1">Tags</p>
                   <div className="flex flex-wrap gap-1">
-                    {customer.Tags.split(',').map((tag, i) => (
+                    {customer.cin7Data.tags.split(",").map((tag, i) => (
                       <Badge key={i} variant="secondary" className="text-xs">
                         {tag.trim()}
                       </Badge>
@@ -348,16 +406,16 @@ export default function CustomerDetailPage({
                 </div>
               )}
 
-              {/* Dates */}
-              <div className="border-t pt-3 mt-3">
-                <p className="text-xs font-medium text-slate-700 mb-2">Activity</p>
-                {customer.LastModifiedOn && (
+              {/* Activity */}
+              {customer.lastUpdated && (
+                <div className="border-t pt-3 mt-3">
+                  <p className="text-xs font-medium text-slate-700 mb-2">Activity</p>
                   <div className="flex items-start gap-3 mb-2">
                     <Clock className="mt-0.5 h-4 w-4 text-slate-400" />
                     <div>
                       <p className="text-xs text-slate-500">Last Modified</p>
                       <p className="text-sm">
-                        {new Date(customer.LastModifiedOn).toLocaleDateString("en-AU", {
+                        {new Date(customer.lastUpdated).toLocaleDateString("en-AU", {
                           day: "numeric",
                           month: "short",
                           year: "numeric",
@@ -365,15 +423,15 @@ export default function CustomerDetailPage({
                       </p>
                     </div>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
 
-              {/* Notes */}
-              {customer.Comments && (
+              {/* Cin7 Notes */}
+              {customer.cin7Data?.comments && (
                 <div className="border-t pt-3 mt-3">
                   <p className="text-xs text-slate-500">Notes</p>
                   <p className="mt-1 text-sm text-slate-600 whitespace-pre-wrap">
-                    {customer.Comments}
+                    {customer.cin7Data.comments}
                   </p>
                 </div>
               )}
@@ -387,29 +445,111 @@ export default function CustomerDetailPage({
                 <TabsList>
                   <TabsTrigger value="orders" className="gap-2">
                     <Package className="h-4 w-4" />
-                    Orders
+                    All Orders ({totalOrders})
                   </TabsTrigger>
-                  <TabsTrigger value="addresses" className="gap-2">
-                    <MapPin className="h-4 w-4" />
-                    Addresses
-                  </TabsTrigger>
-                  <TabsTrigger value="contacts" className="gap-2">
-                    <Users className="h-4 w-4" />
-                    Contacts
-                  </TabsTrigger>
+                  {cin7Orders.length > 0 && (
+                    <TabsTrigger value="cin7-orders" className="gap-2">
+                      <span className="w-2 h-2 rounded-full bg-green-500" />
+                      Cin7 ({cin7Orders.length})
+                    </TabsTrigger>
+                  )}
+                  {wooOrders.length > 0 && (
+                    <TabsTrigger value="woo-orders" className="gap-2">
+                      <span className="w-2 h-2 rounded-full bg-purple-500" />
+                      WooCommerce ({wooOrders.length})
+                    </TabsTrigger>
+                  )}
+                  {customer.wooData && (
+                    <TabsTrigger value="addresses" className="gap-2">
+                      <MapPin className="h-4 w-4" />
+                      Addresses
+                    </TabsTrigger>
+                  )}
                 </TabsList>
               </CardHeader>
               <CardContent className="pt-4">
-                {/* Orders Tab */}
+                {/* All Orders Tab */}
                 <TabsContent value="orders" className="mt-0">
-                  {ordersLoading ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
-                    </div>
-                  ) : orders.length === 0 ? (
+                  {totalOrders === 0 ? (
                     <div className="py-8 text-center">
                       <Package className="mx-auto h-10 w-10 text-slate-300" />
                       <p className="mt-2 text-slate-500">No orders found</p>
+                    </div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Source</TableHead>
+                          <TableHead>Order #</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="text-right">Total</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {cin7Orders.map((order, index) => (
+                          <TableRow key={`cin7-${order.ID || index}`}>
+                            <TableCell>
+                              <Badge
+                                variant="outline"
+                                className="bg-green-50 text-green-700 text-xs border-green-200"
+                              >
+                                Cin7
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              {order.OrderNumber}
+                            </TableCell>
+                            <TableCell>
+                              {new Date(order.OrderDate).toLocaleDateString("en-AU")}
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={getStatusColor(order.Status)}>
+                                {order.Status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              ${order.Total?.toFixed(2) || "0.00"}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        {wooOrders.map((order, index) => (
+                          <TableRow key={`woo-${order.id || index}`}>
+                            <TableCell>
+                              <Badge
+                                variant="outline"
+                                className="bg-purple-50 text-purple-700 text-xs border-purple-200"
+                              >
+                                Woo
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              #{order.number}
+                            </TableCell>
+                            <TableCell>
+                              {new Date(order.dateCreated).toLocaleDateString("en-AU")}
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={getStatusColor(order.status)}>
+                                {order.statusLabel || order.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              ${parseFloat(order.total).toFixed(2)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </TabsContent>
+
+                {/* Cin7 Orders Tab */}
+                <TabsContent value="cin7-orders" className="mt-0">
+                  {cin7Orders.length === 0 ? (
+                    <div className="py-8 text-center">
+                      <Package className="mx-auto h-10 w-10 text-slate-300" />
+                      <p className="mt-2 text-slate-500">No Cin7 orders found</p>
                     </div>
                   ) : (
                     <Table>
@@ -422,15 +562,13 @@ export default function CustomerDetailPage({
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {orders.map((order, index) => (
+                        {cin7Orders.map((order, index) => (
                           <TableRow key={order.ID || `order-${index}`}>
                             <TableCell className="font-medium">
                               {order.OrderNumber}
                             </TableCell>
                             <TableCell>
-                              {new Date(order.OrderDate).toLocaleDateString(
-                                "en-AU"
-                              )}
+                              {new Date(order.OrderDate).toLocaleDateString("en-AU")}
                             </TableCell>
                             <TableCell>
                               <Badge className={getStatusColor(order.Status)}>
@@ -447,93 +585,124 @@ export default function CustomerDetailPage({
                   )}
                 </TabsContent>
 
-                {/* Addresses Tab */}
+                {/* WooCommerce Orders Tab */}
+                <TabsContent value="woo-orders" className="mt-0">
+                  {wooOrders.length === 0 ? (
+                    <div className="py-8 text-center">
+                      <ShoppingBag className="mx-auto h-10 w-10 text-slate-300" />
+                      <p className="mt-2 text-slate-500">No WooCommerce orders found</p>
+                    </div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Order #</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="text-right">Total</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {wooOrders.map((order, index) => (
+                          <TableRow key={order.id || `woo-order-${index}`}>
+                            <TableCell className="font-medium">
+                              #{order.number}
+                            </TableCell>
+                            <TableCell>
+                              {new Date(order.dateCreated).toLocaleDateString("en-AU")}
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={getStatusColor(order.status)}>
+                                {order.statusLabel || order.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              ${parseFloat(order.total).toFixed(2)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </TabsContent>
+
+                {/* Addresses Tab (WooCommerce) */}
                 <TabsContent value="addresses" className="mt-0">
-                  {customer.Addresses && customer.Addresses.length > 0 ? (
+                  {customer.wooData ? (
                     <div className="grid gap-4 md:grid-cols-2">
-                      {customer.Addresses.map((address, index) => (
-                        <div
-                          key={index}
-                          className="rounded-lg border bg-white p-4"
-                        >
+                      {customer.wooData.billing && (
+                        <div className="rounded-lg border bg-white p-4">
                           <div className="mb-2 flex items-center gap-2">
                             <Building className="h-4 w-4 text-slate-400" />
-                            <span className="text-sm font-medium">
-                              {address.Type || `Address ${index + 1}`}
-                            </span>
+                            <span className="text-sm font-medium">Billing Address</span>
+                            <Badge
+                              variant="outline"
+                              className="bg-purple-50 text-purple-700 text-xs border-purple-200"
+                            >
+                              WooCommerce
+                            </Badge>
                           </div>
                           <div className="text-sm text-slate-600">
-                            {address.Line1 && <p>{address.Line1}</p>}
-                            {address.Line2 && <p>{address.Line2}</p>}
+                            {customer.wooData.billing.address_1 && (
+                              <p>{customer.wooData.billing.address_1}</p>
+                            )}
+                            {customer.wooData.billing.address_2 && (
+                              <p>{customer.wooData.billing.address_2}</p>
+                            )}
                             <p>
-                              {[address.City, address.State, address.Postcode]
+                              {[
+                                customer.wooData.billing.city,
+                                customer.wooData.billing.state,
+                                customer.wooData.billing.postcode,
+                              ]
                                 .filter(Boolean)
                                 .join(", ")}
                             </p>
-                            {address.Country && <p>{address.Country}</p>}
+                            {customer.wooData.billing.country && (
+                              <p>{customer.wooData.billing.country}</p>
+                            )}
                           </div>
                         </div>
-                      ))}
+                      )}
+                      {customer.wooData.shipping && (
+                        <div className="rounded-lg border bg-white p-4">
+                          <div className="mb-2 flex items-center gap-2">
+                            <Truck className="h-4 w-4 text-slate-400" />
+                            <span className="text-sm font-medium">Shipping Address</span>
+                            <Badge
+                              variant="outline"
+                              className="bg-purple-50 text-purple-700 text-xs border-purple-200"
+                            >
+                              WooCommerce
+                            </Badge>
+                          </div>
+                          <div className="text-sm text-slate-600">
+                            {customer.wooData.shipping.address_1 && (
+                              <p>{customer.wooData.shipping.address_1}</p>
+                            )}
+                            {customer.wooData.shipping.address_2 && (
+                              <p>{customer.wooData.shipping.address_2}</p>
+                            )}
+                            <p>
+                              {[
+                                customer.wooData.shipping.city,
+                                customer.wooData.shipping.state,
+                                customer.wooData.shipping.postcode,
+                              ]
+                                .filter(Boolean)
+                                .join(", ")}
+                            </p>
+                            {customer.wooData.shipping.country && (
+                              <p>{customer.wooData.shipping.country}</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="py-8 text-center">
                       <MapPin className="mx-auto h-10 w-10 text-slate-300" />
                       <p className="mt-2 text-slate-500">No addresses on file</p>
-                    </div>
-                  )}
-                </TabsContent>
-
-                {/* Contacts Tab */}
-                <TabsContent value="contacts" className="mt-0">
-                  {customer.Contacts && customer.Contacts.length > 0 ? (
-                    <div className="grid gap-4 md:grid-cols-2">
-                      {customer.Contacts.map((contact, index) => (
-                        <div
-                          key={index}
-                          className="rounded-lg border bg-white p-4"
-                        >
-                          <div className="mb-2 flex items-center gap-2">
-                            <User className="h-4 w-4 text-slate-400" />
-                            <span className="text-sm font-medium">
-                              {contact.Name || `Contact ${index + 1}`}
-                            </span>
-                            {contact.Default && (
-                              <Badge variant="outline" className="text-xs">
-                                Default
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="space-y-1 text-sm text-slate-600">
-                            {contact.Email && (
-                              <p className="flex items-center gap-2">
-                                <Mail className="h-3 w-3" />
-                                <a
-                                  href={`mailto:${contact.Email}`}
-                                  className="text-blue-600 hover:underline"
-                                >
-                                  {contact.Email}
-                                </a>
-                              </p>
-                            )}
-                            {contact.Phone && (
-                              <p className="flex items-center gap-2">
-                                <Phone className="h-3 w-3" />
-                                <a
-                                  href={`tel:${contact.Phone}`}
-                                  className="text-blue-600 hover:underline"
-                                >
-                                  {contact.Phone}
-                                </a>
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="py-8 text-center">
-                      <Users className="mx-auto h-10 w-10 text-slate-300" />
-                      <p className="mt-2 text-slate-500">No contacts on file</p>
                     </div>
                   )}
                 </TabsContent>

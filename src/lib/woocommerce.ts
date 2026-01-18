@@ -373,3 +373,112 @@ export function detectOrderIntent(message: string): {
     email,
   };
 }
+
+// ============ CUSTOMERS ============
+
+export interface WooCustomer {
+  id: number;
+  email: string;
+  first_name: string;
+  last_name: string;
+  username: string;
+  billing: {
+    first_name: string;
+    last_name: string;
+    company: string;
+    address_1: string;
+    address_2: string;
+    city: string;
+    state: string;
+    postcode: string;
+    country: string;
+    email: string;
+    phone: string;
+  };
+  shipping: {
+    first_name: string;
+    last_name: string;
+    company: string;
+    address_1: string;
+    address_2: string;
+    city: string;
+    state: string;
+    postcode: string;
+    country: string;
+  };
+  date_created: string;
+  date_modified: string;
+  orders_count: number;
+  total_spent: string;
+  avatar_url: string;
+}
+
+/**
+ * Get list of WooCommerce customers with optional search and pagination
+ */
+export async function getWooCustomers(params: {
+  search?: string;
+  page?: number;
+  per_page?: number;
+}): Promise<{ customers: WooCustomer[]; total: number }> {
+  if (!process.env.WOOCOMMERCE_CONSUMER_KEY || !process.env.WOOCOMMERCE_CONSUMER_SECRET) {
+    return { customers: [], total: 0 };
+  }
+
+  try {
+    const response = await api.get("customers", {
+      search: params.search || "",
+      page: params.page || 1,
+      per_page: params.per_page || 50,
+      orderby: "registered_date",
+      order: "desc",
+    });
+
+    return {
+      customers: response.data || [],
+      total: parseInt(response.headers?.["x-wp-total"] || "0", 10),
+    };
+  } catch (error) {
+    console.error("WooCommerce getCustomers error:", error);
+    return { customers: [], total: 0 };
+  }
+}
+
+/**
+ * Get a single WooCommerce customer by ID
+ */
+export async function getWooCustomer(id: number): Promise<WooCustomer | null> {
+  if (!process.env.WOOCOMMERCE_CONSUMER_KEY || !process.env.WOOCOMMERCE_CONSUMER_SECRET) {
+    return null;
+  }
+
+  try {
+    const response = await api.get(`customers/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error("WooCommerce getCustomer error:", error);
+    return null;
+  }
+}
+
+/**
+ * Get orders for a specific WooCommerce customer
+ */
+export async function getWooCustomerOrders(customerId: number): Promise<WooOrder[]> {
+  if (!process.env.WOOCOMMERCE_CONSUMER_KEY || !process.env.WOOCOMMERCE_CONSUMER_SECRET) {
+    return [];
+  }
+
+  try {
+    const response = await api.get("orders", {
+      customer: customerId,
+      per_page: 10,
+      orderby: "date",
+      order: "desc",
+    });
+    return (response.data || []).map(transformOrder);
+  } catch (error) {
+    console.error("WooCommerce getCustomerOrders error:", error);
+    return [];
+  }
+}
