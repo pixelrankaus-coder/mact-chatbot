@@ -148,6 +148,7 @@ export default function CustomersPage() {
                       <TableHead>Name</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead>Phone</TableHead>
+                      <TableHead>Last Updated</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -163,20 +164,35 @@ export default function CustomersPage() {
                           {customer.Name}
                         </TableCell>
                         <TableCell>
-                          {customer.Email ? (
-                            <span className="flex items-center gap-1 text-sm text-slate-600">
-                              <Mail className="h-3 w-3" />
-                              {customer.Email}
-                            </span>
-                          ) : (
-                            <span className="text-slate-400">-</span>
-                          )}
+                          {(() => {
+                            const email = customer.Email || customer.Contacts?.[0]?.Email;
+                            return email ? (
+                              <span className="flex items-center gap-1 text-sm text-slate-600">
+                                <Mail className="h-3 w-3" />
+                                {email}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">-</span>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell>
-                          {customer.Phone ? (
-                            <span className="flex items-center gap-1 text-sm text-slate-600">
-                              <Phone className="h-3 w-3" />
-                              {customer.Phone}
+                          {(() => {
+                            const phone = customer.Phone || customer.Contacts?.[0]?.Phone;
+                            return phone ? (
+                              <span className="flex items-center gap-1 text-sm text-slate-600">
+                                <Phone className="h-3 w-3" />
+                                {phone}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">-</span>
+                            );
+                          })()}
+                        </TableCell>
+                        <TableCell>
+                          {customer.LastModifiedOn ? (
+                            <span className="text-sm text-slate-600">
+                              {new Date(customer.LastModifiedOn).toLocaleDateString("en-AU")}
                             </span>
                           ) : (
                             <span className="text-slate-400">-</span>
