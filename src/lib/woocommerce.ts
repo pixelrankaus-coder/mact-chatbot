@@ -482,3 +482,60 @@ export async function getWooCustomerOrders(customerId: number): Promise<WooOrder
     return [];
   }
 }
+
+/**
+ * List WooCommerce orders with search, filter, and pagination
+ */
+export async function listWooOrders(params: {
+  search?: string;
+  status?: string;
+  page?: number;
+  per_page?: number;
+  after?: string; // ISO date
+  before?: string; // ISO date
+}): Promise<{ orders: WooOrder[]; total: number }> {
+  if (!process.env.WOOCOMMERCE_CONSUMER_KEY || !process.env.WOOCOMMERCE_CONSUMER_SECRET) {
+    return { orders: [], total: 0 };
+  }
+
+  try {
+    const queryParams: Record<string, string | number> = {
+      page: params.page || 1,
+      per_page: params.per_page || 25,
+      orderby: "date",
+      order: "desc",
+    };
+
+    if (params.search) queryParams.search = params.search;
+    if (params.status) queryParams.status = params.status;
+    if (params.after) queryParams.after = params.after;
+    if (params.before) queryParams.before = params.before;
+
+    const response = await api.get("orders", queryParams);
+
+    return {
+      orders: (response.data || []).map(transformOrder),
+      total: parseInt(response.headers?.["x-wp-total"] || "0", 10),
+    };
+  } catch (error) {
+    console.error("WooCommerce listOrders error:", error);
+    return { orders: [], total: 0 };
+  }
+}
+
+/**
+ * Get a single WooCommerce order by ID
+ */
+export async function getWooOrder(orderId: number): Promise<WooOrder | null> {
+  if (!process.env.WOOCOMMERCE_CONSUMER_KEY || !process.env.WOOCOMMERCE_CONSUMER_SECRET) {
+    return null;
+  }
+
+  try {
+    const response = await api.get(`orders/${orderId}`);
+    return transformOrder(response.data);
+  } catch (error) {
+    console.error("WooCommerce getOrder error:", error);
+    return null;
+  }
+}

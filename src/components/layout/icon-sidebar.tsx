@@ -11,6 +11,7 @@ import {
   LogOut,
   User,
   Users,
+  Package,
 } from "lucide-react";
 import {
   Tooltip,
@@ -34,6 +35,7 @@ const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/" },
   { icon: Inbox, label: "Inbox", href: "/inbox" },
   { icon: Users, label: "Customers", href: "/customers" },
+  { icon: Package, label: "Orders", href: "/orders" },
   { icon: Bot, label: "AI Agent", href: "/ai-agent" },
   { icon: Settings, label: "Settings", href: "/settings" },
 ];
