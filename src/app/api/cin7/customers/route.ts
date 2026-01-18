@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  searchCustomers,
+  listCustomers,
   getCustomer,
   formatCustomerForChat,
 } from "@/lib/cin7";
@@ -10,6 +10,8 @@ export async function GET(req: NextRequest) {
   const id = searchParams.get("id");
   const search = searchParams.get("search");
   const email = searchParams.get("email");
+  const page = parseInt(searchParams.get("page") || "1", 10);
+  const limit = parseInt(searchParams.get("limit") || "25", 10);
 
   try {
     // Get customer by ID
@@ -27,37 +29,28 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Search by email or general search
-    const searchTerm = email || search;
-    if (searchTerm) {
-      const results = await searchCustomers(searchTerm);
-
+    // Search by email - return single match
+    if (email) {
+      const results = await listCustomers({ search: email, limit: 1 });
       if (results.CustomerList && results.CustomerList.length > 0) {
-        // If searching by email, return formatted info for the first match
-        if (email) {
-          return NextResponse.json({
-            customer: results.CustomerList[0],
-            formatted: formatCustomerForChat(results.CustomerList[0]),
-          });
-        }
-
-        // General search returns list
         return NextResponse.json({
-          customers: results.CustomerList,
-          total: results.Total,
+          customer: results.CustomerList[0],
+          formatted: formatCustomerForChat(results.CustomerList[0]),
         });
       }
-
       return NextResponse.json(
         { error: "No customers found" },
         { status: 404 }
       );
     }
 
-    return NextResponse.json(
-      { error: "Provide id, search, or email parameter" },
-      { status: 400 }
-    );
+    // List customers with optional search and pagination
+    const results = await listCustomers({ search: search || undefined, page, limit });
+
+    return NextResponse.json({
+      customers: results.CustomerList || [],
+      total: results.Total || 0,
+    });
   } catch (error) {
     console.error("Cin7 customers API error:", error);
     return NextResponse.json({ error: "Cin7 API error" }, { status: 500 });

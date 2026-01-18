@@ -94,19 +94,41 @@ export async function searchSales(params: {
 
 // ============ CUSTOMERS ============
 
+export interface Cin7Address {
+  Line1?: string;
+  Line2?: string;
+  City?: string;
+  State?: string;
+  Postcode?: string;
+  Country?: string;
+  Type?: string;
+}
+
+export interface Cin7Contact {
+  Name?: string;
+  Phone?: string;
+  Email?: string;
+  Fax?: string;
+  Default?: boolean;
+}
+
 export interface Cin7Customer {
   ID: string;
   Name: string;
-  Email: string;
-  Phone: string;
+  Email?: string;
+  Phone?: string;
   Status: string;
-  Address?: {
-    Line1: string;
-    City: string;
-    State: string;
-    Postcode: string;
-    Country: string;
-  };
+  Currency?: string;
+  PaymentTerm?: string;
+  AccountReceivable?: number;
+  RevenueAccount?: string;
+  TaxRule?: string;
+  Discount?: number;
+  CreditLimit?: number;
+  Comments?: string;
+  Addresses?: Cin7Address[];
+  Contacts?: Cin7Contact[];
+  LastModifiedOn?: string;
 }
 
 // Get customer by ID
@@ -125,21 +147,42 @@ export async function getCustomer(
   }
 }
 
-// Search customers
-export async function searchCustomers(
-  search: string
-): Promise<{ CustomerList: Cin7Customer[]; Total: number }> {
+// List customers with pagination
+export async function listCustomers(params: {
+  search?: string;
+  page?: number;
+  limit?: number;
+}): Promise<{ CustomerList: Cin7Customer[]; Total: number }> {
   try {
-    const res = await fetch(
-      `${CIN7_BASE_URL}/customer?Search=${encodeURIComponent(search)}&Page=1&Limit=10`,
-      { headers: getHeaders() }
-    );
+    const query = new URLSearchParams();
+    if (params.search) query.set("Search", params.search);
+    query.set("Page", String(params.page || 1));
+    query.set("Limit", String(params.limit || 25));
+
+    const res = await fetch(`${CIN7_BASE_URL}/customer?${query}`, {
+      headers: getHeaders(),
+    });
     if (!res.ok) return { CustomerList: [], Total: 0 };
     return res.json();
   } catch (error) {
-    console.error("Cin7 searchCustomers error:", error);
+    console.error("Cin7 listCustomers error:", error);
     return { CustomerList: [], Total: 0 };
   }
+}
+
+// Search customers (alias for backwards compatibility)
+export async function searchCustomers(
+  search: string
+): Promise<{ CustomerList: Cin7Customer[]; Total: number }> {
+  return listCustomers({ search, limit: 10 });
+}
+
+// Get orders for a specific customer
+export async function getCustomerOrders(
+  customerId: string,
+  limit: number = 10
+): Promise<{ SaleList: Cin7Sale[]; Total: number }> {
+  return searchSales({ customerID: customerId, limit });
 }
 
 // ============ PRODUCTS ============

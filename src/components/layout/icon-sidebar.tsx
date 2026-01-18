@@ -10,6 +10,7 @@ import {
   HelpCircle,
   LogOut,
   User,
+  Users,
 } from "lucide-react";
 import {
   Tooltip,
@@ -32,6 +33,7 @@ import { useAgentOptional } from "@/contexts/AgentContext";
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/" },
   { icon: Inbox, label: "Inbox", href: "/inbox" },
+  { icon: Users, label: "Customers", href: "/customers" },
   { icon: Bot, label: "AI Agent", href: "/ai-agent" },
   { icon: Settings, label: "Settings", href: "/settings" },
 ];
