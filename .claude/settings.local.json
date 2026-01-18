@@ -12,7 +12,8 @@
       "Bash(curl -s -X POST \"https://betkwienikpuziszsrex.supabase.co/rest/v1/rpc/exec_sql\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJldGt3aWVuaWtwdXppc3pzcmV4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2ODEwMjc4MCwiZXhwIjoyMDgzNjc4NzgwfQ.9_-7lYoKwX70RLPZppSn2wAXQnPWBQMycaAqxcVZNPo\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJldGt3aWVuaWtwdXppc3pzcmV4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2ODEwMjc4MCwiZXhwIjoyMDgzNjc4NzgwfQ.9_-7lYoKwX70RLPZppSn2wAXQnPWBQMycaAqxcVZNPo\" -H \"Content-Type: application/json\" -d \"{\"\"query\"\": \"\"SELECT 1\"\"}\")",
       "Bash(npm install:*)",
       "Bash(git diff:*)",
-      "Bash(npx shadcn@latest add:*)"
+      "Bash(npx shadcn@latest add:*)",
+      "Bash(npm run dev:*)"
     ]
   }
 }

@@ -8,6 +8,12 @@ import {
   formatOrderForChat,
   formatOrdersListForChat,
 } from "@/lib/woocommerce";
+import {
+  detectCin7OrderIntent,
+  searchSales,
+  formatSaleForChat,
+  formatSalesListForChat,
+} from "@/lib/cin7";
 import { sendNewConversationEmail } from "@/lib/email";
 
 // Create supabase client at runtime for server-side usage
@@ -189,31 +195,45 @@ export async function POST(
         .join("\n\n---\n\n") || "";
 
       // Detect order intent and look up order if needed
-      const orderIntent = detectOrderIntent(content.trim());
+      // Try Cin7 first (primary source of truth), then fallback to WooCommerce
+      const cin7Intent = detectCin7OrderIntent(content.trim());
+      const wooIntent = detectOrderIntent(content.trim());
       let orderContext = "";
 
-      if (orderIntent.hasOrderIntent) {
-        // Try to look up order by number first
-        if (orderIntent.orderNumber) {
-          const orderResult = await lookupOrderByNumber(orderIntent.orderNumber);
-          if (orderResult.success && orderResult.order) {
-            orderContext = `\n\n## Order Information Found\nThe customer asked about their order. Here is the order data:\n${formatOrderForChat(orderResult.order)}\n\nPlease share this information with the customer in a friendly way.`;
-          } else if (orderResult.error) {
-            orderContext = `\n\n## Order Lookup Result\nThe customer provided order number "${orderIntent.orderNumber}" but ${orderResult.error}. Let them know and offer to help them find their order another way (perhaps using their email).`;
+      if (cin7Intent.hasOrderIntent || wooIntent.hasOrderIntent) {
+        // Try Cin7 lookup first (primary system)
+        if (cin7Intent.orderNumber) {
+          const cin7Result = await searchSales({ search: cin7Intent.orderNumber, limit: 1 });
+          if (cin7Result.SaleList && cin7Result.SaleList.length > 0) {
+            orderContext = `\n\n## Order Information Found (Cin7)\nThe customer asked about their order. Here is the order data:\n${formatSaleForChat(cin7Result.SaleList[0])}\n\nPlease share this information with the customer in a friendly way.`;
+          } else {
+            // Cin7 didn't find it, try WooCommerce as fallback
+            if (wooIntent.orderNumber) {
+              const orderResult = await lookupOrderByNumber(wooIntent.orderNumber);
+              if (orderResult.success && orderResult.order) {
+                orderContext = `\n\n## Order Information Found (WooCommerce)\nThe customer asked about their order. Here is the order data:\n${formatOrderForChat(orderResult.order)}\n\nPlease share this information with the customer in a friendly way.`;
+              } else {
+                orderContext = `\n\n## Order Lookup Result\nThe customer provided order number "${cin7Intent.orderNumber}" but no matching order was found in our system. Let them know and offer to help them find their order another way (perhaps using their email).`;
+              }
+            } else {
+              orderContext = `\n\n## Order Lookup Result\nThe customer provided order number "${cin7Intent.orderNumber}" but no matching order was found. Ask them to verify the order number format (e.g., SO-12345) or provide their email address.`;
+            }
           }
         }
         // Try email lookup if no order number
-        else if (orderIntent.email) {
-          const ordersResult = await lookupOrdersByEmail(orderIntent.email);
-          if (ordersResult.success && ordersResult.orders) {
+        else if (cin7Intent.email || wooIntent.email) {
+          const email = cin7Intent.email || wooIntent.email;
+          // Try WooCommerce for email lookup (Cin7 requires customer ID for email search)
+          const ordersResult = await lookupOrdersByEmail(email!);
+          if (ordersResult.success && ordersResult.orders && ordersResult.orders.length > 0) {
             orderContext = `\n\n## Orders Found for Email\nThe customer provided their email. Here are their orders:\n${formatOrdersListForChat(ordersResult.orders)}\n\nPlease share this information with the customer.`;
-          } else if (ordersResult.error) {
-            orderContext = `\n\n## Order Lookup Result\n${ordersResult.error}`;
+          } else {
+            orderContext = `\n\n## Order Lookup Result\nNo orders were found for the email "${email}". Ask the customer to verify their email or provide an order number.`;
           }
         }
         // No order number or email provided
         else {
-          orderContext = `\n\n## Order Inquiry Detected\nThe customer appears to be asking about an order but hasn't provided an order number or email. Please ask them to provide their order number (e.g., "order #1234") or the email address they used when placing the order.`;
+          orderContext = `\n\n## Order Inquiry Detected\nThe customer appears to be asking about an order but hasn't provided an order number or email. Please ask them to provide their order number (format: SO-XXXXX for Cin7, or #12345 for web orders) or the email address they used when placing the order.`;
         }
       }
 
