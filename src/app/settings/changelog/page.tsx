@@ -33,83 +33,123 @@ interface ChangelogEntry {
 // Widget changelog
 const widgetChangelog: ChangelogEntry[] = [
   {
-    version: "2.0.3",
-    date: "2025-01-12",
-    type: "fix",
-    title: "Fixed Chunky Chat Bubbles",
-    description:
-      "Resolved the issue where chat message bubbles appeared too 'chunky' and fat compared to professional chat widgets like Tidio, WhatsApp, and Facebook Messenger.",
-    details: [
-      "Reduced gap between messages from 12px to 6px",
-      "Reduced line-height from 1.3 to 1.2",
-      "Added display: inline-block to prevent bubble stretching",
-      "Removed white-space: pre-wrap which was adding extra space",
-      "Reduced avatar size from 28px to 24px",
-      "Tightened horizontal padding from 12px to 10px",
-    ],
-    codeChanges: {
-      before: `.mact-messages { gap: 12px; }
-.mact-bubble { padding: 6px 12px; line-height: 1.3; white-space: pre-wrap; }
-.mact-avatar { width: 28px; height: 28px; }`,
-      after: `.mact-messages { gap: 6px; }
-.mact-bubble { padding: 6px 10px; line-height: 1.2; display: inline-block; }
-.mact-avatar { width: 24px; height: 24px; }`,
-    },
-  },
-  {
-    version: "2.0.2",
-    date: "2025-01-12",
-    type: "improvement",
-    title: "Bubble Width Adjustment",
-    description: "Reduced max-width and line-height for sleeker appearance.",
-    details: [
-      "Reduced max-width from 85% to 70%",
-      "Reduced line-height from 1.4 to 1.3",
-      "Verified CORS headers on all widget API routes",
-    ],
-  },
-  {
-    version: "2.0.1",
-    date: "2025-01-12",
-    type: "improvement",
-    title: "Bubble Padding Reduction",
-    description: "Initial attempt to reduce bubble chunkiness.",
-    details: [
-      "Reduced bubble padding from 10px 14px to 6px 12px",
-      "Reduced border-radius from 18px to 16px",
-    ],
-  },
-  {
-    version: "2.0.0",
-    date: "2025-01-12",
+    version: "1.4.0",
+    date: "2025-01-19",
     type: "feature",
-    title: "V2 Widget - Complete Rebuild",
+    title: "Chat Ratings & Feedback (TASK #031)",
     description:
-      "Complete rebuild of the chat widget using Web Components (Custom Elements + Shadow DOM) for true CSS isolation.",
+      "Visitors can now rate their chat experience after 5 minutes of inactivity. Ratings help measure AI effectiveness and identify training gaps.",
     details: [
-      "True CSS isolation - WordPress/host site styles cannot affect widget",
-      "Clean architecture with MActChatWidget extends HTMLElement",
-      "Asymmetric border-radius on bubbles (Messenger-style 'tail' effect)",
-      "Handoff form for 'Talk to a human' functionality",
-      "System message styling",
+      "5-star rating prompt appears after 5 min inactivity",
+      "Optional feedback textarea for additional comments",
+      "Rating saved to database and visible in inbox",
+      "LocalStorage prevents re-prompting same conversation",
+      "Skip option for users who don't want to rate",
+    ],
+  },
+  {
+    version: "1.3.0",
+    date: "2025-01-18",
+    type: "feature",
+    title: "Pre-chat Form (TASK #030)",
+    description:
+      "Configurable pre-chat form to collect visitor information before starting a conversation.",
+    details: [
+      "Customizable fields (name, email, phone, dropdown, text)",
+      "Required/optional field configuration",
+      "Data attached to conversation for agent context",
+      "Smooth transition to chat after form submission",
     ],
   },
   {
     version: "1.2.0",
-    date: "2025-01-11",
-    type: "improvement",
-    title: "Flexbox Layout Refactor",
+    date: "2025-01-12",
+    type: "fix",
+    title: "Fixed Chunky Chat Bubbles",
     description:
-      "Attempted flexbox layout based on Facebook Messenger research.",
+      "Resolved the issue where chat message bubbles appeared too chunky compared to professional chat widgets.",
     details: [
-      "Changed from inline-block to flexbox with align-self",
-      "Based on ishadeed.com/article/facebook-messenger-chat-component",
+      "Reduced gap between messages from 12px to 6px",
+      "Reduced line-height from 1.3 to 1.2",
+      "Added display: inline-block to prevent bubble stretching",
+      "Reduced avatar size from 28px to 24px",
+    ],
+  },
+  {
+    version: "1.0.0",
+    date: "2025-01-12",
+    type: "feature",
+    title: "V2 Widget - Complete Rebuild",
+    description:
+      "Complete rebuild using Web Components (Custom Elements + Shadow DOM) for true CSS isolation.",
+    details: [
+      "True CSS isolation - host site styles cannot affect widget",
+      "Clean architecture with MActChatWidget extends HTMLElement",
+      "Asymmetric border-radius on bubbles (Messenger-style)",
+      "Handoff form for human agent requests",
+      "System message styling",
     ],
   },
 ];
 
 // Admin panel changelog
 const adminChangelog: ChangelogEntry[] = [
+  {
+    version: "2.3.0",
+    date: "2025-01-19",
+    type: "fix",
+    title: "Chatbot Uses Local Supabase Cache (TASK #033)",
+    description:
+      "Chatbot now reads order data from local Supabase cache instead of calling Cin7 API directly, fixing stale/wrong data issues.",
+    details: [
+      "Created chatbot-lookup.ts with Supabase queries",
+      "Response time improved from 3-5s to ~200ms",
+      "Order SO-05183 now returns correct status and tracking",
+      "Tracking numbers displayed prominently in responses",
+    ],
+  },
+  {
+    version: "2.2.0",
+    date: "2025-01-19",
+    type: "feature",
+    title: "Chat Ratings in Inbox (TASK #031)",
+    description:
+      "Ratings from widget now visible in inbox conversation list and sidebar detail view.",
+    details: [
+      "Star icon with rating number in conversation list",
+      "5-star visualization in sidebar detail",
+      "Feedback quote displayed when provided",
+      "Analytics endpoint for rating distribution and trends",
+    ],
+  },
+  {
+    version: "2.1.0",
+    date: "2025-01-19",
+    type: "feature",
+    title: "Cin7 Data Sync to Supabase (TASK #032)",
+    description:
+      "Background sync of Cin7 orders and customers to Supabase for faster page loads (~200ms vs 3-5s).",
+    details: [
+      "5,165 orders and 2,571 customers synced",
+      "Automatic sync every 15 minutes via Vercel cron",
+      "Manual sync buttons in Settings > Integrations",
+      "Orders/Customers pages now read from local cache",
+    ],
+  },
+  {
+    version: "2.0.0",
+    date: "2025-01-18",
+    type: "feature",
+    title: "Multi-LLM Provider Support (TASK #022)",
+    description:
+      "Support for multiple AI providers including OpenAI, Anthropic, Google, and Groq.",
+    details: [
+      "Provider selection in Settings > AI Provider",
+      "Model selection per provider",
+      "Temperature and max tokens configuration",
+      "Token usage tracking and cost dashboard",
+    ],
+  },
   {
     version: "1.0.0",
     date: "2025-01-12",
@@ -120,12 +160,8 @@ const adminChangelog: ChangelogEntry[] = [
     details: [
       "Clean collapsible sections with smooth animations",
       "Desktop/Mobile tabs with visual position selectors",
-      "Phone outline icons for mobile position preview",
-      "Button size slider (small/medium/large) for mobile",
       "Color picker with 8 preset colors + custom option",
-      "Live widget preview panel with checkered background",
-      "Version numbers displayed in settings sidebar footer",
-      "Changelog page with full version history",
+      "Live widget preview panel",
     ],
   },
 ];
