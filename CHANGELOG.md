@@ -1,5 +1,40 @@
 # MACt Chatbot Changelog
 
+## [2.3.0] - 2025-01-19
+
+### TASK #033 — Chatbot Uses Local Supabase Cache
+- **Type:** BUG FIX + ENHANCEMENT
+- **Duration:** ~30 minutes
+- **Description:** Chatbot was calling Cin7 API directly causing wrong/stale data (showed "Approved, no tracking" when order was "Completed" with tracking). Now uses Supabase cache for fast, accurate lookups.
+- **Files Created:**
+  - `src/lib/chatbot-lookup.ts` — Unified lookup functions (lookupOrderByNumber, lookupCustomerByEmail, lookupCustomerByPhone, formatOrderForChat, formatCustomerForChat) using Supabase cache
+- **Files Modified:**
+  - `src/app/api/widget/conversations/[id]/messages/route.ts` — Replaced Cin7 API calls with Supabase cache lookups
+- **Proof:**
+  - Order SO-05183: Status = COMPLETED ✓, Tracking = 8880180000518 ✓
+  - Response time: ~200ms (was 3-5s with Cin7 API)
+- **Outcome:** Chatbot now returns correct, up-to-date order data instantly. Tracking numbers displayed prominently.
+
+---
+
+## [2.2.0] - 2025-01-19
+
+### TASK #031 — Chat Ratings & Feedback
+- **Type:** FEATURE
+- **Duration:** ~1 hour
+- **Description:** Implemented visitor rating system to measure AI chat effectiveness. After 5 minutes of inactivity, visitors are prompted to rate their conversation (1-5 stars) with optional feedback. Ratings are visible in the inbox sidebar and help identify training gaps.
+- **Files Created:**
+  - `supabase/migrations/20250119_chat_ratings.sql` — Database table (chat_ratings) with conversation columns for quick access
+  - `src/app/api/widget/conversations/[id]/rating/route.ts` — POST/GET rating API with CORS headers
+  - `src/app/api/analytics/ratings/route.ts` — Analytics endpoint returning total, average, distribution, 7-day trend
+- **Files Modified:**
+  - `public/widget/chat-widget.js` — v1.4.0 with rating prompt UI (5-star selector, feedback textarea, 5-min inactivity detection)
+  - `src/app/inbox/page.tsx` — Rating display in conversation list and sidebar detail view
+  - `src/types/database.ts` — Added rating/rating_feedback fields to conversations type
+- **Outcome:** Visitors can rate chat experience after conversation ends. Ratings visible in inbox with star visualization and feedback quotes.
+
+---
+
 ## [2.1.0] - 2025-01-19
 
 ### TASK #032 — Cin7 Data Sync to Supabase

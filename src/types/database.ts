@@ -24,6 +24,8 @@ export interface Database {
           status: ConversationStatus;
           assigned_to: string | null;
           metadata: Json | null;
+          rating: number | null;
+          rating_feedback: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -37,6 +39,8 @@ export interface Database {
           status?: ConversationStatus;
           assigned_to?: string | null;
           metadata?: Json | null;
+          rating?: number | null;
+          rating_feedback?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -50,6 +54,8 @@ export interface Database {
           status?: ConversationStatus;
           assigned_to?: string | null;
           metadata?: Json | null;
+          rating?: number | null;
+          rating_feedback?: string | null;
           created_at?: string;
           updated_at?: string;
         };

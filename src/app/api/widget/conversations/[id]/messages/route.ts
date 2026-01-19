@@ -1,21 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { generateAIResponse, calculateTokenCost } from "@/lib/ai";
+import { detectOrderIntent } from "@/lib/woocommerce";
+import { detectCin7OrderIntent } from "@/lib/cin7";
 import {
-  detectOrderIntent,
   lookupOrderByNumber,
-  lookupOrdersByEmail,
+  lookupCustomerByEmail,
   formatOrderForChat,
-  formatOrdersListForChat,
-} from "@/lib/woocommerce";
-import {
-  detectCin7OrderIntent,
-  searchSales,
-  getSale,
-  formatSaleForChat,
-  formatSaleListItemForChat,
-  formatSalesListForChat,
-} from "@/lib/cin7";
+  formatCustomerForChat,
+} from "@/lib/chatbot-lookup";
 import { sendNewConversationEmail } from "@/lib/email";
 
 // Create supabase client at runtime for server-side usage
@@ -196,54 +189,38 @@ export async function POST(
         .filter(Boolean)
         .join("\n\n---\n\n") || "";
 
-      // Detect order intent and look up order if needed
-      // Try Cin7 first (primary source of truth), then fallback to WooCommerce
+      // Detect order intent and look up order from Supabase cache
+      // Uses local cache for fast lookups (~200ms) instead of Cin7 API (3-5s)
       const cin7Intent = detectCin7OrderIntent(content.trim());
       const wooIntent = detectOrderIntent(content.trim());
       let orderContext = "";
 
       if (cin7Intent.hasOrderIntent || wooIntent.hasOrderIntent) {
-        // Try Cin7 lookup first (primary system)
-        if (cin7Intent.orderNumber) {
-          const cin7Result = await searchSales({ search: cin7Intent.orderNumber, limit: 1 });
-          if (cin7Result.SaleList && cin7Result.SaleList.length > 0) {
-            const saleListItem = cin7Result.SaleList[0];
-            // Try to fetch full sale details for richer information (line items, shipping)
-            const fullSale = await getSale(saleListItem.SaleID);
-            if (fullSale) {
-              orderContext = `\n\n## Order Information Found (Cin7)\nThe customer asked about their order. Here is the order data:\n${formatSaleForChat(fullSale)}\n\nPlease share this information with the customer in a friendly way.`;
-            } else {
-              // Fall back to list item data if full details can't be fetched
-              orderContext = `\n\n## Order Information Found (Cin7)\nThe customer asked about their order. Here is the order data:\n${formatSaleListItemForChat(saleListItem)}\n\nPlease share this information with the customer in a friendly way.`;
-            }
+        // Look up by order number from Supabase cache
+        const orderNumber = cin7Intent.orderNumber || wooIntent.orderNumber;
+        if (orderNumber) {
+          const orderResult = await lookupOrderByNumber(orderNumber);
+          if (orderResult.found && orderResult.order) {
+            const formattedOrder = formatOrderForChat(orderResult);
+            orderContext = `\n\n## Order Information Found\nThe customer asked about their order. Here is the order data from our system:\n${formattedOrder}\n\nPlease share this information with the customer in a friendly way. IMPORTANT: If there is a tracking number, make sure to prominently mention it.`;
           } else {
-            // Cin7 didn't find it, try WooCommerce as fallback
-            if (wooIntent.orderNumber) {
-              const orderResult = await lookupOrderByNumber(wooIntent.orderNumber);
-              if (orderResult.success && orderResult.order) {
-                orderContext = `\n\n## Order Information Found (WooCommerce)\nThe customer asked about their order. Here is the order data:\n${formatOrderForChat(orderResult.order)}\n\nPlease share this information with the customer in a friendly way.`;
-              } else {
-                orderContext = `\n\n## Order Lookup Result\nThe customer provided order number "${cin7Intent.orderNumber}" but no matching order was found in our system. Let them know and offer to help them find their order another way (perhaps using their email).`;
-              }
-            } else {
-              orderContext = `\n\n## Order Lookup Result\nThe customer provided order number "${cin7Intent.orderNumber}" but no matching order was found. Ask them to verify the order number format (e.g., SO-12345) or provide their email address.`;
-            }
+            orderContext = `\n\n## Order Lookup Result\nThe customer provided order number "${orderNumber}" but no matching order was found in our system. Let them know and offer to help them find their order another way (perhaps using their email address).`;
           }
         }
-        // Try email lookup if no order number
+        // Try email lookup from Supabase cache if no order number
         else if (cin7Intent.email || wooIntent.email) {
           const email = cin7Intent.email || wooIntent.email;
-          // Try WooCommerce for email lookup (Cin7 requires customer ID for email search)
-          const ordersResult = await lookupOrdersByEmail(email!);
-          if (ordersResult.success && ordersResult.orders && ordersResult.orders.length > 0) {
-            orderContext = `\n\n## Orders Found for Email\nThe customer provided their email. Here are their orders:\n${formatOrdersListForChat(ordersResult.orders)}\n\nPlease share this information with the customer.`;
+          const customerResult = await lookupCustomerByEmail(email!);
+          if (customerResult.found) {
+            const formattedCustomer = formatCustomerForChat(customerResult);
+            orderContext = `\n\n## Customer Orders Found\nThe customer provided their email. Here is their order history:\n${formattedCustomer}\n\nPlease share this information with the customer. If they're looking for a specific order, ask for the order number.`;
           } else {
             orderContext = `\n\n## Order Lookup Result\nNo orders were found for the email "${email}". Ask the customer to verify their email or provide an order number.`;
           }
         }
         // No order number or email provided
         else {
-          orderContext = `\n\n## Order Inquiry Detected\nThe customer appears to be asking about an order but hasn't provided an order number or email. Please ask them to provide their order number (format: SO-XXXXX for Cin7, or #12345 for web orders) or the email address they used when placing the order.`;
+          orderContext = `\n\n## Order Inquiry Detected\nThe customer appears to be asking about an order but hasn't provided an order number or email. Please ask them to provide their order number (format: SO-XXXXX) or the email address they used when placing the order.`;
         }
       }
 

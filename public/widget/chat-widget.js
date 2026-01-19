@@ -2,7 +2,7 @@
   'use strict';
 
   // Widget version - increment on each release
-  const WIDGET_VERSION = '1.3.0';
+  const WIDGET_VERSION = '1.4.0';
 
   // Get script configuration
   const scriptTag = document.currentScript;
@@ -26,6 +26,15 @@
   let prechatConfig = null;
   let prechatCompleted = false;
   let prechatData = null;
+
+  // Rating state
+  let showRatingPrompt = false;
+  let selectedRating = 0;
+  let ratingFeedback = '';
+  let ratingSubmitted = false;
+  let lastActivityTime = Date.now();
+  let ratingCheckInterval = null;
+  const RATING_INACTIVITY_MS = 5 * 60 * 1000; // 5 minutes
 
   // DOM elements
   let shadowHost = null;
@@ -157,6 +166,9 @@
   async function sendMessage(content) {
     if (!content.trim() || !conversation || isSending) return;
     isSending = true;
+
+    // Update activity timestamp
+    updateActivity();
 
     // Stop polling while sending to avoid race conditions
     stopPolling();
@@ -416,6 +428,180 @@
     messagesContainer.insertAdjacentHTML('beforeend', typingHtml);
   }
 
+  // Check if rating was already submitted for this conversation
+  function checkRatingStatus() {
+    if (!conversation) return false;
+    const ratedKey = `mact_rated_${conversation.id}`;
+    return localStorage.getItem(ratedKey) !== null;
+  }
+
+  // Check for inactivity and show rating prompt
+  function checkInactivity() {
+    if (!conversation || !isOpen) return;
+    if (ratingSubmitted || showRatingPrompt) return;
+    if (checkRatingStatus()) return;
+    if (messages.length < 2) return; // Need at least one exchange
+
+    const timeSinceActivity = Date.now() - lastActivityTime;
+    if (timeSinceActivity >= RATING_INACTIVITY_MS) {
+      showRatingPrompt = true;
+      renderRatingPrompt();
+    }
+  }
+
+  // Start rating check interval
+  function startRatingCheck() {
+    if (ratingCheckInterval) return;
+    ratingCheckInterval = setInterval(checkInactivity, 30000); // Check every 30s
+  }
+
+  // Stop rating check interval
+  function stopRatingCheck() {
+    if (ratingCheckInterval) {
+      clearInterval(ratingCheckInterval);
+      ratingCheckInterval = null;
+    }
+  }
+
+  // Update activity timestamp
+  function updateActivity() {
+    lastActivityTime = Date.now();
+  }
+
+  // Render rating prompt
+  function renderRatingPrompt() {
+    const content = chatWindow?.querySelector('.mact-content');
+    if (!content) return;
+
+    const primaryColor = settings?.appearance?.primaryColor || '#2563eb';
+
+    // Create overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'mact-rating-overlay';
+
+    if (ratingSubmitted) {
+      overlay.innerHTML = `
+        <div class="mact-rating-prompt">
+          <div class="mact-rating-thanks">
+            <div class="mact-rating-thanks-icon">✓</div>
+            <p>Thank you for your feedback!</p>
+          </div>
+        </div>
+      `;
+    } else {
+      const starsHtml = [1, 2, 3, 4, 5].map(n => `
+        <button class="mact-rating-star ${n <= selectedRating ? 'active' : ''}" data-rating="${n}">
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+        </button>
+      `).join('');
+
+      overlay.innerHTML = `
+        <div class="mact-rating-prompt">
+          <p class="mact-rating-title">How was your experience?</p>
+          <div class="mact-rating-stars">${starsHtml}</div>
+          ${selectedRating > 0 ? `
+            <div class="mact-rating-feedback">
+              <textarea
+                class="mact-rating-textarea"
+                placeholder="Any additional feedback? (optional)"
+                rows="3"
+              >${ratingFeedback}</textarea>
+            </div>
+          ` : ''}
+          <div class="mact-rating-actions">
+            <button class="mact-rating-skip">Skip</button>
+            <button class="mact-rating-submit" style="background-color: ${primaryColor};" ${selectedRating === 0 ? 'disabled' : ''}>Submit</button>
+          </div>
+        </div>
+      `;
+    }
+
+    // Remove existing overlay if any
+    const existingOverlay = content.querySelector('.mact-rating-overlay');
+    if (existingOverlay) {
+      existingOverlay.remove();
+    }
+
+    content.appendChild(overlay);
+
+    // Add event listeners
+    overlay.querySelectorAll('.mact-rating-star').forEach(star => {
+      star.addEventListener('click', () => {
+        selectedRating = parseInt(star.dataset.rating);
+        renderRatingPrompt();
+      });
+    });
+
+    const textarea = overlay.querySelector('.mact-rating-textarea');
+    if (textarea) {
+      textarea.addEventListener('input', (e) => {
+        ratingFeedback = e.target.value;
+      });
+    }
+
+    const skipBtn = overlay.querySelector('.mact-rating-skip');
+    skipBtn?.addEventListener('click', skipRating);
+
+    const submitBtn = overlay.querySelector('.mact-rating-submit');
+    submitBtn?.addEventListener('click', submitRating);
+  }
+
+  // Submit rating
+  async function submitRating() {
+    if (selectedRating === 0 || !conversation) return;
+
+    const submitBtn = chatWindow?.querySelector('.mact-rating-submit');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Submitting...';
+    }
+
+    try {
+      const response = await fetch(`${apiBase}/api/widget/conversations/${conversation.id}/rating`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rating: selectedRating,
+          feedback: ratingFeedback.trim() || null,
+        }),
+      });
+
+      if (response.ok) {
+        ratingSubmitted = true;
+        localStorage.setItem(`mact_rated_${conversation.id}`, 'true');
+        renderRatingPrompt();
+
+        // Hide after 2 seconds
+        setTimeout(() => {
+          hideRatingPrompt();
+        }, 2000);
+      }
+    } catch (error) {
+      console.error('MACt Widget: Failed to submit rating', error);
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit';
+      }
+    }
+  }
+
+  // Skip rating
+  function skipRating() {
+    if (conversation) {
+      localStorage.setItem(`mact_rated_${conversation.id}`, 'skipped');
+    }
+    hideRatingPrompt();
+  }
+
+  // Hide rating prompt
+  function hideRatingPrompt() {
+    showRatingPrompt = false;
+    const overlay = chatWindow?.querySelector('.mact-rating-overlay');
+    if (overlay) {
+      overlay.remove();
+    }
+  }
+
   // Toggle chat window
   function toggleChat() {
     isOpen = !isOpen;
@@ -437,12 +623,15 @@
         initConversation();
       }
       startPolling();
+      startRatingCheck();
+      updateActivity();
       scrollToBottom();
       // Focus input
       const input = chatWindow?.querySelector('.mact-input');
       if (input) setTimeout(() => input.focus(), 100);
     } else {
       stopPolling();
+      stopRatingCheck();
     }
   }
 
@@ -1292,6 +1481,131 @@
         background-repeat: no-repeat;
         background-position: right 12px center;
         padding-right: 36px;
+      }
+
+      /* Rating prompt styles */
+      .mact-rating-overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        z-index: 15;
+      }
+      .mact-rating-prompt {
+        background: white;
+        border-radius: 12px;
+        padding: 24px;
+        width: 100%;
+        max-width: 300px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        text-align: center;
+      }
+      .mact-rating-title {
+        font-size: 16px;
+        font-weight: 500;
+        color: #1a1a1a;
+        margin: 0 0 16px;
+      }
+      .mact-rating-stars {
+        display: flex;
+        justify-content: center;
+        gap: 8px;
+        margin-bottom: 16px;
+      }
+      .mact-rating-star {
+        background: none;
+        border: none;
+        padding: 4px;
+        cursor: pointer;
+        color: #d1d5db;
+        transition: color 0.15s, transform 0.15s;
+      }
+      .mact-rating-star:hover {
+        transform: scale(1.1);
+      }
+      .mact-rating-star.active {
+        color: #fbbf24;
+      }
+      .mact-rating-star svg {
+        width: 28px;
+        height: 28px;
+        fill: currentColor;
+      }
+      .mact-rating-feedback {
+        margin-bottom: 16px;
+      }
+      .mact-rating-textarea {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        font-size: 14px;
+        resize: none;
+        font-family: inherit;
+        background: white;
+        color: #1e293b;
+        box-sizing: border-box;
+      }
+      .mact-rating-textarea:focus {
+        outline: none;
+        border-color: ${primaryColor};
+      }
+      .mact-rating-actions {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+      }
+      .mact-rating-skip {
+        padding: 8px 16px;
+        background: none;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        color: #64748b;
+        font-size: 14px;
+        font-family: inherit;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      .mact-rating-skip:hover {
+        background: #f8fafc;
+      }
+      .mact-rating-submit {
+        padding: 8px 20px;
+        border: none;
+        border-radius: 6px;
+        color: white;
+        font-size: 14px;
+        font-weight: 500;
+        font-family: inherit;
+        cursor: pointer;
+        transition: opacity 0.2s;
+      }
+      .mact-rating-submit:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .mact-rating-thanks {
+        padding: 20px 0;
+      }
+      .mact-rating-thanks-icon {
+        width: 48px;
+        height: 48px;
+        background: #22c55e;
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        margin: 0 auto 12px;
+      }
+      .mact-rating-thanks p {
+        margin: 0;
+        color: #1e293b;
+        font-size: 15px;
       }
 
       @media (max-width: 768px) {

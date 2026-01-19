@@ -38,6 +38,7 @@ import {
   ExternalLink,
   Eye,
   Wifi,
+  Star,
 } from "lucide-react";
 import { useConversations } from "@/hooks/use-conversations";
 import { useMessages } from "@/hooks/use-messages";
@@ -654,6 +655,12 @@ export default function InboxPage() {
                           {getStatusIcon(conv.status)}
                           {conv.status}
                         </Badge>
+                        {conv.rating && (
+                          <div className="flex items-center gap-0.5 text-amber-500" title={`Rated ${conv.rating}/5`}>
+                            <Star className="h-3 w-3 fill-current" />
+                            <span className="text-xs font-medium">{conv.rating}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1047,6 +1054,41 @@ export default function InboxPage() {
                             <span className="font-medium text-slate-900">{String(value)}</span>
                           </div>
                         ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Chat Rating Section */}
+                {selectedConversation.rating && (
+                  <>
+                    <Separator className="my-4" />
+                    <div className="mb-6">
+                      <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                        <Star className="h-3 w-3" />
+                        Chat Rating
+                      </h3>
+                      <div className="rounded-lg border bg-amber-50 p-3">
+                        <div className="flex items-center gap-1 mb-2">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star
+                              key={star}
+                              className={`h-5 w-5 ${
+                                star <= selectedConversation.rating!
+                                  ? "fill-amber-400 text-amber-400"
+                                  : "text-slate-300"
+                              }`}
+                            />
+                          ))}
+                          <span className="ml-2 text-sm font-medium text-slate-700">
+                            {selectedConversation.rating}/5
+                          </span>
+                        </div>
+                        {selectedConversation.rating_feedback && (
+                          <p className="text-sm text-slate-600 italic border-l-2 border-amber-300 pl-2 mt-2">
+                            &quot;{selectedConversation.rating_feedback}&quot;
+                          </p>
+                        )}
                       </div>
                     </div>
                   </>
