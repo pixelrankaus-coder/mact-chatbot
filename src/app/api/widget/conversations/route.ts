@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabase();
     const body = await request.json();
-    const { visitorId, visitorName, visitorEmail, visitorInfo } = body;
+    const { visitorId, visitorName, visitorEmail, visitorInfo, prechatData } = body;
 
     if (!visitorId) {
       return NextResponse.json(
@@ -116,10 +116,11 @@ export async function POST(request: NextRequest) {
       .from("conversations")
       .insert({
         visitor_id: visitorId,
-        visitor_name: visitorName || "Website Visitor",
-        visitor_email: visitorEmail || null,
+        visitor_name: visitorName || prechatData?.name || "Website Visitor",
+        visitor_email: visitorEmail || prechatData?.email || null,
         visitor_location: location,
         metadata: metadata,
+        prechat_data: prechatData || {},
         status: "active",
       })
       .select()

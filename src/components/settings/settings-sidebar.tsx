@@ -15,6 +15,7 @@ import {
   Plug,
   History,
   Cpu,
+  ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ADMIN_VERSION, WIDGET_VERSION } from "@/lib/version";
@@ -29,6 +30,7 @@ interface SettingsNavItem {
 
 const settingsNav: SettingsNavItem[] = [
   { id: "live-chat", label: "Live Chat", href: "/settings", icon: <MessageSquare className="h-4 w-4" />, section: "CHANNELS" },
+  { id: "prechat", label: "Pre-chat Form", href: "/settings/prechat", icon: <ClipboardList className="h-4 w-4" />, section: "CHANNELS" },
   { id: "appearance", label: "Appearance", href: "/settings/appearance", icon: <Palette className="h-4 w-4" />, section: "CHANNELS" },
   { id: "installation", label: "Installation", href: "/settings/installation", icon: <Code className="h-4 w-4" />, section: "CHANNELS" },
   { id: "chat-page", label: "Chat page", href: "/settings/chat-page", icon: <Globe className="h-4 w-4" />, section: "CHANNELS" },

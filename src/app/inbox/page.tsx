@@ -477,6 +477,14 @@ export default function InboxPage() {
     return metadata || {};
   };
 
+  // Get prechat form data from conversation
+  const getPrechatData = (conv: Conversation | undefined): Record<string, unknown> | null => {
+    if (!conv) return null;
+    // Access prechat_data directly from conversation (added by migration)
+    const prechatData = (conv as unknown as { prechat_data?: Record<string, unknown> }).prechat_data;
+    return prechatData && Object.keys(prechatData).length > 0 ? prechatData : null;
+  };
+
   // Format page URL for display
   const formatPageUrl = (url: string): string => {
     try {
@@ -1023,6 +1031,26 @@ export default function InboxPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* Pre-chat Form Data */}
+                {getPrechatData(selectedConversation) && Object.keys(getPrechatData(selectedConversation)!).length > 0 && (
+                  <>
+                    <Separator className="my-4" />
+                    <div className="mb-6">
+                      <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                        Pre-chat Form
+                      </h3>
+                      <div className="rounded-lg border bg-blue-50 p-3 space-y-2">
+                        {Object.entries(getPrechatData(selectedConversation)!).map(([key, value]) => (
+                          <div key={key} className="flex justify-between text-sm">
+                            <span className="text-slate-500 capitalize">{key}:</span>
+                            <span className="font-medium text-slate-900">{String(value)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 <Separator className="my-4" />
 

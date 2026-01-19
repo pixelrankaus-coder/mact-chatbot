@@ -2,7 +2,7 @@
   'use strict';
 
   // Widget version - increment on each release
-  const WIDGET_VERSION = '1.2.0';
+  const WIDGET_VERSION = '1.3.0';
 
   // Get script configuration
   const scriptTag = document.currentScript;
@@ -21,6 +21,11 @@
   let pollInterval = null;
   let lastMessageTime = null;
   let isMobile = window.innerWidth <= 768;
+
+  // Pre-chat form state
+  let prechatConfig = null;
+  let prechatCompleted = false;
+  let prechatData = null;
 
   // DOM elements
   let shadowHost = null;
@@ -67,8 +72,30 @@
     }
   }
 
+  // Fetch pre-chat form configuration
+  async function fetchPrechatConfig() {
+    try {
+      const response = await fetch(`${apiBase}/api/widget/prechat-config`);
+      if (!response.ok) throw new Error('Failed to fetch prechat config');
+      prechatConfig = await response.json();
+
+      // Check localStorage for existing submission
+      const stored = localStorage.getItem(`mact_prechat_${storeId}`);
+      if (stored) {
+        prechatData = JSON.parse(stored);
+        prechatCompleted = true;
+      }
+
+      return prechatConfig;
+    } catch (error) {
+      console.error('MACt Widget: Failed to load prechat config', error);
+      prechatConfig = { enabled: false };
+      return prechatConfig;
+    }
+  }
+
   // Create or get existing conversation
-  async function getOrCreateConversation() {
+  async function getOrCreateConversation(withPrechatData = null) {
     try {
       const response = await fetch(`${apiBase}/api/widget/conversations`, {
         method: 'POST',
@@ -76,6 +103,9 @@
         body: JSON.stringify({
           visitorId,
           storeId,
+          visitorName: withPrechatData?.name || prechatData?.name,
+          visitorEmail: withPrechatData?.email || prechatData?.email,
+          prechatData: withPrechatData || prechatData,
         }),
       });
       if (!response.ok) throw new Error('Failed to create conversation');
@@ -421,7 +451,162 @@
     isLoading = true;
     renderLoadingState();
 
+    // Check if prechat form is needed
+    if (prechatConfig?.enabled && !prechatCompleted) {
+      isLoading = false;
+      renderPrechatForm();
+      return;
+    }
+
     await getOrCreateConversation();
+    if (conversation) {
+      await fetchMessages();
+    }
+
+    isLoading = false;
+    renderChatContent();
+  }
+
+  // Render pre-chat form
+  function renderPrechatForm() {
+    const content = chatWindow?.querySelector('.mact-content');
+    if (!content || !prechatConfig) return;
+
+    const primaryColor = settings?.appearance?.primaryColor || '#2563eb';
+
+    // Build form fields HTML
+    const fieldsHtml = prechatConfig.fields.map(field => {
+      const requiredMark = field.required ? '<span class="mact-required">*</span>' : '';
+      let inputHtml = '';
+
+      if (field.type === 'select') {
+        const optionsHtml = (field.options || []).map(opt =>
+          `<option value="${opt}">${opt}</option>`
+        ).join('');
+        inputHtml = `
+          <select class="mact-prechat-input" data-field-id="${field.id}" ${field.required ? 'required' : ''}>
+            <option value="">${field.placeholder || 'Select...'}</option>
+            ${optionsHtml}
+          </select>
+        `;
+      } else if (field.type === 'textarea') {
+        inputHtml = `
+          <textarea class="mact-prechat-input" data-field-id="${field.id}"
+            placeholder="${field.placeholder || ''}"
+            rows="3"
+            ${field.required ? 'required' : ''}></textarea>
+        `;
+      } else {
+        inputHtml = `
+          <input type="${field.type || 'text'}" class="mact-prechat-input"
+            data-field-id="${field.id}"
+            placeholder="${field.placeholder || ''}"
+            ${field.required ? 'required' : ''} />
+        `;
+      }
+
+      return `
+        <div class="mact-prechat-field">
+          <label class="mact-prechat-label">${field.label}${requiredMark}</label>
+          ${inputHtml}
+          <span class="mact-prechat-error" data-error-for="${field.id}"></span>
+        </div>
+      `;
+    }).join('');
+
+    content.innerHTML = `
+      <div class="mact-prechat">
+        <h3 class="mact-prechat-title">${prechatConfig.title || 'Start a conversation'}</h3>
+        <p class="mact-prechat-subtitle">${prechatConfig.subtitle || 'Please fill in your details to begin'}</p>
+        <form class="mact-prechat-form">
+          ${fieldsHtml}
+          <button type="submit" class="mact-prechat-submit" style="background-color: ${primaryColor};">
+            Start Chat
+          </button>
+        </form>
+      </div>
+    `;
+
+    // Add form submit handler
+    const form = content.querySelector('.mact-prechat-form');
+    form?.addEventListener('submit', handlePrechatSubmit);
+  }
+
+  // Handle pre-chat form submission
+  async function handlePrechatSubmit(e) {
+    e.preventDefault();
+
+    const content = chatWindow?.querySelector('.mact-content');
+    if (!content) return;
+
+    // Gather form data
+    const formData = {};
+    const inputs = content.querySelectorAll('.mact-prechat-input');
+    let hasErrors = false;
+
+    // Clear previous errors
+    content.querySelectorAll('.mact-prechat-error').forEach(el => {
+      el.textContent = '';
+      el.style.display = 'none';
+    });
+    content.querySelectorAll('.mact-prechat-input').forEach(el => {
+      el.classList.remove('mact-error');
+    });
+
+    // Validate and collect data
+    inputs.forEach(input => {
+      const fieldId = input.getAttribute('data-field-id');
+      const value = input.value.trim();
+      formData[fieldId] = value;
+
+      // Find field config
+      const fieldConfig = prechatConfig.fields.find(f => f.id === fieldId);
+
+      // Required validation
+      if (fieldConfig?.required && !value) {
+        hasErrors = true;
+        input.classList.add('mact-error');
+        const errorEl = content.querySelector(`[data-error-for="${fieldId}"]`);
+        if (errorEl) {
+          errorEl.textContent = 'Required';
+          errorEl.style.display = 'block';
+        }
+      }
+
+      // Email validation
+      if (fieldConfig?.type === 'email' && value) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(value)) {
+          hasErrors = true;
+          input.classList.add('mact-error');
+          const errorEl = content.querySelector(`[data-error-for="${fieldId}"]`);
+          if (errorEl) {
+            errorEl.textContent = 'Invalid email';
+            errorEl.style.display = 'block';
+          }
+        }
+      }
+    });
+
+    if (hasErrors) return;
+
+    // Disable submit button
+    const submitBtn = content.querySelector('.mact-prechat-submit');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Starting...';
+    }
+
+    // Store in localStorage and state
+    localStorage.setItem(`mact_prechat_${storeId}`, JSON.stringify(formData));
+    prechatData = formData;
+    prechatCompleted = true;
+
+    // Create conversation with prechat data
+    isLoading = true;
+    renderLoadingState();
+
+    await getOrCreateConversation(formData);
     if (conversation) {
       await fetchMessages();
     }
@@ -1015,6 +1200,100 @@
         cursor: not-allowed;
       }
 
+      /* Pre-chat form styles */
+      .mact-prechat {
+        padding: 24px 20px;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+      }
+      .mact-prechat-title {
+        font-size: 18px;
+        font-weight: 600;
+        margin: 0 0 4px;
+        color: #1a1a1a;
+      }
+      .mact-prechat-subtitle {
+        font-size: 14px;
+        color: #666;
+        margin: 0 0 20px;
+      }
+      .mact-prechat-form {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        flex: 1;
+      }
+      .mact-prechat-field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .mact-prechat-label {
+        font-size: 14px;
+        font-weight: 500;
+        color: #333;
+      }
+      .mact-required {
+        color: #ef4444;
+        margin-left: 2px;
+      }
+      .mact-prechat-input {
+        padding: 10px 12px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 14px;
+        font-family: inherit;
+        transition: border-color 0.2s;
+        background: white;
+        color: #1e293b;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      .mact-prechat-input:focus {
+        outline: none;
+        border-color: ${primaryColor};
+      }
+      .mact-prechat-input.mact-error {
+        border-color: #ef4444;
+      }
+      .mact-prechat-error {
+        font-size: 12px;
+        color: #ef4444;
+        display: none;
+      }
+      .mact-prechat-submit {
+        margin-top: auto;
+        padding: 12px;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        font-family: inherit;
+        cursor: pointer;
+        transition: opacity 0.2s;
+      }
+      .mact-prechat-submit:hover {
+        opacity: 0.9;
+      }
+      .mact-prechat-submit:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      textarea.mact-prechat-input {
+        resize: none;
+        min-height: 80px;
+      }
+      select.mact-prechat-input {
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 12px center;
+        padding-right: 36px;
+      }
+
       @media (max-width: 768px) {
         .mact-chat-window {
           width: calc(100vw - 32px);
@@ -1211,6 +1490,7 @@
   async function init() {
     visitorId = getVisitorId();
     await fetchSettings();
+    await fetchPrechatConfig();
     createWidget(); // createStyles() is called inside createWidget() now
 
     // Listen for viewport changes
@@ -1220,7 +1500,8 @@
     console.log('MACt Settings:', {
       textAlign: settings?.appearance?.bubbleTextAlign,
       padding: settings?.appearance?.bubblePadding,
-      textSize: settings?.appearance?.bubbleTextSize
+      textSize: settings?.appearance?.bubbleTextSize,
+      prechatEnabled: prechatConfig?.enabled
     });
   }
 
