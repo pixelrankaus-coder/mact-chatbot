@@ -49,6 +49,28 @@ export async function syncWooOrders(): Promise<SyncResult> {
   const supabase = createServiceClient() as SupabaseAny;
   const startTime = Date.now();
 
+  // Check WooCommerce credentials first
+  const hasWooCredentials = !!(
+    process.env.WOOCOMMERCE_URL &&
+    process.env.WOOCOMMERCE_CONSUMER_KEY &&
+    process.env.WOOCOMMERCE_CONSUMER_SECRET
+  );
+
+  console.log("=== WOO ORDERS SYNC START ===");
+  console.log("WooCommerce URL:", process.env.WOOCOMMERCE_URL || "NOT SET");
+  console.log("WooCommerce Key exists:", !!process.env.WOOCOMMERCE_CONSUMER_KEY);
+  console.log("WooCommerce Secret exists:", !!process.env.WOOCOMMERCE_CONSUMER_SECRET);
+
+  if (!hasWooCredentials) {
+    console.log("WooCommerce credentials not configured - skipping sync");
+    return {
+      success: true,
+      recordsSynced: 0,
+      duration: Date.now() - startTime,
+      error: "WooCommerce not configured",
+    };
+  }
+
   // Log sync start
   const { data: logEntry } = await supabase
     .from("sync_log")
@@ -60,7 +82,7 @@ export async function syncWooOrders(): Promise<SyncResult> {
     .single();
 
   try {
-    console.log("Starting WooCommerce orders sync...");
+    console.log("Fetching WooCommerce orders...");
 
     // Fetch all orders from WooCommerce (paginated)
     const allOrders: WooOrder[] = [];
@@ -69,13 +91,19 @@ export async function syncWooOrders(): Promise<SyncResult> {
     let hasMore = true;
 
     while (hasMore) {
+      console.log(`Fetching page ${page}...`);
       const { orders, total } = await listWooOrders({
         page,
         per_page: perPage,
       });
 
+      console.log(`Page ${page} returned ${orders.length} orders, total in API: ${total}`);
+
+      if (page === 1 && orders.length > 0) {
+        console.log("First order sample:", JSON.stringify(orders[0], null, 2).slice(0, 500));
+      }
+
       allOrders.push(...orders);
-      console.log(`Fetched page ${page}: ${orders.length} orders (total: ${allOrders.length}/${total})`);
 
       hasMore = orders.length === perPage && allOrders.length < total;
       page++;
@@ -84,10 +112,11 @@ export async function syncWooOrders(): Promise<SyncResult> {
       if (page > 100) break;
     }
 
-    console.log(`Fetched ${allOrders.length} orders from WooCommerce`);
+    console.log(`Total fetched: ${allOrders.length} orders from WooCommerce`);
 
     if (allOrders.length === 0) {
-      // Not an error - WooCommerce might just have no orders
+      // Could be no orders or API issue - log it
+      console.log("No orders returned from WooCommerce API - store may be empty or API issue");
       const duration = Date.now() - startTime;
       await supabase
         .from("sync_log")
@@ -189,6 +218,26 @@ export async function syncWooCustomers(): Promise<SyncResult> {
   const supabase = createServiceClient() as SupabaseAny;
   const startTime = Date.now();
 
+  // Check WooCommerce credentials first
+  const hasWooCredentials = !!(
+    process.env.WOOCOMMERCE_URL &&
+    process.env.WOOCOMMERCE_CONSUMER_KEY &&
+    process.env.WOOCOMMERCE_CONSUMER_SECRET
+  );
+
+  console.log("=== WOO CUSTOMERS SYNC START ===");
+  console.log("WooCommerce credentials configured:", hasWooCredentials);
+
+  if (!hasWooCredentials) {
+    console.log("WooCommerce credentials not configured - skipping sync");
+    return {
+      success: true,
+      recordsSynced: 0,
+      duration: Date.now() - startTime,
+      error: "WooCommerce not configured",
+    };
+  }
+
   // Log sync start
   const { data: logEntry } = await supabase
     .from("sync_log")
@@ -200,7 +249,7 @@ export async function syncWooCustomers(): Promise<SyncResult> {
     .single();
 
   try {
-    console.log("Starting WooCommerce customers sync...");
+    console.log("Fetching WooCommerce customers...");
 
     // Fetch all customers from WooCommerce (paginated)
     const allCustomers: WooCustomer[] = [];
@@ -209,13 +258,15 @@ export async function syncWooCustomers(): Promise<SyncResult> {
     let hasMore = true;
 
     while (hasMore) {
+      console.log(`Fetching customers page ${page}...`);
       const { customers, total } = await getWooCustomers({
         page,
         per_page: perPage,
       });
 
+      console.log(`Page ${page} returned ${customers.length} customers, total in API: ${total}`);
+
       allCustomers.push(...customers);
-      console.log(`Fetched page ${page}: ${customers.length} customers (total: ${allCustomers.length}/${total})`);
 
       hasMore = customers.length === perPage && allCustomers.length < total;
       page++;
@@ -224,10 +275,10 @@ export async function syncWooCustomers(): Promise<SyncResult> {
       if (page > 100) break;
     }
 
-    console.log(`Fetched ${allCustomers.length} customers from WooCommerce`);
+    console.log(`Total fetched: ${allCustomers.length} customers from WooCommerce`);
 
     if (allCustomers.length === 0) {
-      // Not an error - might just have no customers
+      console.log("No customers returned from WooCommerce API");
       const duration = Date.now() - startTime;
       await supabase
         .from("sync_log")
