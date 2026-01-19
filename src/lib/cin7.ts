@@ -319,7 +319,7 @@ export async function searchCustomers(
 export async function getCustomerOrders(
   customerId: string,
   limit: number = 10
-): Promise<{ SaleList: Cin7Sale[]; Total: number }> {
+): Promise<{ SaleList: Cin7SaleListItem[]; Total: number }> {
   return searchSales({ customerID: customerId, limit });
 }
 
@@ -431,6 +431,45 @@ export function formatSalesListForChat(sales: Cin7SaleListItem[]): string {
     lines.push(`   Total: $${total.toFixed(2)}`);
     lines.push("");
   });
+
+  return lines.join("\n");
+}
+
+/**
+ * Format a Cin7SaleListItem for chat display (quick summary from list endpoint)
+ * Use this when you only have list data, not full sale details
+ */
+export function formatSaleListItemForChat(sale: Cin7SaleListItem): string {
+  const total = sale.SaleInvoicesTotalAmount || sale.InvoiceAmount || 0;
+
+  const lines = [
+    `**Order: ${sale.OrderNumber}**`,
+    `**Status:** ${sale.Status}`,
+    `**Order Status:** ${sale.OrderStatus}`,
+    `**Date:** ${new Date(sale.OrderDate).toLocaleDateString("en-AU")}`,
+    `**Customer:** ${sale.Customer}`,
+    `**Total:** $${total.toFixed(2)} ${sale.BaseCurrency || ""}`.trim(),
+  ];
+
+  // Add invoice info if available
+  if (sale.InvoiceNumber) {
+    lines.push(`**Invoice:** ${sale.InvoiceNumber}`);
+  }
+
+  // Add shipping status if available
+  if (sale.CombinedShippingStatus) {
+    lines.push("");
+    lines.push("**Shipping:**");
+    lines.push(`Status: ${sale.CombinedShippingStatus}`);
+    if (sale.CombinedTrackingNumbers) {
+      lines.push(`Tracking: ${sale.CombinedTrackingNumbers}`);
+    }
+  }
+
+  // Add source channel if available
+  if (sale.SourceChannel) {
+    lines.push(`**Source:** ${sale.SourceChannel}`);
+  }
 
   return lines.join("\n");
 }

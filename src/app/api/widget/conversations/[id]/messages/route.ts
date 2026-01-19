@@ -11,7 +11,9 @@ import {
 import {
   detectCin7OrderIntent,
   searchSales,
+  getSale,
   formatSaleForChat,
+  formatSaleListItemForChat,
   formatSalesListForChat,
 } from "@/lib/cin7";
 import { sendNewConversationEmail } from "@/lib/email";
@@ -205,7 +207,15 @@ export async function POST(
         if (cin7Intent.orderNumber) {
           const cin7Result = await searchSales({ search: cin7Intent.orderNumber, limit: 1 });
           if (cin7Result.SaleList && cin7Result.SaleList.length > 0) {
-            orderContext = `\n\n## Order Information Found (Cin7)\nThe customer asked about their order. Here is the order data:\n${formatSaleForChat(cin7Result.SaleList[0])}\n\nPlease share this information with the customer in a friendly way.`;
+            const saleListItem = cin7Result.SaleList[0];
+            // Try to fetch full sale details for richer information (line items, shipping)
+            const fullSale = await getSale(saleListItem.SaleID);
+            if (fullSale) {
+              orderContext = `\n\n## Order Information Found (Cin7)\nThe customer asked about their order. Here is the order data:\n${formatSaleForChat(fullSale)}\n\nPlease share this information with the customer in a friendly way.`;
+            } else {
+              // Fall back to list item data if full details can't be fetched
+              orderContext = `\n\n## Order Information Found (Cin7)\nThe customer asked about their order. Here is the order data:\n${formatSaleListItemForChat(saleListItem)}\n\nPlease share this information with the customer in a friendly way.`;
+            }
           } else {
             // Cin7 didn't find it, try WooCommerce as fallback
             if (wooIntent.orderNumber) {

@@ -3,6 +3,7 @@ import {
   searchSales,
   getSale,
   formatSaleForChat,
+  formatSaleListItemForChat,
   formatSalesListForChat,
 } from "@/lib/cin7";
 
@@ -29,9 +30,19 @@ export async function GET(req: NextRequest) {
     if (orderNumber) {
       const results = await searchSales({ search: orderNumber, limit: 1 });
       if (results.SaleList && results.SaleList.length > 0) {
+        const saleListItem = results.SaleList[0];
+        // Try to fetch full details for richer information
+        const fullSale = await getSale(saleListItem.SaleID);
+        if (fullSale) {
+          return NextResponse.json({
+            sale: fullSale,
+            formatted: formatSaleForChat(fullSale),
+          });
+        }
+        // Fall back to list item data
         return NextResponse.json({
-          sale: results.SaleList[0],
-          formatted: formatSaleForChat(results.SaleList[0]),
+          sale: saleListItem,
+          formatted: formatSaleListItemForChat(saleListItem),
         });
       }
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
