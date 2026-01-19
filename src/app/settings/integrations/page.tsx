@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { SettingsSidebar } from "@/components/settings";
 import { toast } from "sonner";
+import { formatDistanceToNow } from "date-fns";
 import {
   Plug,
   ShoppingCart,
@@ -17,7 +18,30 @@ import {
   ExternalLink,
   Check,
   Settings,
+  RefreshCw,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Database,
+  Package,
+  Users,
 } from "lucide-react";
+
+interface SyncStatus {
+  id: string;
+  sync_type: string;
+  status: string;
+  records_synced: number;
+  error_message: string | null;
+  started_at: string;
+  completed_at: string | null;
+  duration_ms: number | null;
+}
+
+interface SyncData {
+  lastSync: SyncStatus | null;
+  cachedCount: number;
+}
 
 interface Integration {
   id: string;
@@ -30,6 +54,55 @@ interface Integration {
 }
 
 export default function IntegrationsSettings() {
+  const [ordersSync, setOrdersSync] = useState<SyncData | null>(null);
+  const [customersSync, setCustomersSync] = useState<SyncData | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncingType, setSyncingType] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchSyncStatus();
+  }, []);
+
+  const fetchSyncStatus = async () => {
+    try {
+      const res = await fetch("/api/sync/cin7");
+      if (res.ok) {
+        const data = await res.json();
+        setOrdersSync(data.orders);
+        setCustomersSync(data.customers);
+      }
+    } catch (error) {
+      console.error("Failed to fetch sync status:", error);
+    }
+  };
+
+  const triggerSync = async (type: "orders" | "customers" | "all") => {
+    setSyncing(true);
+    setSyncingType(type);
+    try {
+      const res = await fetch("/api/sync/cin7", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type }),
+      });
+
+      if (res.ok) {
+        toast.success(`Cin7 ${type} sync completed!`);
+      } else {
+        const error = await res.json();
+        toast.error(error.error || "Sync failed");
+      }
+
+      await fetchSyncStatus();
+    } catch (error) {
+      toast.error("Sync failed");
+      console.error("Sync error:", error);
+    } finally {
+      setSyncing(false);
+      setSyncingType(null);
+    }
+  };
+
   const [integrations, setIntegrations] = useState<Integration[]>([
     {
       id: "woocommerce",
@@ -182,6 +255,152 @@ export default function IntegrationsSettings() {
 
         <div className="p-6">
           <div className="max-w-4xl space-y-6">
+            {/* Cin7 Data Sync */}
+            <div>
+              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase text-slate-400">
+                <Database className="h-4 w-4" />
+                Cin7 Data Sync
+              </h3>
+              <Card className="border-0 shadow-sm">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base">Data Synchronization</CardTitle>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => triggerSync("all")}
+                      disabled={syncing}
+                    >
+                      <RefreshCw
+                        className={`h-4 w-4 mr-2 ${syncing && syncingType === "all" ? "animate-spin" : ""}`}
+                      />
+                      Sync All
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {/* Orders Sync */}
+                    <div className="rounded-lg border bg-slate-50 p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <Package className="h-5 w-5 text-blue-600" />
+                          <span className="font-medium">Orders</span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => triggerSync("orders")}
+                          disabled={syncing}
+                        >
+                          <RefreshCw
+                            className={`h-4 w-4 ${syncing && syncingType === "orders" ? "animate-spin" : ""}`}
+                          />
+                        </Button>
+                      </div>
+                      {ordersSync?.lastSync ? (
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-center gap-2">
+                            {ordersSync.lastSync.status === "completed" ? (
+                              <CheckCircle className="h-4 w-4 text-green-500" />
+                            ) : ordersSync.lastSync.status === "failed" ? (
+                              <XCircle className="h-4 w-4 text-red-500" />
+                            ) : (
+                              <Clock className="h-4 w-4 text-amber-500 animate-spin" />
+                            )}
+                            <span className="capitalize">{ordersSync.lastSync.status}</span>
+                          </div>
+                          <div className="text-slate-500">
+                            {ordersSync.cachedCount.toLocaleString()} records cached
+                          </div>
+                          {ordersSync.lastSync.completed_at && (
+                            <div className="text-slate-400 text-xs">
+                              Last sync:{" "}
+                              {formatDistanceToNow(new Date(ordersSync.lastSync.completed_at), {
+                                addSuffix: true,
+                              })}
+                            </div>
+                          )}
+                          {ordersSync.lastSync.duration_ms && (
+                            <div className="text-slate-400 text-xs">
+                              Duration: {(ordersSync.lastSync.duration_ms / 1000).toFixed(1)}s
+                            </div>
+                          )}
+                          {ordersSync.lastSync.error_message && (
+                            <div className="text-red-500 text-xs">
+                              {ordersSync.lastSync.error_message}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-slate-400 text-sm">Never synced</div>
+                      )}
+                    </div>
+
+                    {/* Customers Sync */}
+                    <div className="rounded-lg border bg-slate-50 p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <Users className="h-5 w-5 text-green-600" />
+                          <span className="font-medium">Customers</span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => triggerSync("customers")}
+                          disabled={syncing}
+                        >
+                          <RefreshCw
+                            className={`h-4 w-4 ${syncing && syncingType === "customers" ? "animate-spin" : ""}`}
+                          />
+                        </Button>
+                      </div>
+                      {customersSync?.lastSync ? (
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-center gap-2">
+                            {customersSync.lastSync.status === "completed" ? (
+                              <CheckCircle className="h-4 w-4 text-green-500" />
+                            ) : customersSync.lastSync.status === "failed" ? (
+                              <XCircle className="h-4 w-4 text-red-500" />
+                            ) : (
+                              <Clock className="h-4 w-4 text-amber-500 animate-spin" />
+                            )}
+                            <span className="capitalize">{customersSync.lastSync.status}</span>
+                          </div>
+                          <div className="text-slate-500">
+                            {customersSync.cachedCount.toLocaleString()} records cached
+                          </div>
+                          {customersSync.lastSync.completed_at && (
+                            <div className="text-slate-400 text-xs">
+                              Last sync:{" "}
+                              {formatDistanceToNow(new Date(customersSync.lastSync.completed_at), {
+                                addSuffix: true,
+                              })}
+                            </div>
+                          )}
+                          {customersSync.lastSync.duration_ms && (
+                            <div className="text-slate-400 text-xs">
+                              Duration: {(customersSync.lastSync.duration_ms / 1000).toFixed(1)}s
+                            </div>
+                          )}
+                          {customersSync.lastSync.error_message && (
+                            <div className="text-red-500 text-xs">
+                              {customersSync.lastSync.error_message}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-slate-400 text-sm">Never synced</div>
+                      )}
+                    </div>
+                  </div>
+                  <p className="mt-4 text-xs text-slate-400">
+                    Data syncs automatically every 15 minutes. Use manual sync for immediate updates.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
             {/* E-commerce */}
             <div>
               <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase text-slate-400">

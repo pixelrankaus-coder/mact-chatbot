@@ -1,5 +1,38 @@
 # MACt Chatbot Changelog
 
+## [2.1.0] - 2025-01-19
+
+### TASK #032 — Cin7 Data Sync to Supabase
+- **Type:** FEATURE
+- **Duration:** ~2 hours
+- **Description:** Implemented background sync of Cin7 orders and customers to Supabase for faster page loads. Previously, every page load hit the Cin7 API directly (3-5s latency). Now data is cached locally and served from Supabase (~200ms). Automatic sync runs every 15 minutes via Vercel cron.
+- **Files Created:**
+  - `supabase/migrations/20250119_cin7_sync.sql` — Database tables (cin7_orders, cin7_customers, sync_log) with indexes
+  - `src/lib/cin7-sync.ts` — Sync functions with batch upsert (500 records/batch), logging, error handling
+  - `src/app/api/sync/cin7/route.ts` — Manual sync trigger endpoint (GET status, POST sync)
+  - `src/app/api/cron/cin7-sync/route.ts` — Vercel cron endpoint for scheduled sync
+- **Files Modified:**
+  - `src/lib/cin7.ts` — Added `listAllSales()` with auto-pagination and rate limiting (batches of 3 with 200ms delay)
+  - `src/app/api/orders/route.ts` — Read Cin7 orders from Supabase cache instead of API
+  - `src/app/api/customers/route.ts` — Read Cin7 customers from Supabase cache instead of API
+  - `src/app/settings/integrations/page.tsx` — Added sync status UI with manual sync buttons, record counts, last sync time
+  - `vercel.json` — Added cron job configuration (every 15 minutes)
+  - `package.json` — Added date-fns dependency
+- **Data Synced:**
+  - 5,165 orders (28.3s sync time)
+  - 2,571 customers (17.4s sync time)
+- **Outcome:** Orders/Customers pages now load from local cache. Automatic refresh every 15 minutes maintains data freshness.
+
+### TASK #031B — Hide Voided Orders Toggle
+- **Type:** FIX
+- **Duration:** ~15 minutes
+- **Description:** Added toggle to hide voided orders by default on Orders page. Most voided orders were from 2020 and cluttered the view.
+- **Files Modified:**
+  - `src/app/orders/page.tsx` — Added hideVoided state (default true), filter logic in useMemo, toggle UI with count
+- **Outcome:** Orders page shows relevant active/completed orders by default, with option to show voided orders
+
+---
+
 ## [2.0.3] - 2025-01-12
 
 ### Fixed: Chunky Chat Bubbles

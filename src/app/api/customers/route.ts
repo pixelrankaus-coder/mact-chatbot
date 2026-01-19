@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listAllCustomers, listCustomers } from "@/lib/cin7";
+import { createServiceClient } from "@/lib/supabase";
 import { getWooCustomers } from "@/lib/woocommerce";
-import { mergeCustomers, getCustomerStats } from "@/lib/customer-merge";
-import type { CustomerSource } from "@/types/customer";
+import { wooToUnified } from "@/lib/customer-merge";
+import type { CustomerSource, UnifiedCustomer } from "@/types/customer";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type SupabaseAny = any;
 
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
@@ -10,46 +13,92 @@ export async function GET(req: NextRequest) {
   const source = searchParams.get("source") as CustomerSource | null;
   const page = parseInt(searchParams.get("page") || "1", 10);
   const limit = parseInt(searchParams.get("limit") || "50", 10);
+  const offset = (page - 1) * limit;
 
   try {
-    // For search queries, use paginated approach for faster response
-    // For full list, fetch all customers to enable proper merging and de-duplication
-    const [cin7Result, wooResult] = await Promise.all([
-      source !== "woocommerce"
-        ? search
-          ? listCustomers({ search, page, limit })
-          : listAllCustomers({ maxPages: 15 }) // Fetch up to ~3750 customers
-        : Promise.resolve({ CustomerList: [], Total: 0 }),
-      source !== "cin7"
-        ? getWooCustomers({
-            search: search || undefined,
-            page,
-            per_page: search ? limit : 100, // Get more WooCommerce customers when not searching
-          })
-        : Promise.resolve({ customers: [], total: 0 }),
-    ]);
+    const supabase = createServiceClient() as SupabaseAny;
 
-    // Merge and de-duplicate
-    const merged = mergeCustomers(
-      cin7Result.CustomerList || [],
-      wooResult.customers || []
-    );
+    // Fetch Cin7 customers from Supabase cache
+    let cin7Customers: UnifiedCustomer[] = [];
+    let cin7Total = 0;
 
-    // Get stats before filtering
-    const stats = getCustomerStats(merged);
+    if (source !== "woocommerce") {
+      let query = supabase
+        .from("cin7_customers")
+        .select("*", { count: "exact" })
+        .order("name", { ascending: true });
 
-    // Apply source filter if specified
-    let filtered = merged;
+      // Apply search filter
+      if (search) {
+        query = query.or(
+          `name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`
+        );
+      }
+
+      // Pagination
+      query = query.range(offset, offset + limit - 1);
+
+      const { data: cin7Data, count, error } = await query;
+
+      if (error) {
+        console.error("Supabase cin7_customers query error:", error);
+      } else {
+        cin7Total = count || 0;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        cin7Customers = (cin7Data || []).map((c: any) => ({
+          id: `cin7-${c.cin7_id}`,
+          cin7Id: c.cin7_id,
+          name: c.name || "",
+          email: c.email || "",
+          phone: c.phone || "",
+          company: c.company || c.name || "",
+          status: c.status?.toLowerCase() === "active" ? "active" : "inactive",
+          sources: ["cin7"] as ("cin7" | "woocommerce")[],
+          lastUpdated: c.updated_at || "",
+          cin7Data: {
+            currency: c.currency,
+            paymentTerm: c.payment_term,
+            creditLimit: c.credit_limit ? parseFloat(String(c.credit_limit)) : undefined,
+            discount: c.discount ? parseFloat(String(c.discount)) : undefined,
+            taxNumber: c.tax_number,
+            tags: c.tags,
+          },
+        }));
+      }
+    }
+
+    // Fetch WooCommerce customers from API
+    let wooCustomers: UnifiedCustomer[] = [];
+    let wooTotal = 0;
+
+    if (source !== "cin7") {
+      const wooResult = await getWooCustomers({
+        search: search || undefined,
+        page,
+        per_page: search ? limit : 100,
+      });
+
+      wooTotal = wooResult.total || 0;
+      wooCustomers = (wooResult.customers || []).map(wooToUnified);
+    }
+
+    // Combine both lists
+    const allCustomers = [...cin7Customers, ...wooCustomers];
+
+    // Build stats
+    const stats = {
+      cin7Only: cin7Total,
+      wooOnly: wooTotal,
+      both: 0, // Would need full data to calculate overlaps
+      total: cin7Total + wooTotal,
+    };
+
+    // Apply source filter
+    let filtered = allCustomers;
     if (source === "cin7") {
-      filtered = merged.filter(
-        (c) => c.sources.includes("cin7") && !c.sources.includes("woocommerce")
-      );
+      filtered = cin7Customers;
     } else if (source === "woocommerce") {
-      filtered = merged.filter(
-        (c) => c.sources.includes("woocommerce") && !c.sources.includes("cin7")
-      );
-    } else if (source === "both") {
-      filtered = merged.filter((c) => c.sources.length === 2);
+      filtered = wooCustomers;
     }
 
     // Sort by name
@@ -58,6 +107,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       customers: filtered,
       total: filtered.length,
+      page,
+      limit,
       stats,
     });
   } catch (error) {

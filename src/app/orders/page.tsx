@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -184,7 +186,26 @@ export default function OrdersPage() {
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
   const [orderDetails, setOrderDetails] = useState<Record<string, UnifiedOrder>>({});
   const [loadingDetails, setLoadingDetails] = useState<Set<string>>(new Set());
+  const [hideVoided, setHideVoided] = useState(true);
   const limit = 25;
+
+  // Filter out voided orders and count them
+  const { displayOrders, voidedCount } = useMemo(() => {
+    const voided = orders.filter(
+      (o) =>
+        o.status?.toUpperCase() === "VOIDED" ||
+        o.statusLabel?.toUpperCase() === "VOIDED"
+    );
+    const nonVoided = orders.filter(
+      (o) =>
+        o.status?.toUpperCase() !== "VOIDED" &&
+        o.statusLabel?.toUpperCase() !== "VOIDED"
+    );
+    return {
+      displayOrders: hideVoided ? nonVoided : orders,
+      voidedCount: voided.length,
+    };
+  }, [orders, hideVoided]);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -340,11 +361,26 @@ export default function OrdersPage() {
                   <Button type="submit">Search</Button>
                 </form>
               </div>
-              <SourceFilter
-                value={sourceFilter}
-                onChange={handleSourceChange}
-                stats={stats}
-              />
+              <div className="flex items-center justify-between">
+                <SourceFilter
+                  value={sourceFilter}
+                  onChange={handleSourceChange}
+                  stats={stats}
+                />
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={hideVoided}
+                    onCheckedChange={setHideVoided}
+                    id="hide-voided"
+                  />
+                  <Label
+                    htmlFor="hide-voided"
+                    className="text-sm text-slate-600 cursor-pointer"
+                  >
+                    Hide voided{voidedCount > 0 && ` (${voidedCount})`}
+                  </Label>
+                </div>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -352,7 +388,7 @@ export default function OrdersPage() {
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
               </div>
-            ) : orders.length === 0 ? (
+            ) : displayOrders.length === 0 ? (
               <div className="py-12 text-center">
                 <Package className="mx-auto h-12 w-12 text-slate-300" />
                 <p className="mt-4 text-slate-500">
@@ -377,7 +413,7 @@ export default function OrdersPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {orders.map((order) => {
+                    {displayOrders.map((order) => {
                       const isExpanded = expandedOrders.has(order.id);
                       const details = orderDetails[order.id];
                       const isLoadingDetails = loadingDetails.has(order.id);
@@ -442,7 +478,8 @@ export default function OrdersPage() {
                                   size="sm"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    window.open(getExternalUrl(order), "_blank");
+                                    const url = getExternalUrl(order);
+                                    if (url) window.open(url, "_blank");
                                   }}
                                 >
                                   <ExternalLink className="h-4 w-4" />

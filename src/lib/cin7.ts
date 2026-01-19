@@ -149,6 +149,65 @@ export async function searchSales(params: {
   }
 }
 
+// List all sales with automatic pagination
+export async function listAllSales(params?: {
+  modifiedSince?: string;
+  maxPages?: number;
+}): Promise<{ SaleList: Cin7SaleListItem[]; Total: number }> {
+  const limit = 250; // Max allowed by Cin7 API
+  const maxPages = params?.maxPages || 50; // Safety limit (50 * 250 = 12,500 orders max)
+  const allSales: Cin7SaleListItem[] = [];
+  let total = 0;
+
+  try {
+    // First request to get total count
+    const firstResult = await searchSales({
+      modifiedSince: params?.modifiedSince,
+      page: 1,
+      limit,
+    });
+
+    total = firstResult.Total;
+    allSales.push(...(firstResult.SaleList || []));
+
+    // Calculate remaining pages needed
+    const totalPages = Math.min(Math.ceil(total / limit), maxPages);
+
+    // Fetch remaining pages in batches of 3 to avoid rate limiting
+    const remainingPages = Array.from(
+      { length: totalPages - 1 },
+      (_, i) => i + 2
+    );
+
+    for (let i = 0; i < remainingPages.length; i += 3) {
+      const batch = remainingPages.slice(i, i + 3);
+      const results = await Promise.all(
+        batch.map((p) =>
+          searchSales({
+            modifiedSince: params?.modifiedSince,
+            page: p,
+            limit,
+          })
+        )
+      );
+
+      for (const result of results) {
+        allSales.push(...(result.SaleList || []));
+      }
+
+      // Small delay between batches to respect rate limits
+      if (i + 3 < remainingPages.length) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+    }
+
+    return { SaleList: allSales, Total: total };
+  } catch (error) {
+    console.error("Cin7 listAllSales error:", error);
+    return { SaleList: allSales, Total: total };
+  }
+}
+
 // ============ CUSTOMERS ============
 
 export interface Cin7Address {

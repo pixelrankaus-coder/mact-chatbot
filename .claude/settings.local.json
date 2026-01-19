@@ -13,7 +13,20 @@
       "Bash(npm install:*)",
       "Bash(git diff:*)",
       "Bash(npx shadcn@latest add:*)",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "Bash(timeout:*)",
+      "Bash(ping:*)",
+      "Bash(taskkill:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(git fetch:*)",
+      "Bash(curl:*)",
+      "Bash(grep:*)",
+      "Bash(npx tsc:*)",
+      "Bash(if [ -f \"c:/DATA/mact-chatbot/.env.local\" ])",
+      "Bash(then cat \"c:/DATA/mact-chatbot/.env.local\")",
+      "Bash(else echo \".env.local not found\")",
+      "Bash(fi)"
     ]
   }
 }

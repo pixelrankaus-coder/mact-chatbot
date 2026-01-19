@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { searchSales } from "@/lib/cin7";
+import { createServiceClient } from "@/lib/supabase";
 import { listWooOrders } from "@/lib/woocommerce";
-import { mergeOrders, getOrderStats } from "@/lib/order-merge";
-import type { OrderSource } from "@/types/order";
+import { wooToUnifiedOrder } from "@/lib/order-merge";
+import type { OrderSource, UnifiedOrder } from "@/types/order";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type SupabaseAny = any;
 
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
@@ -11,48 +14,109 @@ export async function GET(req: NextRequest) {
   const status = searchParams.get("status") || "";
   const page = parseInt(searchParams.get("page") || "1", 10);
   const limit = parseInt(searchParams.get("limit") || "25", 10);
+  const offset = (page - 1) * limit;
 
   try {
-    // Fetch from both sources in parallel
-    const [cin7Result, wooResult] = await Promise.all([
-      source !== "woocommerce"
-        ? searchSales({
-            search: search || undefined,
-            status: status || undefined,
-            page,
-            limit,
-          })
-        : Promise.resolve({ SaleList: [], Total: 0 }),
-      source !== "cin7"
-        ? listWooOrders({
-            search: search || undefined,
-            status: status || undefined,
-            page,
-            per_page: limit,
-          })
-        : Promise.resolve({ orders: [], total: 0 }),
-    ]);
+    const supabase = createServiceClient() as SupabaseAny;
+
+    // Fetch Cin7 orders from Supabase cache
+    let cin7Orders: UnifiedOrder[] = [];
+    let cin7Total = 0;
+
+    if (source !== "woocommerce") {
+      let query = supabase
+        .from("cin7_orders")
+        .select("*", { count: "exact" })
+        .order("order_date", { ascending: false });
+
+      // Apply search filter
+      if (search) {
+        query = query.or(
+          `order_number.ilike.%${search}%,customer_name.ilike.%${search}%`
+        );
+      }
+
+      // Apply status filter
+      if (status) {
+        query = query.eq("status", status.toUpperCase());
+      }
+
+      // Pagination
+      query = query.range(offset, offset + limit - 1);
+
+      const { data: cin7Data, count, error } = await query;
+
+      if (error) {
+        console.error("Supabase cin7_orders query error:", error);
+      } else {
+        cin7Total = count || 0;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        cin7Orders = (cin7Data || []).map((o: any) => ({
+          id: `cin7-${o.cin7_id}`,
+          cin7Id: o.cin7_id,
+          orderNumber: o.order_number || "",
+          source: "cin7" as const,
+          status: o.status || "",
+          statusLabel: o.status_label || o.status || "",
+          orderDate: o.order_date || "",
+          total: parseFloat(String(o.total)) || 0,
+          currency: o.currency || "AUD",
+          customerName: o.customer_name || "",
+          customerEmail: o.customer_email || "",
+          customerId: o.customer_id || "",
+          trackingNumber: o.tracking_number || undefined,
+          items: o.line_items || [],
+          lastUpdated: o.updated_at || "",
+        }));
+      }
+    }
+
+    // Fetch WooCommerce orders from API (not synced to Supabase yet)
+    let wooOrders: UnifiedOrder[] = [];
+    let wooTotal = 0;
+
+    if (source !== "cin7") {
+      const wooResult = await listWooOrders({
+        search: search || undefined,
+        status: status || undefined,
+        page,
+        per_page: limit,
+      });
+
+      wooTotal = wooResult.total || 0;
+      wooOrders = (wooResult.orders || []).map(wooToUnifiedOrder);
+    }
 
     // Merge orders from both sources
-    const merged = mergeOrders(
-      cin7Result.SaleList || [],
-      wooResult.orders || []
-    );
+    const allOrders = [...cin7Orders, ...wooOrders];
 
-    // Get stats
-    const stats = getOrderStats(merged);
+    // Sort by date (newest first)
+    allOrders.sort((a, b) => {
+      const dateA = new Date(a.orderDate).getTime();
+      const dateB = new Date(b.orderDate).getTime();
+      return dateB - dateA;
+    });
 
-    // Apply source filter if specified
-    let filtered = merged;
+    // Build stats
+    const stats = {
+      cin7: cin7Total,
+      woocommerce: wooTotal,
+      total: cin7Total + wooTotal,
+    };
+
+    // Determine total based on source filter
+    let filteredTotal = stats.total;
     if (source === "cin7") {
-      filtered = merged.filter((o) => o.source === "cin7");
+      filteredTotal = cin7Total;
     } else if (source === "woocommerce") {
-      filtered = merged.filter((o) => o.source === "woocommerce");
+      filteredTotal = wooTotal;
     }
 
     return NextResponse.json({
-      orders: filtered,
-      total: filtered.length,
+      orders: allOrders,
+      total: filteredTotal,
+      page,
+      limit,
       stats,
     });
   } catch (error) {
