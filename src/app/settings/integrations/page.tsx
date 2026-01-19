@@ -54,10 +54,17 @@ interface Integration {
 }
 
 export default function IntegrationsSettings() {
-  const [ordersSync, setOrdersSync] = useState<SyncData | null>(null);
-  const [customersSync, setCustomersSync] = useState<SyncData | null>(null);
-  const [syncing, setSyncing] = useState(false);
-  const [syncingType, setSyncingType] = useState<string | null>(null);
+  // Cin7 sync state
+  const [cin7OrdersSync, setCin7OrdersSync] = useState<SyncData | null>(null);
+  const [cin7CustomersSync, setCin7CustomersSync] = useState<SyncData | null>(null);
+  const [cin7Syncing, setCin7Syncing] = useState(false);
+  const [cin7SyncingType, setCin7SyncingType] = useState<string | null>(null);
+
+  // WooCommerce sync state
+  const [wooOrdersSync, setWooOrdersSync] = useState<SyncData | null>(null);
+  const [wooCustomersSync, setWooCustomersSync] = useState<SyncData | null>(null);
+  const [wooSyncing, setWooSyncing] = useState(false);
+  const [wooSyncingType, setWooSyncingType] = useState<string | null>(null);
 
   useEffect(() => {
     fetchSyncStatus();
@@ -65,20 +72,31 @@ export default function IntegrationsSettings() {
 
   const fetchSyncStatus = async () => {
     try {
-      const res = await fetch("/api/sync/cin7");
-      if (res.ok) {
-        const data = await res.json();
-        setOrdersSync(data.orders);
-        setCustomersSync(data.customers);
+      // Fetch both Cin7 and WooCommerce sync status in parallel
+      const [cin7Res, wooRes] = await Promise.all([
+        fetch("/api/sync/cin7"),
+        fetch("/api/sync/woocommerce"),
+      ]);
+
+      if (cin7Res.ok) {
+        const data = await cin7Res.json();
+        setCin7OrdersSync(data.orders);
+        setCin7CustomersSync(data.customers);
+      }
+
+      if (wooRes.ok) {
+        const data = await wooRes.json();
+        setWooOrdersSync(data.orders);
+        setWooCustomersSync(data.customers);
       }
     } catch (error) {
       console.error("Failed to fetch sync status:", error);
     }
   };
 
-  const triggerSync = async (type: "orders" | "customers" | "all") => {
-    setSyncing(true);
-    setSyncingType(type);
+  const triggerCin7Sync = async (type: "orders" | "customers" | "all") => {
+    setCin7Syncing(true);
+    setCin7SyncingType(type);
     try {
       const res = await fetch("/api/sync/cin7", {
         method: "POST",
@@ -90,28 +108,47 @@ export default function IntegrationsSettings() {
         toast.success(`Cin7 ${type} sync completed!`);
       } else {
         const error = await res.json();
-        toast.error(error.error || "Sync failed");
+        toast.error(error.error || "Cin7 sync failed");
       }
 
       await fetchSyncStatus();
     } catch (error) {
-      toast.error("Sync failed");
-      console.error("Sync error:", error);
+      toast.error("Cin7 sync failed");
+      console.error("Cin7 sync error:", error);
     } finally {
-      setSyncing(false);
-      setSyncingType(null);
+      setCin7Syncing(false);
+      setCin7SyncingType(null);
+    }
+  };
+
+  const triggerWooSync = async (type: "orders" | "customers" | "all") => {
+    setWooSyncing(true);
+    setWooSyncingType(type);
+    try {
+      const res = await fetch("/api/sync/woocommerce", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type }),
+      });
+
+      if (res.ok) {
+        toast.success(`WooCommerce ${type} sync completed!`);
+      } else {
+        const error = await res.json();
+        toast.error(error.error || "WooCommerce sync failed");
+      }
+
+      await fetchSyncStatus();
+    } catch (error) {
+      toast.error("WooCommerce sync failed");
+      console.error("WooCommerce sync error:", error);
+    } finally {
+      setWooSyncing(false);
+      setWooSyncingType(null);
     }
   };
 
   const [integrations, setIntegrations] = useState<Integration[]>([
-    {
-      id: "woocommerce",
-      name: "WooCommerce",
-      description: "Sync orders, customers, and products from your store",
-      icon: <ShoppingCart className="h-6 w-6" />,
-      category: "ecommerce",
-      connected: true,
-    },
     {
       id: "shopify",
       name: "Shopify",
@@ -264,15 +301,15 @@ export default function IntegrationsSettings() {
               <Card className="border-0 shadow-sm">
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-base">Data Synchronization</CardTitle>
+                    <CardTitle className="text-base">Cin7 Synchronization</CardTitle>
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => triggerSync("all")}
-                      disabled={syncing}
+                      onClick={() => triggerCin7Sync("all")}
+                      disabled={cin7Syncing}
                     >
                       <RefreshCw
-                        className={`h-4 w-4 mr-2 ${syncing && syncingType === "all" ? "animate-spin" : ""}`}
+                        className={`h-4 w-4 mr-2 ${cin7Syncing && cin7SyncingType === "all" ? "animate-spin" : ""}`}
                       />
                       Sync All
                     </Button>
@@ -290,45 +327,45 @@ export default function IntegrationsSettings() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => triggerSync("orders")}
-                          disabled={syncing}
+                          onClick={() => triggerCin7Sync("orders")}
+                          disabled={cin7Syncing}
                         >
                           <RefreshCw
-                            className={`h-4 w-4 ${syncing && syncingType === "orders" ? "animate-spin" : ""}`}
+                            className={`h-4 w-4 ${cin7Syncing && cin7SyncingType === "orders" ? "animate-spin" : ""}`}
                           />
                         </Button>
                       </div>
-                      {ordersSync?.lastSync ? (
+                      {cin7OrdersSync?.lastSync ? (
                         <div className="space-y-2 text-sm">
                           <div className="flex items-center gap-2">
-                            {ordersSync.lastSync.status === "completed" ? (
+                            {cin7OrdersSync.lastSync.status === "completed" ? (
                               <CheckCircle className="h-4 w-4 text-green-500" />
-                            ) : ordersSync.lastSync.status === "failed" ? (
+                            ) : cin7OrdersSync.lastSync.status === "failed" ? (
                               <XCircle className="h-4 w-4 text-red-500" />
                             ) : (
                               <Clock className="h-4 w-4 text-amber-500 animate-spin" />
                             )}
-                            <span className="capitalize">{ordersSync.lastSync.status}</span>
+                            <span className="capitalize">{cin7OrdersSync.lastSync.status}</span>
                           </div>
                           <div className="text-slate-500">
-                            {ordersSync.cachedCount.toLocaleString()} records cached
+                            {cin7OrdersSync.cachedCount.toLocaleString()} records cached
                           </div>
-                          {ordersSync.lastSync.completed_at && (
+                          {cin7OrdersSync.lastSync.completed_at && (
                             <div className="text-slate-400 text-xs">
                               Last sync:{" "}
-                              {formatDistanceToNow(new Date(ordersSync.lastSync.completed_at), {
+                              {formatDistanceToNow(new Date(cin7OrdersSync.lastSync.completed_at), {
                                 addSuffix: true,
                               })}
                             </div>
                           )}
-                          {ordersSync.lastSync.duration_ms && (
+                          {cin7OrdersSync.lastSync.duration_ms && (
                             <div className="text-slate-400 text-xs">
-                              Duration: {(ordersSync.lastSync.duration_ms / 1000).toFixed(1)}s
+                              Duration: {(cin7OrdersSync.lastSync.duration_ms / 1000).toFixed(1)}s
                             </div>
                           )}
-                          {ordersSync.lastSync.error_message && (
+                          {cin7OrdersSync.lastSync.error_message && (
                             <div className="text-red-500 text-xs">
-                              {ordersSync.lastSync.error_message}
+                              {cin7OrdersSync.lastSync.error_message}
                             </div>
                           )}
                         </div>
@@ -347,45 +384,45 @@ export default function IntegrationsSettings() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => triggerSync("customers")}
-                          disabled={syncing}
+                          onClick={() => triggerCin7Sync("customers")}
+                          disabled={cin7Syncing}
                         >
                           <RefreshCw
-                            className={`h-4 w-4 ${syncing && syncingType === "customers" ? "animate-spin" : ""}`}
+                            className={`h-4 w-4 ${cin7Syncing && cin7SyncingType === "customers" ? "animate-spin" : ""}`}
                           />
                         </Button>
                       </div>
-                      {customersSync?.lastSync ? (
+                      {cin7CustomersSync?.lastSync ? (
                         <div className="space-y-2 text-sm">
                           <div className="flex items-center gap-2">
-                            {customersSync.lastSync.status === "completed" ? (
+                            {cin7CustomersSync.lastSync.status === "completed" ? (
                               <CheckCircle className="h-4 w-4 text-green-500" />
-                            ) : customersSync.lastSync.status === "failed" ? (
+                            ) : cin7CustomersSync.lastSync.status === "failed" ? (
                               <XCircle className="h-4 w-4 text-red-500" />
                             ) : (
                               <Clock className="h-4 w-4 text-amber-500 animate-spin" />
                             )}
-                            <span className="capitalize">{customersSync.lastSync.status}</span>
+                            <span className="capitalize">{cin7CustomersSync.lastSync.status}</span>
                           </div>
                           <div className="text-slate-500">
-                            {customersSync.cachedCount.toLocaleString()} records cached
+                            {cin7CustomersSync.cachedCount.toLocaleString()} records cached
                           </div>
-                          {customersSync.lastSync.completed_at && (
+                          {cin7CustomersSync.lastSync.completed_at && (
                             <div className="text-slate-400 text-xs">
                               Last sync:{" "}
-                              {formatDistanceToNow(new Date(customersSync.lastSync.completed_at), {
+                              {formatDistanceToNow(new Date(cin7CustomersSync.lastSync.completed_at), {
                                 addSuffix: true,
                               })}
                             </div>
                           )}
-                          {customersSync.lastSync.duration_ms && (
+                          {cin7CustomersSync.lastSync.duration_ms && (
                             <div className="text-slate-400 text-xs">
-                              Duration: {(customersSync.lastSync.duration_ms / 1000).toFixed(1)}s
+                              Duration: {(cin7CustomersSync.lastSync.duration_ms / 1000).toFixed(1)}s
                             </div>
                           )}
-                          {customersSync.lastSync.error_message && (
+                          {cin7CustomersSync.lastSync.error_message && (
                             <div className="text-red-500 text-xs">
-                              {customersSync.lastSync.error_message}
+                              {cin7CustomersSync.lastSync.error_message}
                             </div>
                           )}
                         </div>
@@ -395,7 +432,153 @@ export default function IntegrationsSettings() {
                     </div>
                   </div>
                   <p className="mt-4 text-xs text-slate-400">
-                    Data syncs automatically every 15 minutes. Use manual sync for immediate updates.
+                    Cin7 data syncs automatically every 15 minutes. Use manual sync for immediate updates.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* WooCommerce Data Sync */}
+            <div>
+              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase text-slate-400">
+                <ShoppingCart className="h-4 w-4" />
+                WooCommerce Data Sync
+              </h3>
+              <Card className="border-0 shadow-sm">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base">WooCommerce Synchronization</CardTitle>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => triggerWooSync("all")}
+                      disabled={wooSyncing}
+                    >
+                      <RefreshCw
+                        className={`h-4 w-4 mr-2 ${wooSyncing && wooSyncingType === "all" ? "animate-spin" : ""}`}
+                      />
+                      Sync All
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {/* WooCommerce Orders Sync */}
+                    <div className="rounded-lg border bg-slate-50 p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <Package className="h-5 w-5 text-purple-600" />
+                          <span className="font-medium">Orders</span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => triggerWooSync("orders")}
+                          disabled={wooSyncing}
+                        >
+                          <RefreshCw
+                            className={`h-4 w-4 ${wooSyncing && wooSyncingType === "orders" ? "animate-spin" : ""}`}
+                          />
+                        </Button>
+                      </div>
+                      {wooOrdersSync?.lastSync ? (
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-center gap-2">
+                            {wooOrdersSync.lastSync.status === "completed" ? (
+                              <CheckCircle className="h-4 w-4 text-green-500" />
+                            ) : wooOrdersSync.lastSync.status === "failed" ? (
+                              <XCircle className="h-4 w-4 text-red-500" />
+                            ) : (
+                              <Clock className="h-4 w-4 text-amber-500 animate-spin" />
+                            )}
+                            <span className="capitalize">{wooOrdersSync.lastSync.status}</span>
+                          </div>
+                          <div className="text-slate-500">
+                            {wooOrdersSync.cachedCount.toLocaleString()} records cached
+                          </div>
+                          {wooOrdersSync.lastSync.completed_at && (
+                            <div className="text-slate-400 text-xs">
+                              Last sync:{" "}
+                              {formatDistanceToNow(new Date(wooOrdersSync.lastSync.completed_at), {
+                                addSuffix: true,
+                              })}
+                            </div>
+                          )}
+                          {wooOrdersSync.lastSync.duration_ms && (
+                            <div className="text-slate-400 text-xs">
+                              Duration: {(wooOrdersSync.lastSync.duration_ms / 1000).toFixed(1)}s
+                            </div>
+                          )}
+                          {wooOrdersSync.lastSync.error_message && (
+                            <div className="text-red-500 text-xs">
+                              {wooOrdersSync.lastSync.error_message}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-slate-400 text-sm">Never synced</div>
+                      )}
+                    </div>
+
+                    {/* WooCommerce Customers Sync */}
+                    <div className="rounded-lg border bg-slate-50 p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <Users className="h-5 w-5 text-indigo-600" />
+                          <span className="font-medium">Customers</span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => triggerWooSync("customers")}
+                          disabled={wooSyncing}
+                        >
+                          <RefreshCw
+                            className={`h-4 w-4 ${wooSyncing && wooSyncingType === "customers" ? "animate-spin" : ""}`}
+                          />
+                        </Button>
+                      </div>
+                      {wooCustomersSync?.lastSync ? (
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-center gap-2">
+                            {wooCustomersSync.lastSync.status === "completed" ? (
+                              <CheckCircle className="h-4 w-4 text-green-500" />
+                            ) : wooCustomersSync.lastSync.status === "failed" ? (
+                              <XCircle className="h-4 w-4 text-red-500" />
+                            ) : (
+                              <Clock className="h-4 w-4 text-amber-500 animate-spin" />
+                            )}
+                            <span className="capitalize">{wooCustomersSync.lastSync.status}</span>
+                          </div>
+                          <div className="text-slate-500">
+                            {wooCustomersSync.cachedCount.toLocaleString()} records cached
+                          </div>
+                          {wooCustomersSync.lastSync.completed_at && (
+                            <div className="text-slate-400 text-xs">
+                              Last sync:{" "}
+                              {formatDistanceToNow(new Date(wooCustomersSync.lastSync.completed_at), {
+                                addSuffix: true,
+                              })}
+                            </div>
+                          )}
+                          {wooCustomersSync.lastSync.duration_ms && (
+                            <div className="text-slate-400 text-xs">
+                              Duration: {(wooCustomersSync.lastSync.duration_ms / 1000).toFixed(1)}s
+                            </div>
+                          )}
+                          {wooCustomersSync.lastSync.error_message && (
+                            <div className="text-red-500 text-xs">
+                              {wooCustomersSync.lastSync.error_message}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-slate-400 text-sm">Never synced</div>
+                      )}
+                    </div>
+                  </div>
+                  <p className="mt-4 text-xs text-slate-400">
+                    WooCommerce data syncs automatically every 15 minutes. Use manual sync for immediate updates.
                   </p>
                 </CardContent>
               </Card>

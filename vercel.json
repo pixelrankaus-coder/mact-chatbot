@@ -20,7 +20,7 @@
   ],
   "crons": [
     {
-      "path": "/api/cron/cin7-sync",
+      "path": "/api/cron/data-sync",
       "schedule": "*/15 * * * *"
     }
   ]

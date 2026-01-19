@@ -1,8 +1,10 @@
 /**
  * Chatbot Order/Customer Lookup Library
  * TASK MACT #033: Uses Supabase cache instead of Cin7 API
+ * TASK MACT #034: Added WooCommerce cache support
  *
  * Provides fast, cached lookups for chatbot order inquiries
+ * Queries both Cin7 and WooCommerce caches for comprehensive results
  */
 
 import { createServiceClient } from "@/lib/supabase";
@@ -46,6 +48,7 @@ export interface CustomerLookupResult {
     orderDate: string;
     total: number;
     trackingNumber: string | null;
+    source: "cin7" | "woocommerce";
   }>;
   summary?: {
     totalOrders: number;
@@ -57,33 +60,43 @@ export interface CustomerLookupResult {
 
 /**
  * Look up order by order number from Supabase cache
+ * Searches both Cin7 and WooCommerce caches
  */
 export async function lookupOrderByNumber(
   orderNumber: string
 ): Promise<OrderLookupResult> {
   const supabase = createServiceClient() as SupabaseAny;
 
-  // Normalize order number - handle with/without SO- prefix
+  // Normalize order number - handle with/without SO- prefix for Cin7
   const normalized = orderNumber.toUpperCase().replace(/^SO-?/i, "");
   const withPrefix = `SO-${normalized}`;
   const withoutPrefix = normalized;
 
-  // Search cin7_orders with multiple patterns
-  const { data: cin7Order, error } = await supabase
-    .from("cin7_orders")
-    .select("*")
-    .or(
-      `order_number.ilike.${withPrefix},order_number.ilike.SO${withoutPrefix},order_number.ilike.${orderNumber}`
-    )
-    .limit(1)
-    .single();
+  // Search both Cin7 and WooCommerce in parallel
+  const [cin7Result, wooResult] = await Promise.all([
+    // Search cin7_orders with multiple patterns
+    supabase
+      .from("cin7_orders")
+      .select("*")
+      .or(
+        `order_number.ilike.${withPrefix},order_number.ilike.SO${withoutPrefix},order_number.ilike.${orderNumber}`
+      )
+      .limit(1)
+      .single(),
+    // Search woo_orders by order number
+    supabase
+      .from("woo_orders")
+      .select("*")
+      .or(
+        `order_number.ilike.${orderNumber},order_number.ilike.${withoutPrefix}`
+      )
+      .limit(1)
+      .single(),
+  ]);
 
-  if (error && error.code !== "PGRST116") {
-    // PGRST116 = no rows returned
-    console.error("Order lookup error:", error);
-  }
-
-  if (cin7Order) {
+  // Check Cin7 first (primary source for B2B)
+  if (cin7Result.data) {
+    const cin7Order = cin7Result.data;
     return {
       found: true,
       order: {
@@ -104,11 +117,43 @@ export async function lookupOrderByNumber(
     };
   }
 
+  // Check WooCommerce if not found in Cin7
+  if (wooResult.data) {
+    const wooOrder = wooResult.data;
+    return {
+      found: true,
+      order: {
+        orderNumber: wooOrder.order_number || String(wooOrder.woo_id),
+        status: wooOrder.status || "",
+        statusLabel: wooOrder.status_label || wooOrder.status || "",
+        orderDate: wooOrder.order_date || "",
+        total: parseFloat(wooOrder.total) || 0,
+        currency: wooOrder.currency || "AUD",
+        customerName: wooOrder.customer_name || "",
+        customerEmail: wooOrder.customer_email || "",
+        trackingNumber: wooOrder.tracking_number || null,
+        shippingStatus: null, // WooCommerce doesn't have shipping_status field
+        invoiceNumber: null, // WooCommerce doesn't have invoice_number field
+        lineItems: wooOrder.line_items || [],
+        source: "woocommerce",
+      },
+    };
+  }
+
+  // Log errors if any (but not "no rows" errors)
+  if (cin7Result.error && cin7Result.error.code !== "PGRST116") {
+    console.error("Cin7 order lookup error:", cin7Result.error);
+  }
+  if (wooResult.error && wooResult.error.code !== "PGRST116") {
+    console.error("WooCommerce order lookup error:", wooResult.error);
+  }
+
   return { found: false, error: "Order not found" };
 }
 
 /**
  * Look up customer and their order history by email from Supabase cache
+ * Searches both Cin7 and WooCommerce caches
  */
 export async function lookupCustomerByEmail(
   email: string
@@ -116,58 +161,99 @@ export async function lookupCustomerByEmail(
   const supabase = createServiceClient() as SupabaseAny;
   const normalizedEmail = email.toLowerCase().trim();
 
-  // Get customer from cache
-  const { data: customer } = await supabase
-    .from("cin7_customers")
-    .select("*")
-    .ilike("email", normalizedEmail)
-    .limit(1)
-    .single();
+  // Get customer from both caches in parallel
+  const [cin7CustomerResult, wooCustomerResult, cin7OrdersResult, wooOrdersResult] = await Promise.all([
+    // Cin7 customer
+    supabase
+      .from("cin7_customers")
+      .select("*")
+      .ilike("email", normalizedEmail)
+      .limit(1)
+      .single(),
+    // WooCommerce customer
+    supabase
+      .from("woo_customers")
+      .select("*")
+      .ilike("email", normalizedEmail)
+      .limit(1)
+      .single(),
+    // Cin7 orders
+    supabase
+      .from("cin7_orders")
+      .select("order_number, status, status_label, order_date, total, tracking_number")
+      .ilike("customer_email", normalizedEmail)
+      .order("order_date", { ascending: false })
+      .limit(10),
+    // WooCommerce orders
+    supabase
+      .from("woo_orders")
+      .select("order_number, woo_id, status, status_label, order_date, total, tracking_number")
+      .ilike("customer_email", normalizedEmail)
+      .order("order_date", { ascending: false })
+      .limit(10),
+  ]);
 
-  // Get all orders for this email
-  const { data: orders } = await supabase
-    .from("cin7_orders")
-    .select(
-      "order_number, status, status_label, order_date, total, tracking_number"
-    )
-    .ilike("customer_email", normalizedEmail)
-    .order("order_date", { ascending: false })
-    .limit(10);
+  const cin7Customer = cin7CustomerResult.data;
+  const wooCustomer = wooCustomerResult.data;
+  const cin7Orders = cin7OrdersResult.data || [];
+  const wooOrders = wooOrdersResult.data || [];
 
-  if (!customer && (!orders || orders.length === 0)) {
+  // Merge and format orders from both sources
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cin7OrderList = cin7Orders.map((o: any) => ({
+    orderNumber: o.order_number || "",
+    status: o.status || "",
+    statusLabel: o.status_label || o.status || "",
+    orderDate: o.order_date || "",
+    total: parseFloat(o.total) || 0,
+    trackingNumber: o.tracking_number || null,
+    source: "cin7" as const,
+  }));
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const wooOrderList = wooOrders.map((o: any) => ({
+    orderNumber: o.order_number || String(o.woo_id),
+    status: o.status || "",
+    statusLabel: o.status_label || o.status || "",
+    orderDate: o.order_date || "",
+    total: parseFloat(o.total) || 0,
+    trackingNumber: o.tracking_number || null,
+    source: "woocommerce" as const,
+  }));
+
+  // Combine and sort by date (newest first)
+  const allOrders = [...cin7OrderList, ...wooOrderList].sort((a, b) => {
+    const dateA = new Date(a.orderDate).getTime() || 0;
+    const dateB = new Date(b.orderDate).getTime() || 0;
+    return dateB - dateA;
+  });
+
+  if (!cin7Customer && !wooCustomer && allOrders.length === 0) {
     return { found: false, error: "Customer not found" };
   }
 
-  const orderList = orders || [];
-  const totalSpent = orderList.reduce(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (sum: number, o: any) => sum + (parseFloat(o.total) || 0),
-    0
-  );
+  // Prefer Cin7 customer data, fall back to WooCommerce
+  const customer = cin7Customer || wooCustomer;
+
+  const totalSpent = allOrders.reduce((sum, o) => sum + o.total, 0);
 
   return {
     found: true,
     customer: customer
       ? {
-          name: customer.name || "",
+          name: cin7Customer
+            ? (cin7Customer.name || "")
+            : `${wooCustomer.first_name || ""} ${wooCustomer.last_name || ""}`.trim(),
           email: customer.email || "",
-          phone: customer.phone || "",
-          company: customer.company || "",
+          phone: cin7Customer?.phone || wooCustomer?.phone || "",
+          company: cin7Customer?.company || wooCustomer?.company || "",
         }
       : undefined,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    orders: orderList.map((o: any) => ({
-      orderNumber: o.order_number || "",
-      status: o.status || "",
-      statusLabel: o.status_label || o.status || "",
-      orderDate: o.order_date || "",
-      total: parseFloat(o.total) || 0,
-      trackingNumber: o.tracking_number || null,
-    })),
+    orders: allOrders.slice(0, 10),
     summary: {
-      totalOrders: orderList.length,
+      totalOrders: allOrders.length,
       totalSpent,
-      lastOrderDate: orderList[0]?.order_date || null,
+      lastOrderDate: allOrders[0]?.orderDate || null,
     },
   };
 }

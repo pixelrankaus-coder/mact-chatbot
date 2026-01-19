@@ -95,6 +95,21 @@ const widgetChangelog: ChangelogEntry[] = [
 // Admin panel changelog
 const adminChangelog: ChangelogEntry[] = [
   {
+    version: "2.4.0",
+    date: "2025-01-19",
+    type: "feature",
+    title: "WooCommerce Data Sync (TASK #034)",
+    description:
+      "WooCommerce orders and customers now sync to Supabase, matching the Cin7 caching pattern for consistent, fast lookups.",
+    details: [
+      "Created woo_orders and woo_customers tables in Supabase",
+      "Unified cron job syncs both Cin7 and WooCommerce every 15 min",
+      "Integrations page shows separate sync status cards for each",
+      "Chatbot queries both caches for order lookups",
+      "Manual sync buttons for immediate updates",
+    ],
+  },
+  {
     version: "2.3.0",
     date: "2025-01-19",
     type: "fix",
