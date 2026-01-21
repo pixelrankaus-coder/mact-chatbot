@@ -24,11 +24,40 @@ import {
   Phone,
   ExternalLink,
   ShoppingCart,
+  DollarSign,
+  Calendar,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Crown,
+  TrendingUp,
+  Clock,
+  Sparkles,
+  AtSign,
 } from "lucide-react";
 import type { UnifiedCustomer, CustomerSource, CustomerStats } from "@/types/customer";
 
 const CIN7_BASE_URL = "https://inventory.dearsystems.com";
 const WOO_BASE_URL = process.env.NEXT_PUBLIC_WOOCOMMERCE_URL || "https://mact.au";
+
+// Segment type
+type Segment = "all" | "vip" | "active" | "dormant" | "new" | "marketable";
+
+// Extended stats with segments
+interface ExtendedStats extends CustomerStats {
+  segments?: {
+    all: number;
+    vip: number;
+    active: number;
+    dormant: number;
+    new: number;
+    marketable: number;
+  };
+}
+
+// Sort configuration
+type SortField = "name" | "total_orders" | "total_spent" | "last_order_date";
+type SortDir = "asc" | "desc";
 
 // Source badges component
 function SourceBadges({ sources }: { sources: string[] }) {
@@ -48,6 +77,71 @@ function SourceBadges({ sources }: { sources: string[] }) {
   );
 }
 
+// Customer tier badge component
+function TierBadge({ totalOrders, totalSpent }: { totalOrders: number; totalSpent: number }) {
+  if (totalOrders >= 10 || totalSpent >= 10000) {
+    return (
+      <span title="Gold Tier: 10+ orders or $10K+ spent" className="text-lg">
+        🥇
+      </span>
+    );
+  }
+  if (totalOrders >= 5 || totalSpent >= 5000) {
+    return (
+      <span title="Silver Tier: 5+ orders or $5K+ spent" className="text-lg">
+        🥈
+      </span>
+    );
+  }
+  if (totalOrders >= 2 || totalSpent >= 1000) {
+    return (
+      <span title="Bronze Tier: 2+ orders or $1K+ spent" className="text-lg">
+        🥉
+      </span>
+    );
+  }
+  return null;
+}
+
+// Activity status dot component
+function ActivityDot({ lastOrderDate }: { lastOrderDate: string | null }) {
+  if (!lastOrderDate) {
+    return (
+      <span
+        className="inline-block w-2 h-2 rounded-full bg-gray-300"
+        title="No orders"
+      />
+    );
+  }
+
+  const lastOrder = new Date(lastOrderDate);
+  const now = new Date();
+  const daysSince = Math.floor((now.getTime() - lastOrder.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (daysSince <= 30) {
+    return (
+      <span
+        className="inline-block w-2 h-2 rounded-full bg-green-500"
+        title={`Active: ordered ${daysSince} days ago`}
+      />
+    );
+  }
+  if (daysSince <= 180) {
+    return (
+      <span
+        className="inline-block w-2 h-2 rounded-full bg-yellow-500"
+        title={`Moderate: ordered ${daysSince} days ago`}
+      />
+    );
+  }
+  return (
+    <span
+      className="inline-block w-2 h-2 rounded-full bg-red-500"
+      title={`Inactive: ordered ${daysSince} days ago`}
+    />
+  );
+}
+
 // Source filter component
 function SourceFilter({
   value,
@@ -59,7 +153,7 @@ function SourceFilter({
   stats: CustomerStats;
 }) {
   return (
-    <div className="flex flex-wrap gap-2 mb-4">
+    <div className="flex flex-wrap gap-2">
       <Button
         variant={value === "all" ? "default" : "outline"}
         size="sm"
@@ -101,6 +195,192 @@ function SourceFilter({
   );
 }
 
+// Segment tabs component
+function SegmentTabs({
+  value,
+  onChange,
+  stats,
+}: {
+  value: Segment;
+  onChange: (segment: Segment) => void;
+  stats: ExtendedStats;
+}) {
+  const segments = stats.segments || { all: 0, vip: 0, active: 0, dormant: 0, new: 0, marketable: 0 };
+
+  return (
+    <div className="flex flex-wrap gap-2 border-b pb-4">
+      <Button
+        variant={value === "all" ? "default" : "ghost"}
+        size="sm"
+        onClick={() => onChange("all")}
+        className="gap-2"
+      >
+        <Users className="h-4 w-4" />
+        All ({segments.all.toLocaleString()})
+      </Button>
+      <Button
+        variant={value === "vip" ? "default" : "ghost"}
+        size="sm"
+        onClick={() => onChange("vip")}
+        className="gap-2"
+      >
+        <Crown className="h-4 w-4 text-yellow-500" />
+        VIP ({segments.vip.toLocaleString()})
+      </Button>
+      <Button
+        variant={value === "active" ? "default" : "ghost"}
+        size="sm"
+        onClick={() => onChange("active")}
+        className="gap-2"
+      >
+        <TrendingUp className="h-4 w-4 text-green-500" />
+        Active ({segments.active.toLocaleString()})
+      </Button>
+      <Button
+        variant={value === "dormant" ? "default" : "ghost"}
+        size="sm"
+        onClick={() => onChange("dormant")}
+        className="gap-2"
+      >
+        <Clock className="h-4 w-4 text-red-500" />
+        Dormant ({segments.dormant.toLocaleString()})
+      </Button>
+      <Button
+        variant={value === "new" ? "default" : "ghost"}
+        size="sm"
+        onClick={() => onChange("new")}
+        className="gap-2"
+      >
+        <Sparkles className="h-4 w-4 text-blue-500" />
+        New ({segments.new.toLocaleString()})
+      </Button>
+      <Button
+        variant={value === "marketable" ? "default" : "ghost"}
+        size="sm"
+        onClick={() => onChange("marketable")}
+        className="gap-2"
+      >
+        <AtSign className="h-4 w-4 text-purple-500" />
+        Marketable ({segments.marketable.toLocaleString()})
+      </Button>
+    </div>
+  );
+}
+
+// Summary stats cards component
+function SummaryStats({ stats }: { stats: ExtendedStats }) {
+  const segments = stats.segments || { all: 0, vip: 0, active: 0, dormant: 0, new: 0, marketable: 0 };
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
+      <Card className="border shadow-sm">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2">
+            <Users className="h-5 w-5 text-blue-500" />
+            <div>
+              <p className="text-xs text-slate-500">Total Customers</p>
+              <p className="text-xl font-bold">{segments.all.toLocaleString()}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      <Card className="border shadow-sm">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2">
+            <Crown className="h-5 w-5 text-yellow-500" />
+            <div>
+              <p className="text-xs text-slate-500">VIP Customers</p>
+              <p className="text-xl font-bold">{segments.vip.toLocaleString()}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      <Card className="border shadow-sm">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-green-500" />
+            <div>
+              <p className="text-xs text-slate-500">Active</p>
+              <p className="text-xl font-bold">{segments.active.toLocaleString()}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      <Card className="border shadow-sm">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2">
+            <Clock className="h-5 w-5 text-red-500" />
+            <div>
+              <p className="text-xs text-slate-500">Dormant</p>
+              <p className="text-xl font-bold">{segments.dormant.toLocaleString()}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      <Card className="border shadow-sm">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-blue-500" />
+            <div>
+              <p className="text-xs text-slate-500">New (30 days)</p>
+              <p className="text-xl font-bold">{segments.new.toLocaleString()}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      <Card className="border shadow-sm">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2">
+            <AtSign className="h-5 w-5 text-purple-500" />
+            <div>
+              <p className="text-xs text-slate-500">Marketable</p>
+              <p className="text-xl font-bold">{segments.marketable.toLocaleString()}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// Sortable column header component
+function SortableHeader({
+  label,
+  field,
+  currentSort,
+  currentDir,
+  onSort,
+  icon: Icon,
+}: {
+  label: string;
+  field: SortField;
+  currentSort: SortField;
+  currentDir: SortDir;
+  onSort: (field: SortField) => void;
+  icon?: React.ElementType;
+}) {
+  const isActive = currentSort === field;
+
+  return (
+    <button
+      className="flex items-center gap-1 hover:text-blue-600 transition-colors font-medium"
+      onClick={() => onSort(field)}
+    >
+      {Icon && <Icon className="h-3 w-3" />}
+      {label}
+      {isActive ? (
+        currentDir === "asc" ? (
+          <ArrowUp className="h-3 w-3" />
+        ) : (
+          <ArrowDown className="h-3 w-3" />
+        )
+      ) : (
+        <ArrowUpDown className="h-3 w-3 text-slate-300" />
+      )}
+    </button>
+  );
+}
+
 export default function CustomersPage() {
   const router = useRouter();
   const [customers, setCustomers] = useState<UnifiedCustomer[]>([]);
@@ -108,13 +388,17 @@ export default function CustomersPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [sourceFilter, setSourceFilter] = useState<CustomerSource>("all");
+  const [segment, setSegment] = useState<Segment>("all");
+  const [sortBy, setSortBy] = useState<SortField>("total_spent");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
-  const [stats, setStats] = useState<CustomerStats>({
+  const [stats, setStats] = useState<ExtendedStats>({
     cin7Only: 0,
     wooOnly: 0,
     both: 0,
     total: 0,
+    segments: { all: 0, vip: 0, active: 0, dormant: 0, new: 0, marketable: 0 },
   });
   const limit = 50;
 
@@ -124,6 +408,9 @@ export default function CustomersPage() {
       const params = new URLSearchParams();
       if (searchQuery) params.set("search", searchQuery);
       if (sourceFilter !== "all") params.set("source", sourceFilter);
+      if (segment !== "all") params.set("segment", segment);
+      params.set("sortBy", sortBy);
+      params.set("sortDir", sortDir);
       params.set("page", String(page));
       params.set("limit", String(limit));
 
@@ -142,7 +429,7 @@ export default function CustomersPage() {
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, sourceFilter, page]);
+  }, [searchQuery, sourceFilter, segment, sortBy, sortDir, page]);
 
   useEffect(() => {
     fetchCustomers();
@@ -159,19 +446,42 @@ export default function CustomersPage() {
     setPage(1);
   };
 
+  const handleSegmentChange = (newSegment: Segment) => {
+    setSegment(newSegment);
+    setPage(1);
+  };
+
+  const handleSort = (field: SortField) => {
+    if (sortBy === field) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortBy(field);
+      setSortDir("desc");
+    }
+    setPage(1);
+  };
+
   const totalPages = Math.ceil(total / limit);
 
-  const getStatusColor = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case "active":
-        return "bg-green-100 text-green-700";
-      case "inactive":
-        return "bg-gray-100 text-gray-700";
-      case "hold":
-        return "bg-yellow-100 text-yellow-700";
-      default:
-        return "bg-blue-100 text-blue-700";
-    }
+  // Format currency
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-AU", {
+      style: "currency",
+      currency: "AUD",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  // Format date
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return "-";
+    const date = new Date(dateStr);
+    return date.toLocaleDateString("en-AU", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
   };
 
   // Build detail page URL based on customer source
@@ -218,6 +528,9 @@ export default function CustomersPage() {
 
       {/* Content */}
       <div className="flex-1 overflow-auto bg-slate-50 p-6">
+        {/* Summary Stats */}
+        <SummaryStats stats={stats} />
+
         <Card className="border-0 shadow-sm">
           <CardHeader className="pb-4">
             <div className="flex flex-col gap-4">
@@ -239,6 +552,15 @@ export default function CustomersPage() {
                   <Button type="submit">Search</Button>
                 </form>
               </div>
+
+              {/* Segment Tabs */}
+              <SegmentTabs
+                value={segment}
+                onChange={handleSegmentChange}
+                stats={stats}
+              />
+
+              {/* Source Filter */}
               <SourceFilter
                 value={sourceFilter}
                 onChange={handleSourceChange}
@@ -265,12 +587,48 @@ export default function CustomersPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Name</TableHead>
+                      <TableHead>
+                        <SortableHeader
+                          label="Name"
+                          field="name"
+                          currentSort={sortBy}
+                          currentDir={sortDir}
+                          onSort={handleSort}
+                        />
+                      </TableHead>
                       <TableHead>Email</TableHead>
-                      <TableHead>Phone</TableHead>
                       <TableHead>Sources</TableHead>
-                      <TableHead>Orders</TableHead>
-                      <TableHead>Status</TableHead>
+                      <TableHead>
+                        <SortableHeader
+                          label="Orders"
+                          field="total_orders"
+                          currentSort={sortBy}
+                          currentDir={sortDir}
+                          onSort={handleSort}
+                          icon={ShoppingCart}
+                        />
+                      </TableHead>
+                      <TableHead>
+                        <SortableHeader
+                          label="Total Spent"
+                          field="total_spent"
+                          currentSort={sortBy}
+                          currentDir={sortDir}
+                          onSort={handleSort}
+                          icon={DollarSign}
+                        />
+                      </TableHead>
+                      <TableHead>
+                        <SortableHeader
+                          label="Last Order"
+                          field="last_order_date"
+                          currentSort={sortBy}
+                          currentDir={sortDir}
+                          onSort={handleSort}
+                          icon={Calendar}
+                        />
+                      </TableHead>
+                      <TableHead>Tier</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -282,7 +640,10 @@ export default function CustomersPage() {
                         onClick={() => router.push(getCustomerUrl(customer))}
                       >
                         <TableCell className="font-medium">
-                          {customer.name}
+                          <div className="flex items-center gap-2">
+                            <ActivityDot lastOrderDate={customer.lastOrderDate || null} />
+                            {customer.name}
+                          </div>
                         </TableCell>
                         <TableCell>
                           {customer.email ? (
@@ -295,32 +656,29 @@ export default function CustomersPage() {
                           )}
                         </TableCell>
                         <TableCell>
-                          {customer.phone ? (
-                            <span className="flex items-center gap-1 text-sm text-slate-600">
-                              <Phone className="h-3 w-3" />
-                              {customer.phone}
-                            </span>
-                          ) : (
-                            <span className="text-slate-400">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
                           <SourceBadges sources={customer.sources} />
                         </TableCell>
                         <TableCell>
-                          {customer.totalOrders !== undefined ? (
-                            <span className="flex items-center gap-1 text-sm text-slate-600">
-                              <ShoppingCart className="h-3 w-3" />
-                              {customer.totalOrders}
-                            </span>
-                          ) : (
-                            <span className="text-slate-400">-</span>
-                          )}
+                          <span className="flex items-center gap-1 text-sm text-slate-600">
+                            <ShoppingCart className="h-3 w-3" />
+                            {customer.totalOrders || 0}
+                          </span>
                         </TableCell>
                         <TableCell>
-                          <Badge className={getStatusColor(customer.status)}>
-                            {customer.status}
-                          </Badge>
+                          <span className="flex items-center gap-1 text-sm font-medium text-slate-700">
+                            {formatCurrency(customer.totalSpent || 0)}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm text-slate-600">
+                            {formatDate(customer.lastOrderDate || null)}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <TierBadge
+                            totalOrders={customer.totalOrders || 0}
+                            totalSpent={customer.totalSpent || 0}
+                          />
                         </TableCell>
                         <TableCell className="text-right">
                           {getExternalUrl(customer) && (

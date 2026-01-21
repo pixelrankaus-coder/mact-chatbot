@@ -95,6 +95,23 @@ const widgetChangelog: ChangelogEntry[] = [
 // Admin panel changelog
 const adminChangelog: ChangelogEntry[] = [
   {
+    version: "2.7.0",
+    date: "2025-01-22",
+    type: "feature",
+    title: "Customers Page Enhancements (TASK #038)",
+    description:
+      "Enhanced customers page with order aggregates, segment filtering, sortable columns, tier badges, and activity dots.",
+    details: [
+      "Summary stats cards (Total, VIP, Active, Dormant, New, Marketable)",
+      "Segment tabs for quick filtering (VIP: 5+ orders or $5K+, Active: 2+ orders in 6 months, etc.)",
+      "New columns: Orders, Total Spent, Last Order date",
+      "Sortable column headers (click to sort ascending/descending)",
+      "Customer tier badges (🥇🥈🥉) based on order count and spend",
+      "Activity status dots (green/yellow/red) based on recency",
+      "Order aggregates calculated from cin7_orders and woo_orders tables",
+    ],
+  },
+  {
     version: "2.6.0",
     date: "2025-01-22",
     type: "feature",
