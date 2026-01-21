@@ -122,8 +122,9 @@ function transformOrderForDB(order: any) {
     payment_method: order.payment_method_title || null,
     billing_address: order.billing,
     shipping_address: order.shipping,
-    line_items: order.line_items?.map((item: { name: string; quantity: number; price: string; total: string }) => ({
+    line_items: order.line_items?.map((item: { name: string; sku: string; quantity: number; price: string; total: string }) => ({
       name: item.name,
+      sku: item.sku || null,
       quantity: item.quantity,
       price: item.price,
       total: item.total,
@@ -312,7 +313,52 @@ export async function syncWooOrdersWithLogging(
 }
 
 /**
+ * Extract customer from order (for guest checkout customers)
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function extractCustomerFromOrder(order: any) {
+  const email = order.billing?.email;
+  if (!email) return null;
+
+  // Use negative order ID as woo_id for guest customers (to avoid conflicts with real customer IDs)
+  // This creates a unique identifier based on email hash
+  const guestId = -Math.abs(hashEmail(email));
+
+  return {
+    woo_id: guestId,
+    email: email,
+    first_name: order.billing?.first_name || null,
+    last_name: order.billing?.last_name || null,
+    username: null, // Guest customers don't have usernames
+    phone: order.billing?.phone || null,
+    company: order.billing?.company || null,
+    billing_address: order.billing,
+    shipping_address: order.shipping,
+    orders_count: 1, // Will be updated with actual count
+    total_spent: parseFloat(order.total) || 0,
+    avatar_url: null,
+    date_created: order.date_created,
+    raw_data: { source: "guest_checkout", order_id: order.id },
+    updated_at: new Date().toISOString(),
+  };
+}
+
+/**
+ * Simple email hash for generating consistent guest customer IDs
+ */
+function hashEmail(email: string): number {
+  let hash = 0;
+  for (let i = 0; i < email.length; i++) {
+    const char = email.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return Math.abs(hash);
+}
+
+/**
  * Sync WooCommerce customers with logging callbacks
+ * Includes both registered customers AND guest checkout customers from orders
  */
 export async function syncWooCustomersWithLogging(
   supabase: SupabaseAny,
@@ -349,9 +395,9 @@ export async function syncWooCustomersWithLogging(
   const api = createWooClient(credentials);
 
   try {
-    await log("info", "Fetching customers from WooCommerce...");
+    // STEP 1: Fetch registered customers from WooCommerce API
+    await log("info", "Fetching registered customers from WooCommerce...");
 
-    // Fetch all customers (paginated)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const allCustomers: any[] = [];
     let page = 1;
@@ -359,7 +405,7 @@ export async function syncWooCustomersWithLogging(
     let hasMore = true;
 
     while (hasMore) {
-      await log("info", `Fetching page ${page}...`);
+      await log("info", `Fetching customers page ${page}...`);
 
       const response = await api.get("customers", {
         page,
@@ -371,7 +417,7 @@ export async function syncWooCustomersWithLogging(
       const customers = response.data || [];
       const total = parseInt(response.headers?.["x-wp-total"] || "0", 10);
 
-      await log("info", `Page ${page}: ${customers.length} customers (total: ${total})`);
+      await log("info", `Page ${page}: ${customers.length} registered customers (total: ${total})`);
 
       allCustomers.push(...customers);
 
@@ -385,9 +431,74 @@ export async function syncWooCustomersWithLogging(
       }
     }
 
-    await log("success", `Fetched ${allCustomers.length} customers total`);
+    await log("success", `Fetched ${allCustomers.length} registered customers`);
 
-    if (allCustomers.length === 0) {
+    // STEP 2: Fetch orders to extract guest checkout customers
+    await log("info", "Fetching orders to extract guest customers...");
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const allOrders: any[] = [];
+    page = 1;
+    hasMore = true;
+
+    while (hasMore) {
+      const response = await api.get("orders", {
+        page,
+        per_page: perPage,
+        orderby: "date",
+        order: "desc",
+      });
+
+      const orders = response.data || [];
+      const total = parseInt(response.headers?.["x-wp-total"] || "0", 10);
+
+      allOrders.push(...orders);
+
+      hasMore = orders.length === perPage && allOrders.length < total;
+      page++;
+
+      // Safety limit
+      if (page > 100) break;
+    }
+
+    await log("info", `Processing ${allOrders.length} orders for guest customers...`);
+
+    // Extract unique guest customers from orders (by email)
+    const guestCustomerMap = new Map<string, ReturnType<typeof extractCustomerFromOrder>>();
+    const registeredEmails = new Set(allCustomers.map((c) => c.email?.toLowerCase()).filter(Boolean));
+
+    for (const order of allOrders) {
+      const email = order.billing?.email?.toLowerCase();
+      if (!email) continue;
+
+      // Skip if this is a registered customer
+      if (registeredEmails.has(email)) continue;
+
+      // Skip if customer_id > 0 (registered customer)
+      if (order.customer_id && order.customer_id > 0) continue;
+
+      const existingGuest = guestCustomerMap.get(email);
+      const guestCustomer = extractCustomerFromOrder(order);
+
+      if (!guestCustomer) continue;
+
+      if (existingGuest) {
+        // Update aggregated data
+        existingGuest.orders_count = (existingGuest.orders_count || 0) + 1;
+        existingGuest.total_spent = (existingGuest.total_spent || 0) + (parseFloat(order.total) || 0);
+      } else {
+        guestCustomerMap.set(email, guestCustomer);
+      }
+    }
+
+    const guestCustomers = Array.from(guestCustomerMap.values()).filter(Boolean);
+    await log("success", `Found ${guestCustomers.length} guest customers from orders`);
+
+    // STEP 3: Transform and combine all customers
+    const registeredRecords = allCustomers.map(transformCustomerForDB);
+    const allRecords = [...registeredRecords, ...guestCustomers];
+
+    if (allRecords.length === 0) {
       await log("info", "No customers to sync");
       const duration = Date.now() - startTime;
 
@@ -404,16 +515,14 @@ export async function syncWooCustomersWithLogging(
       return { success: true, recordsSynced: 0, duration };
     }
 
-    // Transform customers
-    await log("info", "Transforming customer data...");
-    const records = allCustomers.map(transformCustomerForDB);
+    await log("info", `Syncing ${allRecords.length} total customers (${registeredRecords.length} registered + ${guestCustomers.length} guests)...`);
 
     // Batch upsert
     const batchSize = 500;
     let upsertedCount = 0;
 
-    for (let i = 0; i < records.length; i += batchSize) {
-      const batch = records.slice(i, i + batchSize);
+    for (let i = 0; i < allRecords.length; i += batchSize) {
+      const batch = allRecords.slice(i, i + batchSize);
       await log("info", `Upserting batch ${Math.floor(i / batchSize) + 1}...`);
 
       const { error } = await supabase
@@ -426,7 +535,7 @@ export async function syncWooCustomersWithLogging(
       }
 
       upsertedCount += batch.length;
-      await log("success", `Upserted ${upsertedCount}/${records.length} customers`);
+      await log("success", `Upserted ${upsertedCount}/${allRecords.length} customers`);
     }
 
     const duration = Date.now() - startTime;
@@ -436,15 +545,15 @@ export async function syncWooCustomersWithLogging(
       .from("sync_log")
       .update({
         status: "completed",
-        records_synced: records.length,
+        records_synced: allRecords.length,
         completed_at: new Date().toISOString(),
         duration_ms: duration,
       })
       .eq("id", logEntry?.id);
 
-    await log("success", `Customers sync complete: ${records.length} records in ${(duration / 1000).toFixed(1)}s`);
+    await log("success", `Customers sync complete: ${allRecords.length} records in ${(duration / 1000).toFixed(1)}s`);
 
-    return { success: true, recordsSynced: records.length, duration };
+    return { success: true, recordsSynced: allRecords.length, duration };
   } catch (error) {
     const duration = Date.now() - startTime;
     const errorMessage = error instanceof Error ? error.message : "Unknown error";

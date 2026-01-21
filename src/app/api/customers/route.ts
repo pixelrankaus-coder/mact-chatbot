@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase";
-import { getWooCustomers } from "@/lib/woocommerce";
-import { wooToUnified } from "@/lib/customer-merge";
 import type { CustomerSource, UnifiedCustomer } from "@/types/customer";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -67,19 +65,53 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Fetch WooCommerce customers from API
+    // Fetch WooCommerce customers from Supabase cache (includes guest checkout customers)
     let wooCustomers: UnifiedCustomer[] = [];
     let wooTotal = 0;
 
     if (source !== "cin7") {
-      const wooResult = await getWooCustomers({
-        search: search || undefined,
-        page,
-        per_page: search ? limit : 100,
-      });
+      let wooQuery = supabase
+        .from("woo_customers")
+        .select("*", { count: "exact" })
+        .order("first_name", { ascending: true });
 
-      wooTotal = wooResult.total || 0;
-      wooCustomers = (wooResult.customers || []).map(wooToUnified);
+      // Apply search filter
+      if (search) {
+        wooQuery = wooQuery.or(
+          `first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`
+        );
+      }
+
+      // Pagination
+      wooQuery = wooQuery.range(offset, offset + limit - 1);
+
+      const { data: wooData, count: wooCount, error: wooError } = await wooQuery;
+
+      if (wooError) {
+        console.error("Supabase woo_customers query error:", wooError);
+      } else {
+        wooTotal = wooCount || 0;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        wooCustomers = (wooData || []).map((c: any) => ({
+          id: `woo-${c.woo_id}`,
+          wooId: c.woo_id,
+          name: `${c.first_name || ""} ${c.last_name || ""}`.trim() || c.email || "Guest",
+          email: c.email || "",
+          phone: c.phone || "",
+          company: c.company || "",
+          status: "active" as const,
+          sources: ["woocommerce"] as ("cin7" | "woocommerce")[],
+          lastUpdated: c.updated_at || "",
+          wooData: {
+            username: c.username,
+            ordersCount: c.orders_count,
+            totalSpent: c.total_spent,
+            avatarUrl: c.avatar_url,
+            billingAddress: c.billing_address,
+            shippingAddress: c.shipping_address,
+          },
+        }));
+      }
     }
 
     // Combine both lists

@@ -95,6 +95,21 @@ const widgetChangelog: ChangelogEntry[] = [
 // Admin panel changelog
 const adminChangelog: ChangelogEntry[] = [
   {
+    version: "2.5.1",
+    date: "2025-01-22",
+    type: "fix",
+    title: "WooCommerce Guest Customers & SKU Display (TASK #035 cont.)",
+    description:
+      "Fixed WooCommerce sync to include guest checkout customers and display SKU in order line items.",
+    details: [
+      "Guest checkout customers now extracted from orders during sync",
+      "SKU field added to order line items (was missing)",
+      "Customers API now reads from woo_customers DB table (not API)",
+      "Customer detail page works for guest customers (negative IDs)",
+      "Orders for guest customers fetched by email from woo_orders",
+    ],
+  },
+  {
     version: "2.5.0",
     date: "2025-01-20",
     type: "feature",

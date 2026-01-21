@@ -3,6 +3,10 @@ import { getCustomer, getCustomerOrders } from "@/lib/cin7";
 import { getWooCustomer, getWooCustomerOrders, WooCustomer } from "@/lib/woocommerce";
 import { cin7ToUnified, wooToUnified } from "@/lib/customer-merge";
 import { UnifiedCustomer } from "@/types/customer";
+import { createServiceClient } from "@/lib/supabase";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type SupabaseAny = any;
 
 export async function GET(
   req: NextRequest,
@@ -18,11 +22,73 @@ export async function GET(
     // Check if it's a WooCommerce ID (prefixed with woo-)
     if (id.startsWith("woo-")) {
       const wooId = parseInt(id.replace("woo-", ""), 10);
-      const wooCustomer = await getWooCustomer(wooId);
 
-      if (wooCustomer) {
-        customer = wooToUnified(wooCustomer);
-        wooOrders = await getWooCustomerOrders(wooId);
+      // First try to get from Supabase cache (includes guest checkout customers)
+      const supabase = createServiceClient() as SupabaseAny;
+      const { data: dbCustomer } = await supabase
+        .from("woo_customers")
+        .select("*")
+        .eq("woo_id", wooId)
+        .single();
+
+      if (dbCustomer) {
+        // Found in database (could be guest or registered customer)
+        customer = {
+          id: `woo-${dbCustomer.woo_id}`,
+          wooId: dbCustomer.woo_id,
+          name: `${dbCustomer.first_name || ""} ${dbCustomer.last_name || ""}`.trim() || dbCustomer.email || "Guest",
+          email: dbCustomer.email || "",
+          phone: dbCustomer.phone || "",
+          company: dbCustomer.company || "",
+          status: "active" as const,
+          sources: ["woocommerce"] as ("cin7" | "woocommerce")[],
+          lastUpdated: dbCustomer.updated_at || "",
+          totalOrders: dbCustomer.orders_count || 0,
+          totalSpent: dbCustomer.total_spent || 0,
+          wooData: {
+            username: dbCustomer.username,
+            ordersCount: dbCustomer.orders_count,
+            totalSpent: dbCustomer.total_spent,
+            avatarUrl: dbCustomer.avatar_url,
+            billingAddress: dbCustomer.billing_address,
+            shippingAddress: dbCustomer.shipping_address,
+          },
+        };
+
+        // Get WooCommerce orders for this customer from database
+        // For guest customers (negative woo_id), search by email
+        if (wooId < 0 && dbCustomer.email) {
+          const { data: orders } = await supabase
+            .from("woo_orders")
+            .select("*")
+            .eq("customer_email", dbCustomer.email)
+            .order("order_date", { ascending: false });
+
+          if (orders) {
+            wooOrders = orders.map((o: SupabaseAny) => ({
+              id: o.woo_id,
+              number: o.order_number,
+              status: o.status,
+              dateCreated: o.order_date,
+              total: String(o.total),
+              currency: o.currency,
+              customerEmail: o.customer_email,
+              customerName: o.customer_name,
+              items: o.line_items || [],
+            }));
+          }
+        } else if (wooId > 0) {
+          // For registered customers, try API first
+          wooOrders = await getWooCustomerOrders(wooId);
+        }
+      } else if (wooId > 0) {
+        // Not in database, try WooCommerce API for registered customers only
+        const wooCustomer = await getWooCustomer(wooId);
+
+        if (wooCustomer) {
+          customer = wooToUnified(wooCustomer);
+          wooOrders = await getWooCustomerOrders(wooId);
+        }
       }
     } else {
       // Try Cin7 first

@@ -49,6 +49,7 @@ export interface WooOrder {
   };
   items: Array<{
     name: string;
+    sku: string | null;
     quantity: number;
     price: string;
     total: string;
@@ -123,6 +124,7 @@ function transformOrder(rawOrder: Record<string, unknown>): WooOrder {
     },
     items: lineItems.map((item) => ({
       name: item.name as string,
+      sku: (item.sku as string) || null,
       quantity: item.quantity as number,
       price: item.price as string,
       total: item.total as string,
