@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase";
+import { trackChatEvent } from "@/lib/klaviyo";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseAny = any;
@@ -61,6 +62,29 @@ export async function POST(
         rating_feedback: feedback?.trim() || null,
       })
       .eq("id", conversationId);
+
+    // Track Klaviyo rating event (non-blocking)
+    // First, get visitor email from conversation
+    const { data: conversation } = await supabase
+      .from("conversations")
+      .select("visitor_email, visitor_name")
+      .eq("id", conversationId)
+      .single();
+
+    if (conversation?.visitor_email) {
+      trackChatEvent(
+        "chat_rated",
+        {
+          email: conversation.visitor_email,
+          firstName: conversation.visitor_name,
+        },
+        conversationId,
+        {
+          rating,
+          feedback: feedback?.trim() || null,
+        }
+      ).catch((err) => console.error("Klaviyo rating tracking error:", err));
+    }
 
     return NextResponse.json({ success: true }, { headers: corsHeaders });
   } catch (error) {

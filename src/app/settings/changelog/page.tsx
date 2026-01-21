@@ -95,6 +95,21 @@ const widgetChangelog: ChangelogEntry[] = [
 // Admin panel changelog
 const adminChangelog: ChangelogEntry[] = [
   {
+    version: "2.6.0",
+    date: "2025-01-22",
+    type: "feature",
+    title: "Cin7 Settings UI + Klaviyo Integration (TASK #036, #037)",
+    description:
+      "Cin7 credentials now configurable via UI. New Klaviyo integration tracks chat events for email marketing.",
+    details: [
+      "Cin7 config form with Account ID and API Key fields",
+      "Cin7 test connection and real-time sync log (SSE streaming)",
+      "Klaviyo integration for event tracking (chat started, handoff, rating)",
+      "Klaviyo profile creation and list subscription",
+      "Shared sync log panel shows progress for both Cin7 and WooCommerce",
+    ],
+  },
+  {
     version: "2.5.1",
     date: "2025-01-22",
     type: "fix",

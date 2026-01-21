@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { trackChatEvent, upsertProfile, subscribeToList } from "@/lib/klaviyo";
 
 // Create supabase client at runtime for server-side usage
 function getSupabase() {
@@ -158,6 +159,52 @@ export async function POST(request: NextRequest) {
       sender_name: aiSettings?.value?.name || "MACt Assistant",
       content: welcomeMessage,
     });
+
+    // Track Klaviyo event (non-blocking)
+    const visitorEmailForKlaviyo = visitorEmail || prechatData?.email;
+    if (visitorEmailForKlaviyo) {
+      // Track chat started event
+      trackChatEvent(
+        "chat_started",
+        {
+          email: visitorEmailForKlaviyo,
+          firstName: visitorName || prechatData?.name,
+          properties: {
+            visitor_id: visitorId,
+            location: location,
+          },
+        },
+        conversation.id
+      ).catch((err) => console.error("Klaviyo tracking error:", err));
+
+      // Upsert profile and subscribe to list
+      upsertProfile({
+        email: visitorEmailForKlaviyo,
+        firstName: visitorName || prechatData?.name,
+        properties: {
+          chat_visitor: true,
+          last_chat_date: new Date().toISOString(),
+        },
+      }).catch((err) => console.error("Klaviyo profile error:", err));
+
+      subscribeToList(visitorEmailForKlaviyo).catch((err) =>
+        console.error("Klaviyo subscribe error:", err)
+      );
+
+      // If pre-chat form was submitted, track that too
+      if (prechatData && Object.keys(prechatData).length > 0) {
+        trackChatEvent(
+          "pre_chat_form_submitted",
+          {
+            email: visitorEmailForKlaviyo,
+            firstName: prechatData.name,
+            phone: prechatData.phone,
+          },
+          conversation.id,
+          { form_data: prechatData }
+        ).catch((err) => console.error("Klaviyo pre-chat tracking error:", err));
+      }
+    }
 
     return NextResponse.json(
       { conversation, isExisting: false },

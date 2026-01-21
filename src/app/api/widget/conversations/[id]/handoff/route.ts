@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sendHandoffRequestEmail } from "@/lib/email";
+import { trackChatEvent } from "@/lib/klaviyo";
 
 // Create supabase client at runtime for server-side usage
 function getSupabase() {
@@ -189,6 +190,23 @@ export async function POST(
       });
     } catch (notifyError) {
       console.error("Failed to send notification:", notifyError);
+    }
+
+    // Track Klaviyo handoff event (non-blocking)
+    const emailForKlaviyo = visitorEmail || conversation.visitor_email;
+    if (emailForKlaviyo) {
+      trackChatEvent(
+        "handoff_requested",
+        {
+          email: emailForKlaviyo,
+          firstName: visitorName || conversation.visitor_name,
+        },
+        id,
+        {
+          reason: reason || message,
+          within_operating_hours: withinHours,
+        }
+      ).catch((err) => console.error("Klaviyo handoff tracking error:", err));
     }
 
     return NextResponse.json(

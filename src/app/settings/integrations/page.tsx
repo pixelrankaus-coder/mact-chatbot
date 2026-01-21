@@ -68,6 +68,25 @@ interface WooConfig {
   has_credentials: boolean;
 }
 
+interface Cin7Config {
+  account_id: string;
+  api_key: string;
+  is_enabled: boolean;
+  has_credentials: boolean;
+}
+
+interface KlaviyoConfig {
+  api_key: string;
+  list_id: string;
+  is_enabled: boolean;
+  has_credentials: boolean;
+}
+
+interface KlaviyoList {
+  id: string;
+  name: string;
+}
+
 interface SyncLogEntry {
   level: "info" | "warn" | "error" | "success";
   message: string;
@@ -105,7 +124,35 @@ export default function IntegrationsSettings() {
   // Real-time sync log state
   const [syncLogs, setSyncLogs] = useState<SyncLogEntry[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [activeSyncSource, setActiveSyncSource] = useState<"cin7" | "woo" | null>(null);
   const logContainerRef = useRef<HTMLDivElement>(null);
+
+  // Cin7 configuration state
+  const [cin7Config, setCin7Config] = useState<Cin7Config>({
+    account_id: "",
+    api_key: "",
+    is_enabled: false,
+    has_credentials: false,
+  });
+  const [cin7ConfigLoading, setCin7ConfigLoading] = useState(true);
+  const [cin7Saving, setCin7Saving] = useState(false);
+  const [cin7Testing, setCin7Testing] = useState(false);
+  const [showCin7AccountId, setShowCin7AccountId] = useState(false);
+  const [showCin7ApiKey, setShowCin7ApiKey] = useState(false);
+
+  // Klaviyo configuration state
+  const [klaviyoConfig, setKlaviyoConfig] = useState<KlaviyoConfig>({
+    api_key: "",
+    list_id: "",
+    is_enabled: false,
+    has_credentials: false,
+  });
+  const [klaviyoConfigLoading, setKlaviyoConfigLoading] = useState(true);
+  const [klaviyoSaving, setKlaviyoSaving] = useState(false);
+  const [klaviyoTesting, setKlaviyoTesting] = useState(false);
+  const [showKlaviyoKey, setShowKlaviyoKey] = useState(false);
+  const [klaviyoLists, setKlaviyoLists] = useState<KlaviyoList[]>([]);
+  const [klaviyoLoadingLists, setKlaviyoLoadingLists] = useState(false);
 
   // Fetch WooCommerce config
   const fetchWooConfig = useCallback(async () => {
@@ -122,10 +169,42 @@ export default function IntegrationsSettings() {
     }
   }, []);
 
+  // Fetch Cin7 config
+  const fetchCin7Config = useCallback(async () => {
+    try {
+      const res = await fetch("/api/settings/integrations/cin7");
+      if (res.ok) {
+        const data = await res.json();
+        setCin7Config(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch Cin7 config:", error);
+    } finally {
+      setCin7ConfigLoading(false);
+    }
+  }, []);
+
+  // Fetch Klaviyo config
+  const fetchKlaviyoConfig = useCallback(async () => {
+    try {
+      const res = await fetch("/api/settings/integrations/klaviyo");
+      if (res.ok) {
+        const data = await res.json();
+        setKlaviyoConfig(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch Klaviyo config:", error);
+    } finally {
+      setKlaviyoConfigLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchSyncStatus();
     fetchWooConfig();
-  }, [fetchWooConfig]);
+    fetchCin7Config();
+    fetchKlaviyoConfig();
+  }, [fetchWooConfig, fetchCin7Config, fetchKlaviyoConfig]);
 
   const fetchSyncStatus = async () => {
     try {
@@ -264,9 +343,220 @@ export default function IntegrationsSettings() {
     }
   };
 
+  // Save Cin7 configuration
+  const saveCin7Config = async (overrideEnabled?: boolean) => {
+    setCin7Saving(true);
+    try {
+      const res = await fetch("/api/settings/integrations/cin7", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          account_id: cin7Config.account_id,
+          api_key: cin7Config.api_key,
+          is_enabled: overrideEnabled !== undefined ? overrideEnabled : cin7Config.is_enabled,
+        }),
+      });
+
+      if (res.ok) {
+        toast.success("Cin7 settings saved");
+        await fetchCin7Config();
+      } else {
+        const error = await res.json();
+        toast.error(error.error || "Failed to save settings");
+      }
+    } catch (error) {
+      toast.error("Failed to save settings");
+      console.error("Save Cin7 config error:", error);
+    } finally {
+      setCin7Saving(false);
+    }
+  };
+
+  // Test Cin7 connection
+  const testCin7Connection = async () => {
+    setCin7Testing(true);
+    try {
+      const res = await fetch("/api/settings/integrations/cin7", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "test",
+          account_id: cin7Config.account_id,
+          api_key: cin7Config.api_key,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        toast.success(data.message || "Connection successful!");
+      } else {
+        toast.error(data.error || "Connection failed");
+      }
+    } catch (error) {
+      toast.error("Connection test failed");
+      console.error("Test Cin7 connection error:", error);
+    } finally {
+      setCin7Testing(false);
+    }
+  };
+
+  // Stream Cin7 sync with real-time logs
+  const streamCin7Sync = async (type: "orders" | "customers" | "all") => {
+    setIsStreaming(true);
+    setActiveSyncSource("cin7");
+    setCin7Syncing(true);
+    setCin7SyncingType(type);
+    setSyncLogs([]);
+
+    try {
+      const res = await fetch("/api/sync/cin7/stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type }),
+      });
+
+      if (!res.body) {
+        throw new Error("No response body");
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            const eventMatch = line.match(/event: (\w+)\ndata: (.+)/s);
+            if (eventMatch) {
+              const [, eventType, data] = eventMatch;
+              try {
+                const parsed = JSON.parse(data);
+                if (eventType === "log") {
+                  setSyncLogs((prev) => [...prev, parsed]);
+                  setTimeout(() => {
+                    logContainerRef.current?.scrollTo({
+                      top: logContainerRef.current.scrollHeight,
+                      behavior: "smooth",
+                    });
+                  }, 50);
+                } else if (eventType === "complete") {
+                  toast.success("Cin7 sync completed!");
+                } else if (eventType === "error") {
+                  toast.error(parsed.message || "Sync error");
+                }
+              } catch {
+                // Ignore parse errors
+              }
+            }
+          }
+        }
+      }
+
+      await fetchSyncStatus();
+    } catch (error) {
+      toast.error("Cin7 sync stream failed");
+      console.error("Stream Cin7 sync error:", error);
+    } finally {
+      setIsStreaming(false);
+      setActiveSyncSource(null);
+      setCin7Syncing(false);
+      setCin7SyncingType(null);
+    }
+  };
+
+  // Save Klaviyo configuration
+  const saveKlaviyoConfig = async (overrideEnabled?: boolean) => {
+    setKlaviyoSaving(true);
+    try {
+      const res = await fetch("/api/settings/integrations/klaviyo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          api_key: klaviyoConfig.api_key,
+          list_id: klaviyoConfig.list_id,
+          is_enabled: overrideEnabled !== undefined ? overrideEnabled : klaviyoConfig.is_enabled,
+        }),
+      });
+
+      if (res.ok) {
+        toast.success("Klaviyo settings saved");
+        await fetchKlaviyoConfig();
+      } else {
+        const error = await res.json();
+        toast.error(error.error || "Failed to save settings");
+      }
+    } catch (error) {
+      toast.error("Failed to save settings");
+      console.error("Save Klaviyo config error:", error);
+    } finally {
+      setKlaviyoSaving(false);
+    }
+  };
+
+  // Test Klaviyo connection
+  const testKlaviyoConnection = async () => {
+    setKlaviyoTesting(true);
+    try {
+      const res = await fetch("/api/settings/integrations/klaviyo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "test",
+          api_key: klaviyoConfig.api_key,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        toast.success(data.message || "Connection successful!");
+        // Fetch lists after successful connection test
+        fetchKlaviyoLists();
+      } else {
+        toast.error(data.error || "Connection failed");
+      }
+    } catch (error) {
+      toast.error("Connection test failed");
+      console.error("Test Klaviyo connection error:", error);
+    } finally {
+      setKlaviyoTesting(false);
+    }
+  };
+
+  // Fetch Klaviyo lists
+  const fetchKlaviyoLists = async () => {
+    setKlaviyoLoadingLists(true);
+    try {
+      const res = await fetch("/api/settings/integrations/klaviyo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "lists",
+          api_key: klaviyoConfig.api_key,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success && data.lists) {
+        setKlaviyoLists(data.lists);
+      }
+    } catch (error) {
+      console.error("Fetch Klaviyo lists error:", error);
+    } finally {
+      setKlaviyoLoadingLists(false);
+    }
+  };
+
   // Stream WooCommerce sync with real-time logs
   const streamWooSync = async (type: "orders" | "customers" | "all") => {
     setIsStreaming(true);
+    setActiveSyncSource("woo");
     setWooSyncing(true);
     setWooSyncingType(type);
     setSyncLogs([]);
@@ -329,6 +619,7 @@ export default function IntegrationsSettings() {
       console.error("Stream WooCommerce sync error:", error);
     } finally {
       setIsStreaming(false);
+      setActiveSyncSource(null);
       setWooSyncing(false);
       setWooSyncingType(null);
     }
@@ -478,30 +769,153 @@ export default function IntegrationsSettings() {
 
         <div className="p-6">
           <div className="max-w-4xl space-y-6">
-            {/* Cin7 Data Sync */}
+            {/* Cin7 Integration */}
             <div>
               <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase text-slate-400">
                 <Database className="h-4 w-4" />
-                Cin7 Data Sync
+                Cin7 Integration
               </h3>
+
+              {/* Cin7 Configuration */}
+              <Card className="border-0 shadow-sm mb-4">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base">Cin7 Settings</CardTitle>
+                      <CardDescription>Configure your Cin7 API connection</CardDescription>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-slate-500">Enabled</span>
+                      <Switch
+                        checked={cin7Config.is_enabled}
+                        onCheckedChange={(checked) => {
+                          setCin7Config((prev) => ({ ...prev, is_enabled: checked }));
+                          if (cin7Config.has_credentials) {
+                            saveCin7Config(checked);
+                          }
+                        }}
+                        disabled={cin7ConfigLoading || cin7Saving}
+                      />
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {cin7ConfigLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="cin7-account-id">Account ID</Label>
+                          <div className="relative">
+                            <Input
+                              id="cin7-account-id"
+                              type={showCin7AccountId ? "text" : "password"}
+                              placeholder="Your Cin7 Account ID"
+                              value={cin7Config.account_id}
+                              onChange={(e) =>
+                                setCin7Config((prev) => ({ ...prev, account_id: e.target.value }))
+                              }
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="absolute right-0 top-0 h-full px-3"
+                              onClick={() => setShowCin7AccountId(!showCin7AccountId)}
+                            >
+                              {showCin7AccountId ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="cin7-api-key">API Key</Label>
+                          <div className="relative">
+                            <Input
+                              id="cin7-api-key"
+                              type={showCin7ApiKey ? "text" : "password"}
+                              placeholder="Your Cin7 API Key"
+                              value={cin7Config.api_key}
+                              onChange={(e) =>
+                                setCin7Config((prev) => ({ ...prev, api_key: e.target.value }))
+                              }
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="absolute right-0 top-0 h-full px-3"
+                              onClick={() => setShowCin7ApiKey(!showCin7ApiKey)}
+                            >
+                              {showCin7ApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-2">
+                        <Button onClick={() => saveCin7Config()} disabled={cin7Saving}>
+                          {cin7Saving ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <Check className="h-4 w-4 mr-2" />
+                          )}
+                          Save Settings
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={testCin7Connection}
+                          disabled={cin7Testing || (!cin7Config.account_id && !cin7Config.has_credentials)}
+                        >
+                          {cin7Testing ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <Play className="h-4 w-4 mr-2" />
+                          )}
+                          Test Connection
+                        </Button>
+                      </div>
+
+                      <p className="text-xs text-slate-400">
+                        Get API credentials from Cin7 → Integrations → API
+                      </p>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Cin7 Data Sync */}
               <Card className="border-0 shadow-sm">
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-base">Cin7 Synchronization</CardTitle>
+                    <CardTitle className="text-base">Data Synchronization</CardTitle>
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => triggerCin7Sync("all")}
-                      disabled={cin7Syncing}
+                      onClick={() => streamCin7Sync("all")}
+                      disabled={cin7Syncing || !cin7Config.is_enabled}
                     >
-                      <RefreshCw
-                        className={`h-4 w-4 mr-2 ${cin7Syncing && cin7SyncingType === "all" ? "animate-spin" : ""}`}
-                      />
+                      {cin7Syncing && cin7SyncingType === "all" ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                      )}
                       Sync All
                     </Button>
                   </div>
                 </CardHeader>
                 <CardContent>
+                  {!cin7Config.is_enabled && (
+                    <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 mb-4">
+                      <p className="text-sm text-amber-700">
+                        Cin7 integration is disabled. Enable it above to start syncing.
+                      </p>
+                    </div>
+                  )}
+
                   <div className="grid gap-4 md:grid-cols-2">
                     {/* Orders Sync */}
                     <div className="rounded-lg border bg-slate-50 p-4">
@@ -513,8 +927,8 @@ export default function IntegrationsSettings() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => triggerCin7Sync("orders")}
-                          disabled={cin7Syncing}
+                          onClick={() => streamCin7Sync("orders")}
+                          disabled={cin7Syncing || !cin7Config.is_enabled}
                         >
                           <RefreshCw
                             className={`h-4 w-4 ${cin7Syncing && cin7SyncingType === "orders" ? "animate-spin" : ""}`}
@@ -570,8 +984,8 @@ export default function IntegrationsSettings() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => triggerCin7Sync("customers")}
-                          disabled={cin7Syncing}
+                          onClick={() => streamCin7Sync("customers")}
+                          disabled={cin7Syncing || !cin7Config.is_enabled}
                         >
                           <RefreshCw
                             className={`h-4 w-4 ${cin7Syncing && cin7SyncingType === "customers" ? "animate-spin" : ""}`}
@@ -907,64 +1321,207 @@ export default function IntegrationsSettings() {
                 </CardContent>
               </Card>
 
-              {/* Real-time Sync Log */}
-              <Card className="border-0 shadow-sm">
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Terminal className="h-4 w-4 text-slate-500" />
-                      <CardTitle className="text-base">Sync Log</CardTitle>
-                    </div>
-                    {isStreaming && (
-                      <Badge className="bg-green-100 text-green-700">
-                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                        Live
+            </div>
+
+            {/* Real-time Sync Log (shared for Cin7 and WooCommerce) */}
+            <Card className="border-0 shadow-sm">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Terminal className="h-4 w-4 text-slate-500" />
+                    <CardTitle className="text-base">Sync Log</CardTitle>
+                    {activeSyncSource && (
+                      <Badge variant="outline" className="text-xs">
+                        {activeSyncSource === "cin7" ? "Cin7" : "WooCommerce"}
                       </Badge>
                     )}
                   </div>
-                </CardHeader>
-                <CardContent>
-                  <div
-                    ref={logContainerRef}
-                    className="rounded-lg bg-slate-900 p-4 h-48 overflow-auto font-mono text-xs"
-                  >
-                    {syncLogs.length === 0 ? (
-                      <p className="text-slate-500">Run a sync to see real-time progress...</p>
-                    ) : (
-                      syncLogs.map((log, i) => (
-                        <div
-                          key={i}
-                          className={`py-0.5 ${
+                  {isStreaming && (
+                    <Badge className="bg-green-100 text-green-700">
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                      Live
+                    </Badge>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div
+                  ref={logContainerRef}
+                  className="rounded-lg bg-slate-900 p-4 h-48 overflow-auto font-mono text-xs"
+                >
+                  {syncLogs.length === 0 ? (
+                    <p className="text-slate-500">Run a sync to see real-time progress...</p>
+                  ) : (
+                    syncLogs.map((log, i) => (
+                      <div
+                        key={i}
+                        className={`py-0.5 ${
+                          log.level === "error"
+                            ? "text-red-400"
+                            : log.level === "warn"
+                            ? "text-amber-400"
+                            : log.level === "success"
+                            ? "text-green-400"
+                            : "text-slate-300"
+                        }`}
+                      >
+                        <span className="text-slate-500">
+                          {new Date(log.timestamp).toLocaleTimeString()}
+                        </span>{" "}
+                        <span
+                          className={`uppercase ${
                             log.level === "error"
-                              ? "text-red-400"
+                              ? "text-red-500"
                               : log.level === "warn"
-                              ? "text-amber-400"
+                              ? "text-amber-500"
                               : log.level === "success"
-                              ? "text-green-400"
-                              : "text-slate-300"
+                              ? "text-green-500"
+                              : "text-blue-500"
                           }`}
                         >
-                          <span className="text-slate-500">
-                            {new Date(log.timestamp).toLocaleTimeString()}
-                          </span>{" "}
-                          <span
-                            className={`uppercase ${
-                              log.level === "error"
-                                ? "text-red-500"
-                                : log.level === "warn"
-                                ? "text-amber-500"
-                                : log.level === "success"
-                                ? "text-green-500"
-                                : "text-blue-500"
-                            }`}
-                          >
-                            [{log.level}]
-                          </span>{" "}
-                          {log.message}
-                        </div>
-                      ))
-                    )}
+                          [{log.level}]
+                        </span>{" "}
+                        {log.message}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Klaviyo Integration */}
+            <div>
+              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase text-slate-400">
+                <Mail className="h-4 w-4" />
+                Klaviyo Integration
+              </h3>
+              <Card className="border-0 shadow-sm">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base">Klaviyo Settings</CardTitle>
+                      <CardDescription>Connect Klaviyo for email marketing and event tracking</CardDescription>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-slate-500">Enabled</span>
+                      <Switch
+                        checked={klaviyoConfig.is_enabled}
+                        onCheckedChange={(checked) => {
+                          setKlaviyoConfig((prev) => ({ ...prev, is_enabled: checked }));
+                          if (klaviyoConfig.has_credentials) {
+                            saveKlaviyoConfig(checked);
+                          }
+                        }}
+                        disabled={klaviyoConfigLoading || klaviyoSaving}
+                      />
+                    </div>
                   </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {klaviyoConfigLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="space-y-2">
+                        <Label htmlFor="klaviyo-api-key">Private API Key</Label>
+                        <div className="relative">
+                          <Input
+                            id="klaviyo-api-key"
+                            type={showKlaviyoKey ? "text" : "password"}
+                            placeholder="pk_xxxxxxxxxxxxxxxxxxxxxxxx"
+                            value={klaviyoConfig.api_key}
+                            onChange={(e) =>
+                              setKlaviyoConfig((prev) => ({ ...prev, api_key: e.target.value }))
+                            }
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="absolute right-0 top-0 h-full px-3"
+                            onClick={() => setShowKlaviyoKey(!showKlaviyoKey)}
+                          >
+                            {showKlaviyoKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="klaviyo-list">Default List (Optional)</Label>
+                        <div className="flex gap-2">
+                          <select
+                            id="klaviyo-list"
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                            value={klaviyoConfig.list_id}
+                            onChange={(e) =>
+                              setKlaviyoConfig((prev) => ({ ...prev, list_id: e.target.value }))
+                            }
+                          >
+                            <option value="">No list selected</option>
+                            {klaviyoLists.map((list) => (
+                              <option key={list.id} value={list.id}>
+                                {list.name}
+                              </option>
+                            ))}
+                          </select>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={fetchKlaviyoLists}
+                            disabled={klaviyoLoadingLists || !klaviyoConfig.api_key || klaviyoConfig.api_key.includes("••••")}
+                          >
+                            {klaviyoLoadingLists ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <RefreshCw className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </div>
+                        <p className="text-xs text-slate-400">
+                          Subscribers from chat will be added to this list
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-2">
+                        <Button onClick={() => saveKlaviyoConfig()} disabled={klaviyoSaving}>
+                          {klaviyoSaving ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <Check className="h-4 w-4 mr-2" />
+                          )}
+                          Save Settings
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={testKlaviyoConnection}
+                          disabled={klaviyoTesting || (!klaviyoConfig.api_key && !klaviyoConfig.has_credentials)}
+                        >
+                          {klaviyoTesting ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <Play className="h-4 w-4 mr-2" />
+                          )}
+                          Test Connection
+                        </Button>
+                      </div>
+
+                      <div className="rounded-lg bg-slate-50 p-3 mt-4">
+                        <h4 className="text-sm font-medium text-slate-700 mb-2">Tracked Events</h4>
+                        <ul className="text-xs text-slate-500 space-y-1">
+                          <li>• Chat Started - When a visitor starts a chat</li>
+                          <li>• Pre-Chat Form Submitted - When visitor submits their info</li>
+                          <li>• Handoff Requested - When visitor requests human agent</li>
+                          <li>• Chat Rated - When visitor rates the chat experience</li>
+                        </ul>
+                      </div>
+
+                      <p className="text-xs text-slate-400">
+                        Get your Private API Key from Klaviyo → Account → Settings → API Keys
+                      </p>
+                    </>
+                  )}
                 </CardContent>
               </Card>
             </div>
