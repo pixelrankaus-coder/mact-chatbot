@@ -206,7 +206,7 @@ export default function IntegrationsSettings() {
   };
 
   // Save WooCommerce configuration
-  const saveWooConfig = async () => {
+  const saveWooConfig = async (overrideEnabled?: boolean) => {
     setWooSaving(true);
     try {
       const res = await fetch("/api/settings/integrations/woocommerce", {
@@ -216,7 +216,7 @@ export default function IntegrationsSettings() {
           url: wooConfig.url,
           consumer_key: wooConfig.consumer_key,
           consumer_secret: wooConfig.consumer_secret,
-          is_enabled: wooConfig.is_enabled,
+          is_enabled: overrideEnabled !== undefined ? overrideEnabled : wooConfig.is_enabled,
         }),
       });
 
@@ -643,10 +643,14 @@ export default function IntegrationsSettings() {
                       <span className="text-sm text-slate-500">Enabled</span>
                       <Switch
                         checked={wooConfig.is_enabled}
-                        onCheckedChange={(checked) =>
-                          setWooConfig((prev) => ({ ...prev, is_enabled: checked }))
-                        }
-                        disabled={wooConfigLoading}
+                        onCheckedChange={(checked) => {
+                          setWooConfig((prev) => ({ ...prev, is_enabled: checked }));
+                          // Auto-save when toggle changes (if credentials exist)
+                          if (wooConfig.has_credentials) {
+                            saveWooConfig(checked);
+                          }
+                        }}
+                        disabled={wooConfigLoading || wooSaving}
                       />
                     </div>
                   </div>
