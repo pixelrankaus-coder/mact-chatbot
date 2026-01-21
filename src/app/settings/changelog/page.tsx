@@ -95,6 +95,21 @@ const widgetChangelog: ChangelogEntry[] = [
 // Admin panel changelog
 const adminChangelog: ChangelogEntry[] = [
   {
+    version: "2.5.0",
+    date: "2025-01-20",
+    type: "feature",
+    title: "WooCommerce Settings UI + Real-time Sync Log (TASK #035)",
+    description:
+      "WooCommerce credentials can now be configured via UI instead of environment variables. Real-time sync progress is streamed via SSE.",
+    details: [
+      "WooCommerce config form with Store URL, Consumer Key, Consumer Secret",
+      "Test Connection button to verify credentials before saving",
+      "Credentials stored in integration_settings table (not env vars)",
+      "Real-time sync log panel shows live progress via Server-Sent Events",
+      "Enable/disable toggle for WooCommerce integration",
+    ],
+  },
+  {
     version: "2.4.0",
     date: "2025-01-19",
     type: "feature",

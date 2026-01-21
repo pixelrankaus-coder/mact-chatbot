@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { SettingsSidebar } from "@/components/settings";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
@@ -25,6 +27,11 @@ import {
   Database,
   Package,
   Users,
+  Eye,
+  EyeOff,
+  Loader2,
+  Play,
+  Terminal,
 } from "lucide-react";
 
 interface SyncStatus {
@@ -53,6 +60,21 @@ interface Integration {
   comingSoon?: boolean;
 }
 
+interface WooConfig {
+  url: string;
+  consumer_key: string;
+  consumer_secret: string;
+  is_enabled: boolean;
+  has_credentials: boolean;
+}
+
+interface SyncLogEntry {
+  level: "info" | "warn" | "error" | "success";
+  message: string;
+  timestamp: string;
+  details?: Record<string, unknown>;
+}
+
 export default function IntegrationsSettings() {
   // Cin7 sync state
   const [cin7OrdersSync, setCin7OrdersSync] = useState<SyncData | null>(null);
@@ -66,9 +88,44 @@ export default function IntegrationsSettings() {
   const [wooSyncing, setWooSyncing] = useState(false);
   const [wooSyncingType, setWooSyncingType] = useState<string | null>(null);
 
+  // WooCommerce configuration state
+  const [wooConfig, setWooConfig] = useState<WooConfig>({
+    url: "",
+    consumer_key: "",
+    consumer_secret: "",
+    is_enabled: false,
+    has_credentials: false,
+  });
+  const [wooConfigLoading, setWooConfigLoading] = useState(true);
+  const [wooSaving, setWooSaving] = useState(false);
+  const [wooTesting, setWooTesting] = useState(false);
+  const [showWooSecret, setShowWooSecret] = useState(false);
+  const [showWooKey, setShowWooKey] = useState(false);
+
+  // Real-time sync log state
+  const [syncLogs, setSyncLogs] = useState<SyncLogEntry[]>([]);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const logContainerRef = useRef<HTMLDivElement>(null);
+
+  // Fetch WooCommerce config
+  const fetchWooConfig = useCallback(async () => {
+    try {
+      const res = await fetch("/api/settings/integrations/woocommerce");
+      if (res.ok) {
+        const data = await res.json();
+        setWooConfig(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch WooCommerce config:", error);
+    } finally {
+      setWooConfigLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchSyncStatus();
-  }, []);
+    fetchWooConfig();
+  }, [fetchWooConfig]);
 
   const fetchSyncStatus = async () => {
     try {
@@ -143,6 +200,135 @@ export default function IntegrationsSettings() {
       toast.error("WooCommerce sync failed");
       console.error("WooCommerce sync error:", error);
     } finally {
+      setWooSyncing(false);
+      setWooSyncingType(null);
+    }
+  };
+
+  // Save WooCommerce configuration
+  const saveWooConfig = async () => {
+    setWooSaving(true);
+    try {
+      const res = await fetch("/api/settings/integrations/woocommerce", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: wooConfig.url,
+          consumer_key: wooConfig.consumer_key,
+          consumer_secret: wooConfig.consumer_secret,
+          is_enabled: wooConfig.is_enabled,
+        }),
+      });
+
+      if (res.ok) {
+        toast.success("WooCommerce settings saved");
+        await fetchWooConfig();
+      } else {
+        const error = await res.json();
+        toast.error(error.error || "Failed to save settings");
+      }
+    } catch (error) {
+      toast.error("Failed to save settings");
+      console.error("Save WooCommerce config error:", error);
+    } finally {
+      setWooSaving(false);
+    }
+  };
+
+  // Test WooCommerce connection
+  const testWooConnection = async () => {
+    setWooTesting(true);
+    try {
+      const res = await fetch("/api/settings/integrations/woocommerce", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "test",
+          url: wooConfig.url,
+          consumer_key: wooConfig.consumer_key,
+          consumer_secret: wooConfig.consumer_secret,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        toast.success(data.message || "Connection successful!");
+      } else {
+        toast.error(data.error || "Connection failed");
+      }
+    } catch (error) {
+      toast.error("Connection test failed");
+      console.error("Test WooCommerce connection error:", error);
+    } finally {
+      setWooTesting(false);
+    }
+  };
+
+  // Stream WooCommerce sync with real-time logs
+  const streamWooSync = async (type: "orders" | "customers" | "all") => {
+    setIsStreaming(true);
+    setWooSyncing(true);
+    setWooSyncingType(type);
+    setSyncLogs([]);
+
+    try {
+      const res = await fetch("/api/sync/woocommerce/stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type }),
+      });
+
+      if (!res.body) {
+        throw new Error("No response body");
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            const eventMatch = line.match(/event: (\w+)\ndata: (.+)/s);
+            if (eventMatch) {
+              const [, eventType, data] = eventMatch;
+              try {
+                const parsed = JSON.parse(data);
+                if (eventType === "log") {
+                  setSyncLogs((prev) => [...prev, parsed]);
+                  // Auto-scroll to bottom
+                  setTimeout(() => {
+                    logContainerRef.current?.scrollTo({
+                      top: logContainerRef.current.scrollHeight,
+                      behavior: "smooth",
+                    });
+                  }, 50);
+                } else if (eventType === "complete") {
+                  toast.success("Sync completed!");
+                } else if (eventType === "error") {
+                  toast.error(parsed.message || "Sync error");
+                }
+              } catch {
+                // Ignore parse errors
+              }
+            }
+          }
+        }
+      }
+
+      await fetchSyncStatus();
+    } catch (error) {
+      toast.error("Sync stream failed");
+      console.error("Stream WooCommerce sync error:", error);
+    } finally {
+      setIsStreaming(false);
       setWooSyncing(false);
       setWooSyncingType(null);
     }
@@ -438,30 +624,164 @@ export default function IntegrationsSettings() {
               </Card>
             </div>
 
-            {/* WooCommerce Data Sync */}
+            {/* WooCommerce Integration */}
             <div>
               <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase text-slate-400">
                 <ShoppingCart className="h-4 w-4" />
-                WooCommerce Data Sync
+                WooCommerce Integration
               </h3>
-              <Card className="border-0 shadow-sm">
+
+              {/* WooCommerce Configuration */}
+              <Card className="border-0 shadow-sm mb-4">
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-base">WooCommerce Synchronization</CardTitle>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => triggerWooSync("all")}
-                      disabled={wooSyncing}
-                    >
-                      <RefreshCw
-                        className={`h-4 w-4 mr-2 ${wooSyncing && wooSyncingType === "all" ? "animate-spin" : ""}`}
+                    <div>
+                      <CardTitle className="text-base">WooCommerce Settings</CardTitle>
+                      <CardDescription>Configure your WooCommerce store connection</CardDescription>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-slate-500">Enabled</span>
+                      <Switch
+                        checked={wooConfig.is_enabled}
+                        onCheckedChange={(checked) =>
+                          setWooConfig((prev) => ({ ...prev, is_enabled: checked }))
+                        }
+                        disabled={wooConfigLoading}
                       />
-                      Sync All
-                    </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {wooConfigLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="space-y-2">
+                        <Label htmlFor="woo-url">Store URL</Label>
+                        <Input
+                          id="woo-url"
+                          placeholder="https://your-store.com"
+                          value={wooConfig.url}
+                          onChange={(e) =>
+                            setWooConfig((prev) => ({ ...prev, url: e.target.value }))
+                          }
+                        />
+                      </div>
+
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="woo-key">Consumer Key</Label>
+                          <div className="relative">
+                            <Input
+                              id="woo-key"
+                              type={showWooKey ? "text" : "password"}
+                              placeholder="ck_xxxxxxxxxxxxxxxx"
+                              value={wooConfig.consumer_key}
+                              onChange={(e) =>
+                                setWooConfig((prev) => ({ ...prev, consumer_key: e.target.value }))
+                              }
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="absolute right-0 top-0 h-full px-3"
+                              onClick={() => setShowWooKey(!showWooKey)}
+                            >
+                              {showWooKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="woo-secret">Consumer Secret</Label>
+                          <div className="relative">
+                            <Input
+                              id="woo-secret"
+                              type={showWooSecret ? "text" : "password"}
+                              placeholder="cs_xxxxxxxxxxxxxxxx"
+                              value={wooConfig.consumer_secret}
+                              onChange={(e) =>
+                                setWooConfig((prev) => ({ ...prev, consumer_secret: e.target.value }))
+                              }
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="absolute right-0 top-0 h-full px-3"
+                              onClick={() => setShowWooSecret(!showWooSecret)}
+                            >
+                              {showWooSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-2">
+                        <Button onClick={saveWooConfig} disabled={wooSaving}>
+                          {wooSaving ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <Check className="h-4 w-4 mr-2" />
+                          )}
+                          Save Settings
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={testWooConnection}
+                          disabled={wooTesting || !wooConfig.url}
+                        >
+                          {wooTesting ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <Play className="h-4 w-4 mr-2" />
+                          )}
+                          Test Connection
+                        </Button>
+                      </div>
+
+                      <p className="text-xs text-slate-400">
+                        Generate API keys in WooCommerce → Settings → Advanced → REST API
+                      </p>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* WooCommerce Sync Status */}
+              <Card className="border-0 shadow-sm mb-4">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base">Data Synchronization</CardTitle>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => streamWooSync("all")}
+                        disabled={wooSyncing || !wooConfig.is_enabled}
+                      >
+                        {wooSyncing && wooSyncingType === "all" ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                        )}
+                        Sync All
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
+                  {!wooConfig.is_enabled && (
+                    <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 mb-4">
+                      <p className="text-sm text-amber-700">
+                        WooCommerce integration is disabled. Enable it above to start syncing.
+                      </p>
+                    </div>
+                  )}
+
                   <div className="grid gap-4 md:grid-cols-2">
                     {/* WooCommerce Orders Sync */}
                     <div className="rounded-lg border bg-slate-50 p-4">
@@ -473,8 +793,8 @@ export default function IntegrationsSettings() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => triggerWooSync("orders")}
-                          disabled={wooSyncing}
+                          onClick={() => streamWooSync("orders")}
+                          disabled={wooSyncing || !wooConfig.is_enabled}
                         >
                           <RefreshCw
                             className={`h-4 w-4 ${wooSyncing && wooSyncingType === "orders" ? "animate-spin" : ""}`}
@@ -530,8 +850,8 @@ export default function IntegrationsSettings() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => triggerWooSync("customers")}
-                          disabled={wooSyncing}
+                          onClick={() => streamWooSync("customers")}
+                          disabled={wooSyncing || !wooConfig.is_enabled}
                         >
                           <RefreshCw
                             className={`h-4 w-4 ${wooSyncing && wooSyncingType === "customers" ? "animate-spin" : ""}`}
@@ -578,8 +898,69 @@ export default function IntegrationsSettings() {
                     </div>
                   </div>
                   <p className="mt-4 text-xs text-slate-400">
-                    WooCommerce data syncs automatically every 15 minutes. Use manual sync for immediate updates.
+                    WooCommerce data syncs automatically every 15 minutes when enabled.
                   </p>
+                </CardContent>
+              </Card>
+
+              {/* Real-time Sync Log */}
+              <Card className="border-0 shadow-sm">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Terminal className="h-4 w-4 text-slate-500" />
+                      <CardTitle className="text-base">Sync Log</CardTitle>
+                    </div>
+                    {isStreaming && (
+                      <Badge className="bg-green-100 text-green-700">
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        Live
+                      </Badge>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div
+                    ref={logContainerRef}
+                    className="rounded-lg bg-slate-900 p-4 h-48 overflow-auto font-mono text-xs"
+                  >
+                    {syncLogs.length === 0 ? (
+                      <p className="text-slate-500">Run a sync to see real-time progress...</p>
+                    ) : (
+                      syncLogs.map((log, i) => (
+                        <div
+                          key={i}
+                          className={`py-0.5 ${
+                            log.level === "error"
+                              ? "text-red-400"
+                              : log.level === "warn"
+                              ? "text-amber-400"
+                              : log.level === "success"
+                              ? "text-green-400"
+                              : "text-slate-300"
+                          }`}
+                        >
+                          <span className="text-slate-500">
+                            {new Date(log.timestamp).toLocaleTimeString()}
+                          </span>{" "}
+                          <span
+                            className={`uppercase ${
+                              log.level === "error"
+                                ? "text-red-500"
+                                : log.level === "warn"
+                                ? "text-amber-500"
+                                : log.level === "success"
+                                ? "text-green-500"
+                                : "text-blue-500"
+                            }`}
+                          >
+                            [{log.level}]
+                          </span>{" "}
+                          {log.message}
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             </div>

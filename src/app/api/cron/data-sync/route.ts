@@ -1,6 +1,54 @@
 import { NextRequest, NextResponse } from "next/server";
 import { syncCin7Orders, syncCin7Customers } from "@/lib/cin7-sync";
-import { syncWooOrders, syncWooCustomers } from "@/lib/woo-sync";
+import { syncWooOrders, syncWooCustomers, SyncResult } from "@/lib/woo-sync";
+import { syncWooOrdersWithLogging, syncWooCustomersWithLogging } from "@/lib/woo-sync-db";
+import { createServiceClient } from "@/lib/supabase";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type SupabaseAny = any;
+
+/**
+ * Try DB-based WooCommerce sync first, fall back to env var sync
+ */
+async function syncWooOrdersWithFallback(): Promise<SyncResult> {
+  const supabase = createServiceClient() as SupabaseAny;
+
+  // Check if WooCommerce is configured in DB
+  const { data } = await supabase
+    .from("integration_settings")
+    .select("is_enabled")
+    .eq("integration_type", "woocommerce")
+    .single();
+
+  if (data?.is_enabled) {
+    // Use DB-based sync (no-op logging for cron)
+    const noOpLog = () => Promise.resolve();
+    return syncWooOrdersWithLogging(supabase, noOpLog);
+  }
+
+  // Fall back to env var based sync
+  return syncWooOrders();
+}
+
+async function syncWooCustomersWithFallback(): Promise<SyncResult> {
+  const supabase = createServiceClient() as SupabaseAny;
+
+  // Check if WooCommerce is configured in DB
+  const { data } = await supabase
+    .from("integration_settings")
+    .select("is_enabled")
+    .eq("integration_type", "woocommerce")
+    .single();
+
+  if (data?.is_enabled) {
+    // Use DB-based sync (no-op logging for cron)
+    const noOpLog = () => Promise.resolve();
+    return syncWooCustomersWithLogging(supabase, noOpLog);
+  }
+
+  // Fall back to env var based sync
+  return syncWooCustomers();
+}
 
 /**
  * GET /api/cron/data-sync - Unified scheduled sync endpoint
@@ -43,10 +91,10 @@ export async function GET(request: NextRequest) {
         syncCin7Orders().catch((e) => ({ success: false, recordsSynced: 0, duration: 0, error: e.message })),
         syncCin7Customers().catch((e) => ({ success: false, recordsSynced: 0, duration: 0, error: e.message })),
       ]),
-      // WooCommerce sync
+      // WooCommerce sync (DB-based if enabled, else env var fallback)
       Promise.all([
-        syncWooOrders().catch((e) => ({ success: false, recordsSynced: 0, duration: 0, error: e.message })),
-        syncWooCustomers().catch((e) => ({ success: false, recordsSynced: 0, duration: 0, error: e.message })),
+        syncWooOrdersWithFallback().catch((e) => ({ success: false, recordsSynced: 0, duration: 0, error: e.message })),
+        syncWooCustomersWithFallback().catch((e) => ({ success: false, recordsSynced: 0, duration: 0, error: e.message })),
       ]),
     ]);
 
