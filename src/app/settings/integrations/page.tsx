@@ -725,7 +725,7 @@ export default function IntegrationsSettings() {
                       </div>
 
                       <div className="flex items-center gap-2 pt-2">
-                        <Button onClick={saveWooConfig} disabled={wooSaving}>
+                        <Button onClick={() => saveWooConfig()} disabled={wooSaving}>
                           {wooSaving ? (
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                           ) : (
