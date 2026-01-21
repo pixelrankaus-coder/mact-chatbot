@@ -165,27 +165,45 @@ export async function syncCin7Customers(): Promise<SyncResult> {
     }
 
     // Transform to database format
-    const records = customers.map((customer: Cin7Customer) => ({
-      cin7_id: customer.ID,
-      name: customer.Name,
-      email: customer.Email || null,
-      phone: customer.Phone || null,
-      mobile: customer.Mobile || null,
-      fax: customer.Fax || null,
-      website: customer.Website || null,
-      company: customer.Name, // Company name is typically the customer name in B2B
-      status: customer.Status,
-      currency: customer.Currency || "AUD",
-      payment_term: customer.PaymentTerm || null,
-      credit_limit: customer.CreditLimit || null,
-      discount: customer.Discount || null,
-      tax_number: customer.TaxNumber || null,
-      tags: customer.Tags || null,
-      addresses: customer.Addresses || [],
-      contacts: customer.Contacts || [],
-      raw_data: customer,
-      updated_at: new Date().toISOString(),
-    }));
+    const records = customers.map((customer: Cin7Customer) => {
+      // Get email from root level, or from first contact with email, or from default contact
+      let email = customer.Email || null;
+      if (!email && customer.Contacts && customer.Contacts.length > 0) {
+        // Try default contact first
+        const defaultContact = customer.Contacts.find((c) => c.Default);
+        if (defaultContact?.Email) {
+          email = defaultContact.Email;
+        } else {
+          // Otherwise use first contact with an email
+          const contactWithEmail = customer.Contacts.find((c) => c.Email);
+          if (contactWithEmail?.Email) {
+            email = contactWithEmail.Email;
+          }
+        }
+      }
+
+      return {
+        cin7_id: customer.ID,
+        name: customer.Name,
+        email: email,
+        phone: customer.Phone || null,
+        mobile: customer.Mobile || null,
+        fax: customer.Fax || null,
+        website: customer.Website || null,
+        company: customer.Name, // Company name is typically the customer name in B2B
+        status: customer.Status,
+        currency: customer.Currency || "AUD",
+        payment_term: customer.PaymentTerm || null,
+        credit_limit: customer.CreditLimit || null,
+        discount: customer.Discount || null,
+        tax_number: customer.TaxNumber || null,
+        tags: customer.Tags || null,
+        addresses: customer.Addresses || [],
+        contacts: customer.Contacts || [],
+        raw_data: customer,
+        updated_at: new Date().toISOString(),
+      };
+    });
 
     // Batch upsert
     const batchSize = 500;
