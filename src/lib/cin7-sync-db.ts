@@ -1,10 +1,12 @@
 /**
  * Cin7 Data Sync with DB Credentials + Logging
- * TASK MACT #036
+ * TASK MACT #036, #039
  *
  * Enhanced version that:
  * 1. Uses credentials from integration_settings table (not env vars)
  * 2. Provides logging callbacks for real-time progress
+ * 3. Supports full and incremental sync modes (TASK #039)
+ * 4. No artificial page limits - fetches all data
  */
 
 import { createServiceClient } from "@/lib/supabase";
@@ -20,6 +22,8 @@ export interface SyncResult {
   error?: string;
 }
 
+export type SyncMode = "full" | "incremental";
+
 type LogCallback = (
   level: "info" | "warn" | "error" | "success",
   message: string,
@@ -29,6 +33,8 @@ type LogCallback = (
 interface Cin7Settings {
   account_id: string;
   api_key: string;
+  sync_frequency?: string;
+  last_sync_at?: string;
 }
 
 const CIN7_BASE_URL = "https://inventory.dearsystems.com/ExternalApi/v2";
@@ -86,16 +92,22 @@ function buildHeaders(credentials: Cin7Settings): HeadersInit {
 }
 
 /**
- * Fetch sales list from Cin7 with pagination
+ * Fetch sales list from Cin7 with pagination and optional date filter
  */
 async function fetchSalesList(
   credentials: Cin7Settings,
   page: number,
-  limit: number
+  limit: number,
+  modifiedSince?: string
 ): Promise<{ SaleList: any[]; Total: number }> {
   const query = new URLSearchParams();
   query.set("Page", String(page));
   query.set("Limit", String(limit));
+
+  // Add modified since filter for incremental sync
+  if (modifiedSince) {
+    query.set("ModifiedSince", modifiedSince);
+  }
 
   const res = await fetch(`${CIN7_BASE_URL}/saleList?${query}`, {
     headers: buildHeaders(credentials),
@@ -133,10 +145,12 @@ async function fetchCustomers(
 
 /**
  * Sync Cin7 orders with logging callback
+ * @param mode - 'full' fetches all orders, 'incremental' fetches last 30 days only
  */
 export async function syncCin7OrdersWithLogging(
   supabase: SupabaseAny,
-  log: LogCallback
+  log: LogCallback,
+  mode: SyncMode = "full"
 ): Promise<SyncResult> {
   const startTime = Date.now();
 
@@ -158,24 +172,41 @@ export async function syncCin7OrdersWithLogging(
       throw new Error("Cin7 credentials not configured. Please configure in Settings > Integrations.");
     }
 
-    await log("info", "Fetching orders from Cin7 API...");
+    // Calculate date filter for incremental sync
+    let modifiedSince: string | undefined;
+    if (mode === "incremental") {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      modifiedSince = thirtyDaysAgo.toISOString().split("T")[0];
+      await log("info", `Incremental sync: Fetching orders modified since ${modifiedSince}...`);
+    } else {
+      await log("info", "Full sync: Fetching ALL orders from Cin7 API...");
+    }
 
     // First request to get total count
     const limit = 250;
-    const firstResult = await fetchSalesList(credentials, 1, limit);
+    const firstResult = await fetchSalesList(credentials, 1, limit, modifiedSince);
     const total = firstResult.Total;
     const allOrders: any[] = [...(firstResult.SaleList || [])];
 
     await log("info", `Page 1: ${firstResult.SaleList?.length || 0} orders (total: ${total})`);
 
-    // Calculate remaining pages
-    const totalPages = Math.min(Math.ceil(total / limit), 50);
+    // Calculate remaining pages - NO LIMIT for full sync
+    const totalPages = Math.ceil(total / limit);
+
+    if (totalPages > 50) {
+      await log("info", `Large dataset: ${totalPages} pages to fetch (no page limit)`);
+    }
 
     // Fetch remaining pages
     for (let page = 2; page <= totalPages; page++) {
-      const result = await fetchSalesList(credentials, page, limit);
+      const result = await fetchSalesList(credentials, page, limit, modifiedSince);
       allOrders.push(...(result.SaleList || []));
-      await log("info", `Page ${page}/${totalPages}: ${result.SaleList?.length || 0} orders`);
+
+      // Log every 10 pages to avoid spam
+      if (page % 10 === 0 || page === totalPages) {
+        await log("info", `Page ${page}/${totalPages}: ${allOrders.length} orders fetched so far`);
+      }
 
       // Small delay to respect rate limits
       if (page < totalPages) {
@@ -271,6 +302,7 @@ export async function syncCin7OrdersWithLogging(
 
 /**
  * Sync Cin7 customers with logging callback
+ * Customers always do full sync (no incremental mode)
  */
 export async function syncCin7CustomersWithLogging(
   supabase: SupabaseAny,
@@ -296,7 +328,7 @@ export async function syncCin7CustomersWithLogging(
       throw new Error("Cin7 credentials not configured. Please configure in Settings > Integrations.");
     }
 
-    await log("info", "Fetching customers from Cin7 API...");
+    await log("info", "Fetching ALL customers from Cin7 API...");
 
     // First request to get total count
     const limit = 250;
@@ -306,14 +338,22 @@ export async function syncCin7CustomersWithLogging(
 
     await log("info", `Page 1: ${firstResult.CustomerList?.length || 0} customers (total: ${total})`);
 
-    // Calculate remaining pages
-    const totalPages = Math.min(Math.ceil(total / limit), 20);
+    // Calculate remaining pages - NO LIMIT
+    const totalPages = Math.ceil(total / limit);
+
+    if (totalPages > 20) {
+      await log("info", `Large dataset: ${totalPages} pages to fetch (no page limit)`);
+    }
 
     // Fetch remaining pages
     for (let page = 2; page <= totalPages; page++) {
       const result = await fetchCustomers(credentials, page, limit);
       allCustomers.push(...(result.CustomerList || []));
-      await log("info", `Page ${page}/${totalPages}: ${result.CustomerList?.length || 0} customers`);
+
+      // Log every 5 pages to avoid spam
+      if (page % 5 === 0 || page === totalPages) {
+        await log("info", `Page ${page}/${totalPages}: ${allCustomers.length} customers fetched so far`);
+      }
 
       // Small delay to respect rate limits
       if (page < totalPages) {
@@ -452,4 +492,61 @@ export async function getCin7CustomerCount(): Promise<number> {
     .select("*", { count: "exact", head: true });
 
   return count || 0;
+}
+
+/**
+ * Update Cin7 sync settings (last sync time, counts)
+ */
+export async function updateCin7SyncSettings(
+  supabase: SupabaseAny,
+  updates: {
+    last_sync_at?: string;
+    orders_cached?: number;
+    customers_cached?: number;
+  }
+): Promise<void> {
+  // Get existing settings
+  const { data: existing } = await supabase
+    .from("integration_settings")
+    .select("settings")
+    .eq("integration_type", "cin7")
+    .single();
+
+  if (existing?.settings) {
+    const newSettings = {
+      ...existing.settings,
+      ...updates,
+    };
+
+    await supabase
+      .from("integration_settings")
+      .update({ settings: newSettings })
+      .eq("integration_type", "cin7");
+  }
+}
+
+/**
+ * Get Cin7 sync frequency setting
+ */
+export async function getCin7SyncFrequency(supabase: SupabaseAny): Promise<string> {
+  const { data } = await supabase
+    .from("integration_settings")
+    .select("settings")
+    .eq("integration_type", "cin7")
+    .single();
+
+  return data?.settings?.sync_frequency || "1hour";
+}
+
+/**
+ * Get last sync timestamp
+ */
+export async function getLastSyncTime(supabase: SupabaseAny): Promise<string | null> {
+  const { data } = await supabase
+    .from("integration_settings")
+    .select("settings")
+    .eq("integration_type", "cin7")
+    .single();
+
+  return data?.settings?.last_sync_at || null;
 }

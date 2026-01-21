@@ -1,6 +1,6 @@
 /**
  * Cin7 Integration Settings API
- * TASK MACT #036
+ * TASK MACT #036, #039
  *
  * GET: Fetch current Cin7 settings
  * POST: Save Cin7 settings or test connection
@@ -15,6 +15,10 @@ type SupabaseAny = any;
 interface Cin7Settings {
   account_id: string;
   api_key: string;
+  sync_frequency?: string; // '15min' | '1hour' | '6hours' | 'daily' | 'manual'
+  last_sync_at?: string;
+  orders_cached?: number;
+  customers_cached?: number;
 }
 
 const INTEGRATION_TYPE = "cin7";
@@ -57,6 +61,11 @@ export async function GET() {
       is_enabled: data.is_enabled,
       has_credentials: !!(settings.account_id && settings.api_key),
       updated_at: data.updated_at,
+      // Sync settings (TASK #039)
+      sync_frequency: settings.sync_frequency || "1hour",
+      last_sync_at: settings.last_sync_at || null,
+      orders_cached: settings.orders_cached || 0,
+      customers_cached: settings.customers_cached || 0,
     });
   } catch (error) {
     console.error("Failed to fetch Cin7 settings:", error);
@@ -76,7 +85,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { action, account_id, api_key, is_enabled } = body;
+    const { action, account_id, api_key, is_enabled, sync_frequency } = body;
 
     // Handle test connection action
     if (action === "test") {
@@ -98,6 +107,7 @@ export async function POST(request: NextRequest) {
     const existingSettings = (existing?.settings || {}) as Cin7Settings;
 
     // Build new settings - only update secrets if new ones are provided
+    // Preserve sync stats (last_sync_at, orders_cached, customers_cached)
     const newSettings: Cin7Settings = {
       account_id: account_id && !account_id.includes("••••")
         ? account_id
@@ -105,6 +115,12 @@ export async function POST(request: NextRequest) {
       api_key: api_key && !api_key.includes("••••")
         ? api_key
         : existingSettings.api_key || "",
+      // Sync settings (TASK #039)
+      sync_frequency: sync_frequency || existingSettings.sync_frequency || "1hour",
+      // Preserve existing sync stats
+      last_sync_at: existingSettings.last_sync_at,
+      orders_cached: existingSettings.orders_cached,
+      customers_cached: existingSettings.customers_cached,
     };
 
     // Upsert settings

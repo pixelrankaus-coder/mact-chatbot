@@ -73,6 +73,11 @@ interface Cin7Config {
   api_key: string;
   is_enabled: boolean;
   has_credentials: boolean;
+  // Sync settings (TASK #039)
+  sync_frequency: string;
+  last_sync_at: string | null;
+  orders_cached: number;
+  customers_cached: number;
 }
 
 interface KlaviyoConfig {
@@ -133,7 +138,12 @@ export default function IntegrationsSettings() {
     api_key: "",
     is_enabled: false,
     has_credentials: false,
+    sync_frequency: "1hour",
+    last_sync_at: null,
+    orders_cached: 0,
+    customers_cached: 0,
   });
+  const [cin7SyncMode, setCin7SyncMode] = useState<"full" | "incremental">("full");
   const [cin7ConfigLoading, setCin7ConfigLoading] = useState(true);
   const [cin7Saving, setCin7Saving] = useState(false);
   const [cin7Testing, setCin7Testing] = useState(false);
@@ -401,7 +411,7 @@ export default function IntegrationsSettings() {
   };
 
   // Stream Cin7 sync with real-time logs
-  const streamCin7Sync = async (type: "orders" | "customers" | "all") => {
+  const streamCin7Sync = async (type: "orders" | "customers" | "all", mode: "full" | "incremental" = "full") => {
     setIsStreaming(true);
     setActiveSyncSource("cin7");
     setCin7Syncing(true);
@@ -412,7 +422,7 @@ export default function IntegrationsSettings() {
       const res = await fetch("/api/sync/cin7/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type }),
+        body: JSON.stringify({ type, mode }),
       });
 
       if (!res.body) {
@@ -460,6 +470,8 @@ export default function IntegrationsSettings() {
       }
 
       await fetchSyncStatus();
+      // Refresh Cin7 config to get updated sync stats
+      await fetchCin7Config();
     } catch (error) {
       toast.error("Cin7 sync stream failed");
       console.error("Stream Cin7 sync error:", error);
@@ -892,19 +904,36 @@ export default function IntegrationsSettings() {
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base">Data Synchronization</CardTitle>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => streamCin7Sync("all")}
-                      disabled={cin7Syncing || !cin7Config.is_enabled}
-                    >
-                      {cin7Syncing && cin7SyncingType === "all" ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                      )}
-                      Sync All
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => streamCin7Sync("all", "incremental")}
+                        disabled={cin7Syncing || !cin7Config.is_enabled}
+                        title="Incremental: Last 30 days only"
+                      >
+                        {cin7Syncing && cin7SyncingType === "all" && cin7SyncMode === "incremental" ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                        )}
+                        Quick Sync
+                      </Button>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => streamCin7Sync("all", "full")}
+                        disabled={cin7Syncing || !cin7Config.is_enabled}
+                        title="Full: Fetch ALL data (slower)"
+                      >
+                        {cin7Syncing && cin7SyncingType === "all" && cin7SyncMode === "full" ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Database className="h-4 w-4 mr-2" />
+                        )}
+                        Full Sync
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -915,6 +944,43 @@ export default function IntegrationsSettings() {
                       </p>
                     </div>
                   )}
+
+                  {/* Sync Frequency Dropdown */}
+                  <div className="mb-4">
+                    <Label className="text-sm text-slate-600">Auto-sync Frequency</Label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <select
+                        className="flex h-9 rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        value={cin7Config.sync_frequency}
+                        onChange={(e) => {
+                          setCin7Config((prev) => ({ ...prev, sync_frequency: e.target.value }));
+                          // Auto-save frequency change
+                          fetch("/api/settings/integrations/cin7", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              account_id: cin7Config.account_id,
+                              api_key: cin7Config.api_key,
+                              is_enabled: cin7Config.is_enabled,
+                              sync_frequency: e.target.value,
+                            }),
+                          }).then(() => toast.success("Sync frequency updated"));
+                        }}
+                        disabled={!cin7Config.is_enabled}
+                      >
+                        <option value="15min">Every 15 minutes</option>
+                        <option value="1hour">Every hour</option>
+                        <option value="6hours">Every 6 hours</option>
+                        <option value="daily">Daily</option>
+                        <option value="manual">Manual only</option>
+                      </select>
+                      {cin7Config.last_sync_at && (
+                        <span className="text-xs text-slate-400">
+                          Last: {formatDistanceToNow(new Date(cin7Config.last_sync_at), { addSuffix: true })}
+                        </span>
+                      )}
+                    </div>
+                  </div>
 
                   <div className="grid gap-4 md:grid-cols-2">
                     {/* Orders Sync */}
@@ -1032,7 +1098,7 @@ export default function IntegrationsSettings() {
                     </div>
                   </div>
                   <p className="mt-4 text-xs text-slate-400">
-                    Cin7 data syncs automatically every 15 minutes. Use manual sync for immediate updates.
+                    Quick Sync fetches last 30 days only. Full Sync fetches all data (may take several minutes for large datasets).
                   </p>
                 </CardContent>
               </Card>

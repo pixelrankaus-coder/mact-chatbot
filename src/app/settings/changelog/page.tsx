@@ -95,6 +95,23 @@ const widgetChangelog: ChangelogEntry[] = [
 // Admin panel changelog
 const adminChangelog: ChangelogEntry[] = [
   {
+    version: "2.8.0",
+    date: "2025-01-22",
+    type: "feature",
+    title: "Fix Cin7 Sync + Configurable Settings (TASK #039)",
+    description:
+      "Removed sync page limits to fetch ALL data. Added configurable sync frequency and full/incremental sync modes.",
+    details: [
+      "Removed 50-page limit for orders sync (now fetches ALL orders)",
+      "Removed 20-page limit for customers sync (now fetches ALL customers)",
+      "Added Full Sync vs Quick Sync (incremental, last 30 days)",
+      "Added sync frequency dropdown (15min, 1hr, 6hr, daily, manual)",
+      "Cron now respects frequency settings (skips if not due)",
+      "Shows last sync time and cached record counts",
+      "Fixed missing 2024-2025 order data issue",
+    ],
+  },
+  {
     version: "2.7.0",
     date: "2025-01-22",
     type: "feature",
