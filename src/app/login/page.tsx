@@ -22,23 +22,23 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
 
-    try {
-      // Sign in with timeout
-      const signInPromise = supabase.auth.signInWithPassword({
+    // Create a timeout controller
+    let timeoutId: NodeJS.Timeout;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new Error("Login timed out. Please try again."));
+      }, 15000);
+    });
+
+    const loginFlow = async () => {
+      // Sign in
+      const { error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error("Login timed out. Please try again.")), 15000);
-      });
-
-      const { error: authError } = await Promise.race([signInPromise, timeoutPromise]);
-
       if (authError) {
-        setError(authError.message);
-        setLoading(false);
-        return;
+        throw new Error(authError.message);
       }
 
       // Check if user has an agent record
@@ -51,9 +51,7 @@ export default function LoginPage() {
       if (agentError || !agent) {
         // User authenticated but no agent record - sign out
         await supabase.auth.signOut();
-        setError("You are not authorized as an agent. Please contact an administrator.");
-        setLoading(false);
-        return;
+        throw new Error("You are not authorized as an agent. Please contact an administrator.");
       }
 
       // Update online status
@@ -65,8 +63,15 @@ export default function LoginPage() {
         })
         .eq("id", agent.id);
 
+      return true;
+    };
+
+    try {
+      await Promise.race([loginFlow(), timeoutPromise]);
+      clearTimeout(timeoutId!);
       router.push("/inbox");
     } catch (err: unknown) {
+      clearTimeout(timeoutId!);
       // Ignore AbortError - it's from React strict mode
       if (err instanceof Error && err.name === "AbortError") {
         setLoading(false);
