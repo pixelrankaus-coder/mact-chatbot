@@ -18,15 +18,35 @@ export default function LoginPage() {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const router = useRouter();
 
-  // Check if already logged in
+  // Check if already logged in with valid agent record
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        router.push("/inbox");
-      } else {
-        setCheckingAuth(false);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.email) {
+          // Also verify they have an agent record
+          const { data: agent } = await supabase
+            .from("agents")
+            .select("id")
+            .eq("email", user.email)
+            .single();
+
+          if (agent) {
+            // User is fully authenticated with agent record
+            router.push("/inbox");
+            return;
+          } else {
+            // User has auth but no agent record - sign them out
+            console.warn("User authenticated but no agent record found, signing out");
+            await supabase.auth.signOut();
+          }
+        }
+      } catch (err) {
+        console.error("Auth check error:", err);
+        // On error, sign out and show login form
+        await supabase.auth.signOut();
       }
+      setCheckingAuth(false);
     };
     checkAuth();
   }, [router]);
