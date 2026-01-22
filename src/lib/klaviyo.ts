@@ -15,6 +15,8 @@ type SupabaseAny = any;
 
 const KLAVIYO_API_URL = "https://a.klaviyo.com/api";
 const KLAVIYO_TRACK_URL = "https://a.klaviyo.com/client";
+// Use latest stable revision - updated from 2024-10-15 (deprecated)
+const KLAVIYO_REVISION = "2026-01-15";
 
 interface KlaviyoSettings {
   api_key: string;
@@ -95,7 +97,7 @@ export async function trackEvent(data: KlaviyoEventData): Promise<boolean> {
         "Accept": "application/json",
         "Content-Type": "application/json",
         "Authorization": `Klaviyo-API-Key ${settings.api_key}`,
-        "revision": "2024-10-15",
+        "revision": KLAVIYO_REVISION,
       },
       body: JSON.stringify({
         data: {
@@ -158,7 +160,7 @@ export async function upsertProfile(profile: KlaviyoProfile): Promise<string | n
         "Accept": "application/json",
         "Content-Type": "application/json",
         "Authorization": `Klaviyo-API-Key ${settings.api_key}`,
-        "revision": "2024-10-15",
+        "revision": KLAVIYO_REVISION,
       },
       body: JSON.stringify({
         data: {
@@ -189,7 +191,7 @@ export async function upsertProfile(profile: KlaviyoProfile): Promise<string | n
           headers: {
             "Accept": "application/json",
             "Authorization": `Klaviyo-API-Key ${settings.api_key}`,
-            "revision": "2024-10-15",
+            "revision": KLAVIYO_REVISION,
           },
         }
       );
@@ -229,7 +231,7 @@ async function updateProfile(
         "Accept": "application/json",
         "Content-Type": "application/json",
         "Authorization": `Klaviyo-API-Key ${apiKey}`,
-        "revision": "2024-10-15",
+        "revision": KLAVIYO_REVISION,
       },
       body: JSON.stringify({
         data: {
@@ -278,7 +280,7 @@ export async function subscribeToList(
         "Accept": "application/json",
         "Content-Type": "application/json",
         "Authorization": `Klaviyo-API-Key ${settings.api_key}`,
-        "revision": "2024-10-15",
+        "revision": KLAVIYO_REVISION,
       },
       body: JSON.stringify({
         data: [
@@ -349,4 +351,308 @@ export async function getKlaviyoPublicKey(): Promise<string | null> {
   const settings = await getKlaviyoSettings();
   if (!settings?.api_key) return null;
   return getPublicKey(settings.api_key);
+}
+
+// ============================================================================
+// BULK PROFILE SYNC FOR DORMANT CUSTOMER WIN-BACK CAMPAIGN (TASK #040)
+// ============================================================================
+
+export interface DormantCustomerProfile {
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  company?: string;
+  // Customer metadata
+  cin7Id?: string;
+  totalOrders: number;
+  totalSpent: number;
+  lastOrderDate: string;
+  daysSinceLastOrder: number;
+  // Order history for win-back personalization
+  orderHistory: DormantCustomerOrder[];
+  // TASK #041: Last product purchased for win-back personalization
+  lastProduct?: string;
+}
+
+export interface DormantCustomerOrder {
+  orderId: string;
+  orderNumber: string;
+  orderDate: string;
+  total: number;
+  currency: string;
+  status?: string;
+}
+
+export interface BulkSyncProgress {
+  total: number;
+  processed: number;
+  succeeded: number;
+  failed: number;
+  currentCustomer?: string;
+}
+
+/**
+ * Sync a single dormant customer profile to Klaviyo with full order history
+ * Creates/updates the profile and tracks historical order events
+ */
+export async function syncDormantCustomerToKlaviyo(
+  customer: DormantCustomerProfile,
+  settings: KlaviyoSettings
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    console.log(`[Klaviyo] Syncing customer: ${customer.email}`);
+
+    // Check if phone is in valid E.164 format (+[country code][number])
+    const isValidE164Phone = customer.phone && /^\+[1-9]\d{6,14}$/.test(customer.phone);
+
+    // Build profile attributes - only include phone if valid E.164 format
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const profileAttributes: Record<string, any> = {
+      email: customer.email,
+      first_name: customer.firstName,
+      last_name: customer.lastName,
+      organization: customer.company,
+      properties: {
+        // Customer segment identifiers
+        customer_segment: "dormant",
+        cin7_customer_id: customer.cin7Id,
+        // Order metrics for personalization
+        total_orders: customer.totalOrders,
+        total_spent: customer.totalSpent,
+        last_order_date: customer.lastOrderDate,
+        days_since_last_order: customer.daysSinceLastOrder,
+        // TASK #041: Last product for win-back personalization
+        last_product: customer.lastProduct || null,
+        // Source tracking
+        sync_source: "mact_admin",
+        synced_at: new Date().toISOString(),
+      },
+    };
+
+    // Only include phone_number if valid E.164 format
+    if (isValidE164Phone) {
+      profileAttributes.phone_number = customer.phone;
+    }
+
+    // 1. Create or update the profile with custom properties for segmentation
+    const profileResponse = await fetch(`${KLAVIYO_API_URL}/profiles/`, {
+      method: "POST",
+      headers: {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "Authorization": `Klaviyo-API-Key ${settings.api_key}`,
+        "revision": KLAVIYO_REVISION,
+      },
+      body: JSON.stringify({
+        data: {
+          type: "profile",
+          attributes: profileAttributes,
+        },
+      }),
+    });
+
+    let profileId: string | null = null;
+
+    console.log(`[Klaviyo] Profile response status: ${profileResponse.status}`);
+
+    if (profileResponse.status === 201) {
+      const data = await profileResponse.json();
+      profileId = data.data?.id;
+      console.log(`[Klaviyo] Created new profile: ${profileId}`);
+    } else if (profileResponse.status === 409) {
+      console.log(`[Klaviyo] Profile exists, updating...`);
+      // Profile exists, find and update it
+      const searchResponse = await fetch(
+        `${KLAVIYO_API_URL}/profiles/?filter=equals(email,"${encodeURIComponent(customer.email)}")`,
+        {
+          headers: {
+            "Accept": "application/json",
+            "Authorization": `Klaviyo-API-Key ${settings.api_key}`,
+            "revision": KLAVIYO_REVISION,
+          },
+        }
+      );
+
+      if (searchResponse.ok) {
+        const searchData = await searchResponse.json();
+        profileId = searchData.data?.[0]?.id;
+
+        if (profileId) {
+          // Update the existing profile with PATCH
+          console.log(`[Klaviyo] Sending PATCH to update profile ${profileId} for ${customer.email}`);
+
+          // Build attributes - only include phone if it's in valid E.164 format
+          // E.164 format: +[country code][number], e.g., +12345678901
+          const isValidE164Phone = customer.phone && /^\+[1-9]\d{6,14}$/.test(customer.phone);
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const patchAttributes: Record<string, any> = {
+            first_name: customer.firstName,
+            last_name: customer.lastName,
+            organization: customer.company,
+            properties: {
+              customer_segment: "dormant",
+              cin7_customer_id: customer.cin7Id,
+              total_orders: customer.totalOrders,
+              total_spent: customer.totalSpent,
+              last_order_date: customer.lastOrderDate,
+              days_since_last_order: customer.daysSinceLastOrder,
+              last_product: customer.lastProduct || null,
+              sync_source: "mact_admin",
+              synced_at: new Date().toISOString(),
+            },
+          };
+
+          // Only include phone_number if valid
+          if (isValidE164Phone) {
+            patchAttributes.phone_number = customer.phone;
+          }
+
+          const patchBody = {
+            data: {
+              type: "profile",
+              id: profileId,
+              attributes: patchAttributes,
+            },
+          };
+          console.log(`[Klaviyo] PATCH body properties:`, JSON.stringify(patchBody.data.attributes.properties, null, 2));
+
+          const patchResponse = await fetch(`${KLAVIYO_API_URL}/profiles/${profileId}/`, {
+            method: "PATCH",
+            headers: {
+              "Accept": "application/json",
+              "Content-Type": "application/json",
+              "Authorization": `Klaviyo-API-Key ${settings.api_key}`,
+              "revision": KLAVIYO_REVISION,
+            },
+            body: JSON.stringify(patchBody),
+          });
+
+          console.log(`[Klaviyo] PATCH response status: ${patchResponse.status}`);
+
+          if (!patchResponse.ok) {
+            const errorText = await patchResponse.text();
+            console.error(`[Klaviyo] PATCH failed for ${customer.email}: ${patchResponse.status} - ${errorText}`);
+          } else {
+            const patchData = await patchResponse.json();
+            console.log(`[Klaviyo] PATCH success - updated profile ${profileId}`);
+            // Log the returned properties to verify they were saved
+            const returnedProps = patchData.data?.attributes?.properties;
+            if (returnedProps) {
+              console.log(`[Klaviyo] Returned properties:`, JSON.stringify(returnedProps, null, 2));
+            }
+          }
+        }
+      }
+    } else {
+      const errorText = await profileResponse.text();
+      console.error(`[Klaviyo] Profile creation failed (${profileResponse.status}):`, errorText);
+      return { success: false, error: `Profile creation failed (${profileResponse.status}): ${errorText}` };
+    }
+
+    // 2. Track historical order events (for win-back email personalization)
+    // Track the most recent 5 orders to avoid API rate limits
+    const recentOrders = customer.orderHistory.slice(0, 5);
+
+    for (const order of recentOrders) {
+      await trackHistoricalOrderEvent(customer, order, settings);
+      // Small delay to avoid rate limiting
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+
+    // 3. Subscribe to the configured list for campaign targeting
+    if (settings.list_id && profileId) {
+      console.log(`[Klaviyo] Adding profile ${profileId} to list ${settings.list_id}`);
+      const listResponse = await fetch(`${KLAVIYO_API_URL}/lists/${settings.list_id}/relationships/profiles/`, {
+        method: "POST",
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": `Klaviyo-API-Key ${settings.api_key}`,
+          "revision": KLAVIYO_REVISION,
+        },
+        body: JSON.stringify({
+          data: [
+            {
+              type: "profile",
+              id: profileId,
+            },
+          ],
+        }),
+      });
+      console.log(`[Klaviyo] List subscription response: ${listResponse.status}`);
+    }
+
+    console.log(`[Klaviyo] Successfully synced: ${customer.email}`);
+    return { success: true };
+  } catch (error) {
+    console.error(`[Klaviyo] Error syncing ${customer.email}:`, error);
+    return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
+  }
+}
+
+/**
+ * Track a historical order event for a customer
+ * Uses the "Placed Order" metric for win-back flow triggers
+ */
+async function trackHistoricalOrderEvent(
+  customer: DormantCustomerProfile,
+  order: DormantCustomerOrder,
+  settings: KlaviyoSettings
+): Promise<void> {
+  try {
+    await fetch(`${KLAVIYO_API_URL}/events/`, {
+      method: "POST",
+      headers: {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "Authorization": `Klaviyo-API-Key ${settings.api_key}`,
+        "revision": KLAVIYO_REVISION,
+      },
+      body: JSON.stringify({
+        data: {
+          type: "event",
+          attributes: {
+            metric: {
+              data: {
+                type: "metric",
+                attributes: {
+                  name: "Placed Order",
+                },
+              },
+            },
+            profile: {
+              data: {
+                type: "profile",
+                attributes: {
+                  email: customer.email,
+                },
+              },
+            },
+            properties: {
+              order_id: order.orderId,
+              order_number: order.orderNumber,
+              value: order.total,
+              currency: order.currency || "AUD",
+              status: order.status,
+              source: "cin7",
+              historical_sync: true,
+            },
+            time: order.orderDate,
+            unique_id: `cin7-order-${order.orderId}`,
+          },
+        },
+      }),
+    });
+  } catch (error) {
+    console.error("Failed to track historical order event:", error);
+  }
+}
+
+/**
+ * Get Klaviyo settings (exported version for sync endpoint)
+ */
+export async function getKlaviyoSettingsPublic(): Promise<KlaviyoSettings | null> {
+  return getKlaviyoSettings();
 }

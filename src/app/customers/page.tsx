@@ -34,6 +34,9 @@ import {
   Clock,
   Sparkles,
   AtSign,
+  Send,
+  CheckCircle,
+  AlertCircle,
 } from "lucide-react";
 import type { UnifiedCustomer, CustomerSource, CustomerStats } from "@/types/customer";
 
@@ -195,20 +198,43 @@ function SourceFilter({
   );
 }
 
+// Klaviyo sync status
+interface KlaviyoSyncStatus {
+  syncing: boolean;
+  progress?: {
+    total: number;
+    processed: number;
+    succeeded: number;
+    failed: number;
+    currentCustomer?: string;
+  };
+  result?: {
+    total: number;
+    succeeded: number;
+    failed: number;
+    message: string;
+  };
+  error?: string;
+}
+
 // Segment tabs component
 function SegmentTabs({
   value,
   onChange,
   stats,
+  onSyncToKlaviyo,
+  klaviyoStatus,
 }: {
   value: Segment;
   onChange: (segment: Segment) => void;
   stats: ExtendedStats;
+  onSyncToKlaviyo?: () => void;
+  klaviyoStatus?: KlaviyoSyncStatus;
 }) {
   const segments = stats.segments || { all: 0, vip: 0, active: 0, dormant: 0, new: 0, marketable: 0 };
 
   return (
-    <div className="flex flex-wrap gap-2 border-b pb-4">
+    <div className="flex flex-wrap items-center gap-2 border-b pb-4">
       <Button
         variant={value === "all" ? "default" : "ghost"}
         size="sm"
@@ -263,6 +289,61 @@ function SegmentTabs({
         <AtSign className="h-4 w-4 text-purple-500" />
         Marketable ({segments.marketable.toLocaleString()})
       </Button>
+
+      {/* Sync to Klaviyo button - only visible on Dormant segment */}
+      {value === "dormant" && onSyncToKlaviyo && (
+        <div className="ml-auto flex items-center gap-2">
+          {klaviyoStatus?.syncing && klaviyoStatus.progress && (
+            <span className="text-sm text-slate-500">
+              {klaviyoStatus.progress.processed} / {klaviyoStatus.progress.total}
+              {klaviyoStatus.progress.currentCustomer && (
+                <span className="ml-1 text-slate-400">
+                  ({klaviyoStatus.progress.currentCustomer})
+                </span>
+              )}
+            </span>
+          )}
+          {klaviyoStatus?.result && !klaviyoStatus.syncing && (
+            <span className="flex items-center gap-1 text-sm">
+              {klaviyoStatus.result.failed === 0 ? (
+                <>
+                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <span className="text-green-600">
+                    {klaviyoStatus.result.succeeded} synced
+                  </span>
+                </>
+              ) : (
+                <>
+                  <AlertCircle className="h-4 w-4 text-yellow-500" />
+                  <span className="text-yellow-600">
+                    {klaviyoStatus.result.succeeded} synced, {klaviyoStatus.result.failed} failed
+                  </span>
+                </>
+              )}
+            </span>
+          )}
+          {klaviyoStatus?.error && (
+            <span className="flex items-center gap-1 text-sm text-red-600">
+              <AlertCircle className="h-4 w-4" />
+              {klaviyoStatus.error}
+            </span>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onSyncToKlaviyo}
+            disabled={klaviyoStatus?.syncing}
+            className="gap-2 border-pink-200 bg-pink-50 text-pink-700 hover:bg-pink-100"
+          >
+            {klaviyoStatus?.syncing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+            Sync to Klaviyo
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -400,6 +481,9 @@ export default function CustomersPage() {
     total: 0,
     segments: { all: 0, vip: 0, active: 0, dormant: 0, new: 0, marketable: 0 },
   });
+  const [klaviyoStatus, setKlaviyoStatus] = useState<KlaviyoSyncStatus>({
+    syncing: false,
+  });
   const limit = 50;
 
   const fetchCustomers = useCallback(async () => {
@@ -460,6 +544,86 @@ export default function CustomersPage() {
     }
     setPage(1);
   };
+
+  // Handle Klaviyo sync for dormant customers
+  const handleSyncToKlaviyo = useCallback(async () => {
+    setKlaviyoStatus({ syncing: true });
+
+    try {
+      const response = await fetch("/api/klaviyo/sync-dormant", {
+        method: "POST",
+        headers: {
+          Accept: "text/event-stream",
+        },
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        setKlaviyoStatus({
+          syncing: false,
+          error: error.error || "Sync failed",
+        });
+        return;
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        setKlaviyoStatus({ syncing: false, error: "No response stream" });
+        return;
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        let currentEvent = "";
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            currentEvent = line.slice(7).trim();
+          } else if (line.startsWith("data: ") && currentEvent) {
+            try {
+              const data = JSON.parse(line.slice(6));
+
+              if (currentEvent === "progress") {
+                setKlaviyoStatus({
+                  syncing: true,
+                  progress: data,
+                });
+              } else if (currentEvent === "complete") {
+                setKlaviyoStatus({
+                  syncing: false,
+                  result: data,
+                });
+              } else if (currentEvent === "error") {
+                setKlaviyoStatus({
+                  syncing: false,
+                  error: data.message,
+                });
+              } else if (currentEvent === "status") {
+                // Status messages don't need UI update, just log
+                console.log("[Klaviyo Sync]", data.message);
+              }
+            } catch {
+              // Ignore parse errors
+            }
+            currentEvent = ""; // Reset after processing
+          }
+        }
+      }
+    } catch (error) {
+      setKlaviyoStatus({
+        syncing: false,
+        error: error instanceof Error ? error.message : "Sync failed",
+      });
+    }
+  }, []);
 
   const totalPages = Math.ceil(total / limit);
 
@@ -558,6 +722,8 @@ export default function CustomersPage() {
                 value={segment}
                 onChange={handleSegmentChange}
                 stats={stats}
+                onSyncToKlaviyo={handleSyncToKlaviyo}
+                klaviyoStatus={klaviyoStatus}
               />
 
               {/* Source Filter */}

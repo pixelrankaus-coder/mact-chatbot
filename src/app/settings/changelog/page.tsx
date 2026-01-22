@@ -95,6 +95,22 @@ const widgetChangelog: ChangelogEntry[] = [
 // Admin panel changelog
 const adminChangelog: ChangelogEntry[] = [
   {
+    version: "2.9.0",
+    date: "2025-01-22",
+    type: "feature",
+    title: "Dormant Customer Win-Back Campaign (TASK #040)",
+    description:
+      "Sync dormant customers to Klaviyo with full order history for personalized win-back email campaigns.",
+    details: [
+      "New 'Sync to Klaviyo' button on Customers page (Dormant segment)",
+      "Bulk profile sync with customer segment tagging (total_orders, total_spent, days_since_last_order)",
+      "Historical order events tracked as 'Placed Order' metric for flow triggers",
+      "Real-time SSE progress updates during sync",
+      "GET /api/klaviyo/sync-dormant for preview, POST to execute sync",
+      "Profiles automatically subscribed to configured Klaviyo list",
+    ],
+  },
+  {
     version: "2.8.1",
     date: "2025-01-22",
     type: "fix",
