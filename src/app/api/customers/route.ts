@@ -45,10 +45,27 @@ export async function GET(req: NextRequest) {
       } else {
         cin7Total = count || 0;
 
-        // Fetch orders for Cin7 customers to calculate aggregates
-        const { data: cin7Orders } = await supabase
-          .from("cin7_orders")
-          .select("customer_id, total, order_date");
+        // Fetch ALL orders for Cin7 customers to calculate aggregates
+        // Use pagination to get around Supabase's 1000 row default limit
+        let cin7Orders: { customer_id: string; total: number; order_date: string }[] = [];
+        let ordersPage = 0;
+        const ordersPageSize = 1000;
+        let hasMoreOrders = true;
+
+        while (hasMoreOrders) {
+          const { data: ordersChunk } = await supabase
+            .from("cin7_orders")
+            .select("customer_id, total, order_date")
+            .range(ordersPage * ordersPageSize, (ordersPage + 1) * ordersPageSize - 1);
+
+          if (ordersChunk && ordersChunk.length > 0) {
+            cin7Orders = cin7Orders.concat(ordersChunk);
+            ordersPage++;
+            hasMoreOrders = ordersChunk.length === ordersPageSize;
+          } else {
+            hasMoreOrders = false;
+          }
+        }
 
         // Build order aggregates by customer_id
         const orderAggregates: Record<string, { count: number; total: number; lastDate: string | null }> = {};
@@ -117,10 +134,27 @@ export async function GET(req: NextRequest) {
       } else {
         wooTotal = wooCount || 0;
 
-        // Fetch orders for WooCommerce customers to calculate aggregates
-        const { data: wooOrders } = await supabase
-          .from("woo_orders")
-          .select("customer_email, total, order_date");
+        // Fetch ALL orders for WooCommerce customers to calculate aggregates
+        // Use pagination to get around Supabase's 1000 row default limit
+        let wooOrders: { customer_email: string; total: number; order_date: string }[] = [];
+        let wooOrdersPage = 0;
+        const wooOrdersPageSize = 1000;
+        let hasMoreWooOrders = true;
+
+        while (hasMoreWooOrders) {
+          const { data: wooOrdersChunk } = await supabase
+            .from("woo_orders")
+            .select("customer_email, total, order_date")
+            .range(wooOrdersPage * wooOrdersPageSize, (wooOrdersPage + 1) * wooOrdersPageSize - 1);
+
+          if (wooOrdersChunk && wooOrdersChunk.length > 0) {
+            wooOrders = wooOrders.concat(wooOrdersChunk);
+            wooOrdersPage++;
+            hasMoreWooOrders = wooOrdersChunk.length === wooOrdersPageSize;
+          } else {
+            hasMoreWooOrders = false;
+          }
+        }
 
         // Build order aggregates by customer email
         const wooOrderAggregates: Record<string, { count: number; total: number; lastDate: string | null }> = {};

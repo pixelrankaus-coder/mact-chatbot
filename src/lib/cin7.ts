@@ -142,10 +142,19 @@ export async function searchSales(params: {
       headers: getHeaders(),
     });
     if (!res.ok) return { SaleList: [], Total: 0 };
-    return res.json();
+
+    const data = await res.json();
+
+    // Cin7 API can return 200 OK with errors in the response body
+    if (data.Errors && data.Errors.length > 0) {
+      console.error("Cin7 API error:", data.Errors.join(", "));
+      throw new Error(`Cin7 API error: ${data.Errors.join(", ")}`);
+    }
+
+    return data;
   } catch (error) {
     console.error("Cin7 searchSales error:", error);
-    return { SaleList: [], Total: 0 };
+    throw error; // Re-throw to propagate error instead of silently returning empty
   }
 }
 
@@ -159,53 +168,48 @@ export async function listAllSales(params?: {
   const allSales: Cin7SaleListItem[] = [];
   let total = 0;
 
-  try {
-    // First request to get total count
-    const firstResult = await searchSales({
-      modifiedSince: params?.modifiedSince,
-      page: 1,
-      limit,
-    });
+  // First request to get total count (let errors propagate)
+  const firstResult = await searchSales({
+    modifiedSince: params?.modifiedSince,
+    page: 1,
+    limit,
+  });
 
-    total = firstResult.Total;
-    allSales.push(...(firstResult.SaleList || []));
+  total = firstResult.Total;
+  allSales.push(...(firstResult.SaleList || []));
 
-    // Calculate remaining pages needed
-    const totalPages = Math.min(Math.ceil(total / limit), maxPages);
+  // Calculate remaining pages needed
+  const totalPages = Math.min(Math.ceil(total / limit), maxPages);
 
-    // Fetch remaining pages in batches of 3 to avoid rate limiting
-    const remainingPages = Array.from(
-      { length: totalPages - 1 },
-      (_, i) => i + 2
+  // Fetch remaining pages in batches of 3 to avoid rate limiting
+  const remainingPages = Array.from(
+    { length: totalPages - 1 },
+    (_, i) => i + 2
+  );
+
+  for (let i = 0; i < remainingPages.length; i += 3) {
+    const batch = remainingPages.slice(i, i + 3);
+    const results = await Promise.all(
+      batch.map((p) =>
+        searchSales({
+          modifiedSince: params?.modifiedSince,
+          page: p,
+          limit,
+        })
+      )
     );
 
-    for (let i = 0; i < remainingPages.length; i += 3) {
-      const batch = remainingPages.slice(i, i + 3);
-      const results = await Promise.all(
-        batch.map((p) =>
-          searchSales({
-            modifiedSince: params?.modifiedSince,
-            page: p,
-            limit,
-          })
-        )
-      );
-
-      for (const result of results) {
-        allSales.push(...(result.SaleList || []));
-      }
-
-      // Small delay between batches to respect rate limits
-      if (i + 3 < remainingPages.length) {
-        await new Promise((resolve) => setTimeout(resolve, 200));
-      }
+    for (const result of results) {
+      allSales.push(...(result.SaleList || []));
     }
 
-    return { SaleList: allSales, Total: total };
-  } catch (error) {
-    console.error("Cin7 listAllSales error:", error);
-    return { SaleList: allSales, Total: total };
+    // Small delay between batches to respect rate limits
+    if (i + 3 < remainingPages.length) {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
   }
+
+  return { SaleList: allSales, Total: total };
 }
 
 // ============ CUSTOMERS ============
@@ -305,10 +309,19 @@ export async function listCustomers(params: {
       headers: getHeaders(),
     });
     if (!res.ok) return { CustomerList: [], Total: 0 };
-    return res.json();
+
+    const data = await res.json();
+
+    // Cin7 API can return 200 OK with errors in the response body
+    if (data.Errors && data.Errors.length > 0) {
+      console.error("Cin7 API error:", data.Errors.join(", "));
+      throw new Error(`Cin7 API error: ${data.Errors.join(", ")}`);
+    }
+
+    return data;
   } catch (error) {
     console.error("Cin7 listCustomers error:", error);
-    return { CustomerList: [], Total: 0 };
+    throw error; // Re-throw to propagate error instead of silently returning empty
   }
 }
 
@@ -320,51 +333,45 @@ export async function listAllCustomers(params?: {
   const limit = 250; // Max allowed by Cin7 API
   const maxPages = params?.maxPages || 20; // Safety limit
   const allCustomers: Cin7Customer[] = [];
-  let page = 1;
   let total = 0;
 
-  try {
-    // First request to get total count
-    const firstResult = await listCustomers({
-      search: params?.search,
-      page: 1,
-      limit,
-    });
+  // First request to get total count (let errors propagate)
+  const firstResult = await listCustomers({
+    search: params?.search,
+    page: 1,
+    limit,
+  });
 
-    total = firstResult.Total;
-    allCustomers.push(...(firstResult.CustomerList || []));
+  total = firstResult.Total;
+  allCustomers.push(...(firstResult.CustomerList || []));
 
-    // Calculate remaining pages needed
-    const totalPages = Math.min(Math.ceil(total / limit), maxPages);
+  // Calculate remaining pages needed
+  const totalPages = Math.min(Math.ceil(total / limit), maxPages);
 
-    // Fetch remaining pages in parallel (batches of 5 to avoid rate limiting)
-    const remainingPages = Array.from(
-      { length: totalPages - 1 },
-      (_, i) => i + 2
+  // Fetch remaining pages in parallel (batches of 5 to avoid rate limiting)
+  const remainingPages = Array.from(
+    { length: totalPages - 1 },
+    (_, i) => i + 2
+  );
+
+  for (let i = 0; i < remainingPages.length; i += 5) {
+    const batch = remainingPages.slice(i, i + 5);
+    const results = await Promise.all(
+      batch.map((p) =>
+        listCustomers({
+          search: params?.search,
+          page: p,
+          limit,
+        })
+      )
     );
 
-    for (let i = 0; i < remainingPages.length; i += 5) {
-      const batch = remainingPages.slice(i, i + 5);
-      const results = await Promise.all(
-        batch.map((p) =>
-          listCustomers({
-            search: params?.search,
-            page: p,
-            limit,
-          })
-        )
-      );
-
-      for (const result of results) {
-        allCustomers.push(...(result.CustomerList || []));
-      }
+    for (const result of results) {
+      allCustomers.push(...(result.CustomerList || []));
     }
-
-    return { CustomerList: allCustomers, Total: total };
-  } catch (error) {
-    console.error("Cin7 listAllCustomers error:", error);
-    return { CustomerList: allCustomers, Total: total };
   }
+
+  return { CustomerList: allCustomers, Total: total };
 }
 
 // Search customers (alias for backwards compatibility)

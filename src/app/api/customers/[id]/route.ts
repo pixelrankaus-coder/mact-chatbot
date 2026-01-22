@@ -91,53 +91,162 @@ export async function GET(
         }
       }
     } else {
-      // Try Cin7 first
-      const cin7Customer = await getCustomer(id);
+      // Try Cin7 - get from Supabase cache first for accurate order totals
+      const supabase = createServiceClient() as SupabaseAny;
 
-      if (cin7Customer) {
-        customer = cin7ToUnified(cin7Customer);
+      // Check if this is a Cin7 ID format (starts with cin7- or is a UUID)
+      const cin7Id = id.startsWith("cin7-") ? id.replace("cin7-", "") : id;
 
-        // Get Cin7 orders
-        const ordersResult = await getCustomerOrders(id, 20);
-        cin7Orders = ordersResult.SaleList || [];
+      // First try to get customer from Supabase cache
+      const { data: dbCustomer } = await supabase
+        .from("cin7_customers")
+        .select("*")
+        .eq("cin7_id", cin7Id)
+        .single();
+
+      if (dbCustomer) {
+        // Found in database - use cached data
+        customer = {
+          id: `cin7-${dbCustomer.cin7_id}`,
+          cin7Id: dbCustomer.cin7_id,
+          name: dbCustomer.name || "",
+          email: dbCustomer.email || "",
+          phone: dbCustomer.phone || dbCustomer.raw_data?.Phone || "",
+          company: dbCustomer.company || dbCustomer.name || "",
+          status: dbCustomer.status?.toLowerCase() === "active" ? "active" : "inactive",
+          sources: ["cin7"] as ("cin7" | "woocommerce")[],
+          lastUpdated: dbCustomer.updated_at || "",
+          cin7Data: {
+            currency: dbCustomer.currency,
+            paymentTerm: dbCustomer.payment_term,
+            creditLimit: dbCustomer.credit_limit ? parseFloat(String(dbCustomer.credit_limit)) : undefined,
+            discount: dbCustomer.discount ? parseFloat(String(dbCustomer.discount)) : undefined,
+            taxNumber: dbCustomer.tax_number,
+            tags: dbCustomer.tags,
+            priceTier: dbCustomer.raw_data?.PriceTier,
+            taxRule: dbCustomer.raw_data?.TaxRule,
+            carrier: dbCustomer.raw_data?.Carrier,
+            location: dbCustomer.raw_data?.Location,
+            salesRepresentative: dbCustomer.raw_data?.SalesRepresentative,
+            comments: dbCustomer.raw_data?.Comments,
+          },
+        };
+
+        // Get Cin7 orders from Supabase cache (has accurate totals)
+        const { data: dbOrders } = await supabase
+          .from("cin7_orders")
+          .select("*")
+          .eq("customer_id", cin7Id)
+          .order("order_date", { ascending: false });
+
+        if (dbOrders) {
+          cin7Orders = dbOrders.map((o: SupabaseAny) => ({
+            ID: o.cin7_id,
+            OrderNumber: o.order_number,
+            Status: o.status,
+            OrderDate: o.order_date,
+            Total: o.total,
+            Currency: o.currency,
+            InvoiceNumber: o.invoice_number,
+            TrackingNumber: o.tracking_number,
+            ShippingStatus: o.shipping_status,
+          }));
+        }
 
         // Try to find matching WooCommerce customer by email
         if (customer.email) {
-          const { getWooCustomers } = await import("@/lib/woocommerce");
-          const wooResult = await getWooCustomers({ search: customer.email, per_page: 1 });
+          const { data: wooCustomerDb } = await supabase
+            .from("woo_customers")
+            .select("*")
+            .eq("email", customer.email.toLowerCase())
+            .single();
 
-          if (wooResult.customers && wooResult.customers.length > 0) {
-            const wooCustomer = wooResult.customers[0];
-            // Check if email matches exactly
-            if (wooCustomer.email.toLowerCase() === customer.email.toLowerCase()) {
-              // Merge WooCommerce data
-              customer.wooId = wooCustomer.id;
-              customer.sources = ["cin7", "woocommerce"];
-              customer.totalOrders = wooCustomer.orders_count;
-              customer.totalSpent = parseFloat(wooCustomer.total_spent) || 0;
-              customer.wooData = {
-                username: wooCustomer.username,
-                avatarUrl: wooCustomer.avatar_url,
-                billing: wooCustomer.billing ? {
-                  address_1: wooCustomer.billing.address_1,
-                  address_2: wooCustomer.billing.address_2,
-                  city: wooCustomer.billing.city,
-                  state: wooCustomer.billing.state,
-                  postcode: wooCustomer.billing.postcode,
-                  country: wooCustomer.billing.country,
-                } : undefined,
-                shipping: wooCustomer.shipping ? {
-                  address_1: wooCustomer.shipping.address_1,
-                  address_2: wooCustomer.shipping.address_2,
-                  city: wooCustomer.shipping.city,
-                  state: wooCustomer.shipping.state,
-                  postcode: wooCustomer.shipping.postcode,
-                  country: wooCustomer.shipping.country,
-                } : undefined,
-              };
+          if (wooCustomerDb) {
+            // Merge WooCommerce data
+            customer.wooId = wooCustomerDb.woo_id;
+            customer.sources = ["cin7", "woocommerce"];
+            customer.totalOrders = wooCustomerDb.orders_count;
+            customer.totalSpent = wooCustomerDb.total_spent || 0;
+            customer.wooData = {
+              username: wooCustomerDb.username,
+              ordersCount: wooCustomerDb.orders_count,
+              totalSpent: wooCustomerDb.total_spent,
+              avatarUrl: wooCustomerDb.avatar_url,
+              billingAddress: wooCustomerDb.billing_address,
+              shippingAddress: wooCustomerDb.shipping_address,
+            };
 
-              // Get WooCommerce orders too
-              wooOrders = await getWooCustomerOrders(wooCustomer.id);
+            // Get WooCommerce orders from cache
+            const { data: wooOrdersDb } = await supabase
+              .from("woo_orders")
+              .select("*")
+              .eq("customer_email", customer.email.toLowerCase())
+              .order("order_date", { ascending: false });
+
+            if (wooOrdersDb) {
+              wooOrders = wooOrdersDb.map((o: SupabaseAny) => ({
+                id: o.woo_id,
+                number: o.order_number,
+                status: o.status,
+                dateCreated: o.order_date,
+                total: String(o.total),
+                currency: o.currency,
+                customerEmail: o.customer_email,
+                customerName: o.customer_name,
+                items: o.line_items || [],
+              }));
+            }
+          }
+        }
+      } else {
+        // Not in cache, fall back to live Cin7 API
+        const cin7Customer = await getCustomer(cin7Id);
+
+        if (cin7Customer) {
+          customer = cin7ToUnified(cin7Customer);
+
+          // Get Cin7 orders from API
+          const ordersResult = await getCustomerOrders(cin7Id, 50);
+          cin7Orders = ordersResult.SaleList || [];
+
+          // Try to find matching WooCommerce customer by email
+          if (customer.email) {
+            const { getWooCustomers } = await import("@/lib/woocommerce");
+            const wooResult = await getWooCustomers({ search: customer.email, per_page: 1 });
+
+            if (wooResult.customers && wooResult.customers.length > 0) {
+              const wooCustomer = wooResult.customers[0];
+              // Check if email matches exactly
+              if (wooCustomer.email.toLowerCase() === customer.email.toLowerCase()) {
+                // Merge WooCommerce data
+                customer.wooId = wooCustomer.id;
+                customer.sources = ["cin7", "woocommerce"];
+                customer.totalOrders = wooCustomer.orders_count;
+                customer.totalSpent = parseFloat(wooCustomer.total_spent) || 0;
+                customer.wooData = {
+                  username: wooCustomer.username,
+                  avatarUrl: wooCustomer.avatar_url,
+                  billing: wooCustomer.billing ? {
+                    address_1: wooCustomer.billing.address_1,
+                    address_2: wooCustomer.billing.address_2,
+                    city: wooCustomer.billing.city,
+                    state: wooCustomer.billing.state,
+                    postcode: wooCustomer.billing.postcode,
+                    country: wooCustomer.billing.country,
+                  } : undefined,
+                  shipping: wooCustomer.shipping ? {
+                    address_1: wooCustomer.shipping.address_1,
+                    address_2: wooCustomer.shipping.address_2,
+                    city: wooCustomer.shipping.city,
+                    state: wooCustomer.shipping.state,
+                    postcode: wooCustomer.shipping.postcode,
+                    country: wooCustomer.shipping.country,
+                  } : undefined,
+                };
+
+                // Get WooCommerce orders too
+                wooOrders = await getWooCustomerOrders(wooCustomer.id);
+              }
             }
           }
         }

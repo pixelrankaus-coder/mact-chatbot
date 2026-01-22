@@ -117,7 +117,14 @@ async function fetchSalesList(
     throw new Error(`Cin7 API error: ${res.status} ${res.statusText}`);
   }
 
-  return res.json();
+  const data = await res.json();
+
+  // Cin7 API can return 200 OK with errors in the response body
+  if (data.Errors && data.Errors.length > 0) {
+    throw new Error(`Cin7 API error: ${data.Errors.join(", ")}`);
+  }
+
+  return data;
 }
 
 /**
@@ -140,7 +147,14 @@ async function fetchCustomers(
     throw new Error(`Cin7 API error: ${res.status} ${res.statusText}`);
   }
 
-  return res.json();
+  const data = await res.json();
+
+  // Cin7 API can return 200 OK with errors in the response body
+  if (data.Errors && data.Errors.length > 0) {
+    throw new Error(`Cin7 API error: ${data.Errors.join(", ")}`);
+  }
+
+  return data;
 }
 
 /**
