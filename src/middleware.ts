@@ -1,18 +1,11 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
-import { createServerClient } from "@supabase/ssr";
+import { type NextRequest, NextResponse } from "next/server";
+import { updateSession } from "@/utils/supabase/middleware";
 
 /**
- * Task 044: Auth Middleware
+ * Auth Middleware
  *
- * Protects routes that require authentication:
- * - /inbox
- * - /customers
- * - /settings
- * - /orders
- * - /ai-agent
- *
- * Redirects unauthenticated users to /login
+ * Protects routes that require authentication and handles session refresh.
+ * Uses the official @supabase/ssr pattern for reliable auth.
  */
 
 // Routes that require authentication
@@ -24,11 +17,14 @@ const PROTECTED_ROUTES = [
   "/ai-agent",
 ];
 
+// Routes that are always public
+const PUBLIC_ROUTES = ["/login", "/auth"];
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Skip middleware for login page - let users see the form
-  if (pathname === "/login" || pathname.startsWith("/login/")) {
+  // Skip middleware for public routes
+  if (PUBLIC_ROUTES.some((route) => pathname.startsWith(route))) {
     return NextResponse.next();
   }
 
@@ -37,40 +33,13 @@ export async function middleware(request: NextRequest) {
     (route) => pathname === route || pathname.startsWith(`${route}/`)
   );
 
-  // Only check auth for protected routes
+  // For non-protected routes, just pass through
   if (!isProtectedRoute) {
     return NextResponse.next();
   }
 
-  // Create a Supabase client with cookies
-  const response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
-  });
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            request.cookies.set(name, value);
-            response.cookies.set(name, value, options);
-          });
-        },
-      },
-    }
-  );
-
-  // Get the current session
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Update session and check auth for protected routes
+  const { user, supabaseResponse } = await updateSession(request);
 
   // Redirect unauthenticated users to login
   if (!user) {
@@ -79,7 +48,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  return response;
+  return supabaseResponse;
 }
 
 // Configure which paths the middleware runs on
