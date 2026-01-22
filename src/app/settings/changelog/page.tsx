@@ -95,6 +95,24 @@ const widgetChangelog: ChangelogEntry[] = [
 // Admin panel changelog
 const adminChangelog: ChangelogEntry[] = [
   {
+    version: "2.10.0",
+    date: "2026-01-23",
+    type: "feature",
+    title: "Inbox Polish & Team System (TASK #043-046)",
+    description:
+      "Auto-resolve inactive chats, route protection middleware, and chat assignment system for team collaboration.",
+    details: [
+      "#043: Auto-resolve chats after 24h inactivity (POST /api/conversations/auto-resolve)",
+      "#043: Resolved chats re-activate when visitor replies",
+      "#044: Middleware protects /inbox, /customers, /settings, /orders routes",
+      "#044: Logout button added to Account settings",
+      "#045: Team management UI at /settings/team (already existed)",
+      "#046: Assign dropdown in chat header with team member list",
+      "#046: 'My Chats' and 'Unassigned' filters in inbox sidebar",
+      "#046: Assigned agent badge shown on conversation list items",
+    ],
+  },
+  {
     version: "2.9.0",
     date: "2025-01-22",
     type: "feature",
