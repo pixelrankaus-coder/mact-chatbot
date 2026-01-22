@@ -47,15 +47,7 @@ export async function login(formData: FormData) {
     redirect(`/login?${params.toString()}`);
   }
 
-  // Update online status
-  await supabase
-    .from("agents")
-    .update({
-      is_online: true,
-      last_seen_at: new Date().toISOString(),
-    })
-    .eq("id", agent.id);
-
+  // Note: Online status is updated by AgentContext after redirect
   // Revalidate and redirect
   revalidatePath("/", "layout");
   redirect(redirectTo || "/inbox");
