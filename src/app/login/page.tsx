@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
@@ -15,41 +15,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [checkingAuth, setCheckingAuth] = useState(true);
   const router = useRouter();
-
-  // Check if already logged in with valid agent record
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user?.email) {
-          // Also verify they have an agent record
-          const { data: agent } = await supabase
-            .from("agents")
-            .select("id")
-            .eq("email", user.email)
-            .single();
-
-          if (agent) {
-            // User is fully authenticated with agent record
-            router.push("/inbox");
-            return;
-          } else {
-            // User has auth but no agent record - sign them out
-            console.warn("User authenticated but no agent record found, signing out");
-            await supabase.auth.signOut();
-          }
-        }
-      } catch (err) {
-        console.error("Auth check error:", err);
-        // On error, sign out and show login form
-        await supabase.auth.signOut();
-      }
-      setCheckingAuth(false);
-    };
-    checkAuth();
-  }, [router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,14 +65,6 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
-
-  if (checkingAuth) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-      </div>
-    );
-  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">

@@ -24,11 +24,23 @@ const PROTECTED_ROUTES = [
   "/ai-agent",
 ];
 
-// Routes that should redirect to inbox if authenticated
-const AUTH_ROUTES = ["/login"];
-
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // Skip middleware for login page - let users see the form
+  if (pathname === "/login" || pathname.startsWith("/login/")) {
+    return NextResponse.next();
+  }
+
+  // Check if the path is a protected route
+  const isProtectedRoute = PROTECTED_ROUTES.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`)
+  );
+
+  // Only check auth for protected routes
+  if (!isProtectedRoute) {
+    return NextResponse.next();
+  }
 
   // Create a Supabase client with cookies
   const response = NextResponse.next({
@@ -60,27 +72,11 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Check if the path is a protected route
-  const isProtectedRoute = PROTECTED_ROUTES.some(
-    (route) => pathname === route || pathname.startsWith(`${route}/`)
-  );
-
-  // Check if the path is an auth route (login)
-  const isAuthRoute = AUTH_ROUTES.some(
-    (route) => pathname === route || pathname.startsWith(`${route}/`)
-  );
-
   // Redirect unauthenticated users to login
-  if (isProtectedRoute && !user) {
+  if (!user) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(loginUrl);
-  }
-
-  // Redirect authenticated users away from login page
-  if (isAuthRoute && user) {
-    const redirectTo = request.nextUrl.searchParams.get("redirect") || "/inbox";
-    return NextResponse.redirect(new URL(redirectTo, request.url));
   }
 
   return response;
