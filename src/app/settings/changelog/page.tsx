@@ -95,6 +95,21 @@ const widgetChangelog: ChangelogEntry[] = [
 // Admin panel changelog
 const adminChangelog: ChangelogEntry[] = [
   {
+    version: "2.8.1",
+    date: "2025-01-22",
+    type: "fix",
+    title: "Fix Cin7 Sync Error Handling + Order Aggregates (TASK #039B)",
+    description:
+      "Fixed sync hanging on API errors and customer order totals showing $0.00.",
+    details: [
+      "Handle Cin7 API 200 OK responses with error messages in body",
+      "Fix customers list order aggregates (Supabase 1000 row limit)",
+      "Customer detail now uses Supabase cache for accurate order totals",
+      "Propagate Cin7 API errors instead of silently returning empty results",
+      "All 5,174 orders now correctly aggregated per customer",
+    ],
+  },
+  {
     version: "2.8.0",
     date: "2025-01-22",
     type: "feature",
