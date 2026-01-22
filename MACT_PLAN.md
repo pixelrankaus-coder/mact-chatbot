@@ -56,7 +56,7 @@ Polish the chat inbox with auto-resolve functionality and add team login system.
 {
   "category": "feature",
   "description": "Admin UI to manage team members",
-  "status": "failing", 
+  "status": "passing", 
   "steps": [
     "Create /settings/team page (admin only)",
     "List all team members with role badges",
@@ -116,6 +116,15 @@ Polish the chat inbox with auto-resolve functionality and add team login system.
   - Unauthenticated users redirected to /login
   - Added logout functionality to Account settings page
   - Installed @supabase/ssr for server-side auth
+  - Build verified: ✓
+
+- **Task 045 COMPLETE** (2026-01-23): Team Management UI
+  - /settings/team page already fully implemented
+  - Lists all team members with role badges (owner/admin/agent)
+  - Add Agent form with email, name, password, role
+  - Remove Member button with confirmation dialog
+  - Change Role dropdown in edit dialog
+  - Role-based access control (admins can't edit owners)
   - Build verified: ✓
 
 ---
