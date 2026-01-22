@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { SettingsSidebar } from "@/components/settings";
 import { toast } from "sonner";
+import { useAgent } from "@/contexts/AgentContext";
 import {
   User,
   Mail,
@@ -16,9 +18,14 @@ import {
   Shield,
   Key,
   Trash2,
+  LogOut,
+  Loader2,
 } from "lucide-react";
 
 export default function AccountSettings() {
+  const router = useRouter();
+  const { agent, logout, loading: agentLoading } = useAgent();
+  const [loggingOut, setLoggingOut] = useState(false);
   const [profile, setProfile] = useState({
     name: "Drew Mitchell",
     email: "drew@mact.au",
@@ -28,6 +35,20 @@ export default function AccountSettings() {
 
   const handleSave = () => {
     toast.success("Account settings saved!");
+  };
+
+  // Task 044: Handle logout
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      await logout();
+      router.push("/login");
+    } catch (error) {
+      console.error("Logout failed:", error);
+      toast.error("Failed to logout");
+    } finally {
+      setLoggingOut(false);
+    }
   };
 
   return (
@@ -157,6 +178,42 @@ export default function AccountSettings() {
                     </div>
                     <Button variant="outline">Enable 2FA</Button>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Session - Task 044 */}
+            <Card className="border-0 shadow-sm">
+              <CardContent className="p-6">
+                <h3 className="mb-4 font-semibold text-slate-900">
+                  <LogOut className="mr-2 inline h-4 w-4" />
+                  Session
+                </h3>
+                <div className="flex items-center justify-between rounded-lg border p-4">
+                  <div>
+                    <p className="font-medium text-slate-900">Sign Out</p>
+                    <p className="text-sm text-slate-500">
+                      {agent ? `Signed in as ${agent.email}` : "End your current session"}
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="gap-2"
+                    onClick={handleLogout}
+                    disabled={loggingOut}
+                  >
+                    {loggingOut ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Signing out...
+                      </>
+                    ) : (
+                      <>
+                        <LogOut className="h-4 w-4" />
+                        Sign Out
+                      </>
+                    )}
+                  </Button>
                 </div>
               </CardContent>
             </Card>

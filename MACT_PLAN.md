@@ -32,9 +32,9 @@ Polish the chat inbox with auto-resolve functionality and add team login system.
 ### Task 044: Team Login System (Supabase Auth)
 ```json
 {
-  "category": "feature", 
+  "category": "feature",
   "description": "Add authentication for team members",
-  "status": "failing",
+  "status": "passing",
   "steps": [
     "Create team_members table: id, email, name, role (admin/agent), avatar_url, created_at",
     "Set up Supabase Auth with email/password",
@@ -107,6 +107,15 @@ Polish the chat inbox with auto-resolve functionality and add team login system.
   - Updated messages route to track `last_activity_at` on every message
   - Resolved conversations auto-reactivate when visitor sends new message
   - Updated `useConversations` hook with status filtering options
+  - Build verified: ✓
+
+- **Task 044 COMPLETE** (2026-01-23): Team Login System
+  - Login page with Supabase Auth already existed
+  - Agents table serves as team_members (id, email, name, role, etc.)
+  - Created middleware.ts to protect routes (/inbox, /customers, /settings, /orders, /ai-agent)
+  - Unauthenticated users redirected to /login
+  - Added logout functionality to Account settings page
+  - Installed @supabase/ssr for server-side auth
   - Build verified: ✓
 
 ---
