@@ -79,7 +79,7 @@ Polish the chat inbox with auto-resolve functionality and add team login system.
 {
   "category": "feature",
   "description": "Assign chats to team members",
-  "status": "failing",
+  "status": "passing",
   "steps": [
     "Add 'assigned_to' column to conversations table (references team_members.id)",
     "Add 'Assign' dropdown in chat header showing team members",
@@ -125,6 +125,15 @@ Polish the chat inbox with auto-resolve functionality and add team login system.
   - Remove Member button with confirmation dialog
   - Change Role dropdown in edit dialog
   - Role-based access control (admins can't edit owners)
+  - Build verified: ✓
+
+- **Task 046 COMPLETE** (2026-01-23): Chat Assignment System
+  - `assigned_to` column already exists in conversations table
+  - Added Assign dropdown in chat header showing all team members
+  - Added "My Chats" filter showing only current user's assigned chats
+  - Added "Unassigned" filter showing chats without assignment
+  - Assigned agent avatar/name shown on chat list items
+  - Dropdown shows online status, checkmark for current assignment
   - Build verified: ✓
 
 ---

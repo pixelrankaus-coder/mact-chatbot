@@ -39,17 +39,39 @@ import {
   Eye,
   Wifi,
   Star,
+  Users,
+  ChevronDown,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useConversations } from "@/hooks/use-conversations";
 import { useMessages } from "@/hooks/use-messages";
 import { supabase } from "@/lib/supabase";
+import { useAgent } from "@/contexts/AgentContext";
 import type { Database } from "@/types/database";
 
 type Conversation = Database["public"]["Tables"]["conversations"]["Row"];
 type Message = Database["public"]["Tables"]["messages"]["Row"];
 type ConversationStatus = "active" | "pending" | "resolved";
 
-type FilterTab = "all" | "pending" | "active" | "resolved";
+// Task 046: Extended filters for assignment
+type FilterTab = "all" | "mine" | "unassigned" | "pending" | "active" | "resolved";
+
+// Task 046: Agent type for assignment dropdown
+interface Agent {
+  id: string;
+  email: string;
+  name: string;
+  avatar_url?: string;
+  role: "owner" | "admin" | "agent";
+  is_online: boolean;
+}
 
 export default function InboxPage() {
   const {
@@ -58,6 +80,9 @@ export default function InboxPage() {
     updateStatus,
     assignToAgent,
   } = useConversations();
+
+  // Task 046: Get current agent for "My Chats" filter
+  const { agent: currentAgent } = useAgent();
 
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterTab>("all");
@@ -70,6 +95,27 @@ export default function InboxPage() {
   const [generatingAI, setGeneratingAI] = useState(false);
   const [sidebarTab, setSidebarTab] = useState<"info" | "pages" | "notes">("info");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Task 046: Agents list for assignment dropdown
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [loadingAgents, setLoadingAgents] = useState(false);
+
+  // Task 046: Load agents for assignment dropdown
+  useEffect(() => {
+    const loadAgents = async () => {
+      setLoadingAgents(true);
+      const { data, error } = await supabase
+        .from("agents")
+        .select("id, email, name, avatar_url, role, is_online")
+        .order("name", { ascending: true });
+
+      if (!error && data) {
+        setAgents(data);
+      }
+      setLoadingAgents(false);
+    };
+    loadAgents();
+  }, []);
 
   // Typing indicator state
   const [visitorTyping, setVisitorTyping] = useState<Record<string, boolean>>({});
@@ -161,10 +207,24 @@ export default function InboxPage() {
     }, 3000);
   };
 
-  // Filter and sort conversations (handoff requests first, then by date)
+  // Task 046: Filter and sort conversations (handoff requests first, then by date)
   const filteredConversations = conversations
     .filter((conv) => {
-      const matchesFilter = activeFilter === "all" || conv.status === activeFilter;
+      // Status-based filters
+      let matchesFilter = false;
+      if (activeFilter === "all") {
+        matchesFilter = true;
+      } else if (activeFilter === "mine") {
+        // Show only chats assigned to current user
+        matchesFilter = conv.assigned_to === currentAgent?.id;
+      } else if (activeFilter === "unassigned") {
+        // Show only chats with no assignment
+        matchesFilter = !conv.assigned_to && conv.status !== "resolved";
+      } else {
+        // Status filters (pending, active, resolved)
+        matchesFilter = conv.status === activeFilter;
+      }
+
       const matchesSearch =
         conv.visitor_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         conv.visitor_email?.toLowerCase().includes(searchQuery.toLowerCase());
@@ -429,6 +489,26 @@ export default function InboxPage() {
       .toUpperCase();
   };
 
+  // Task 046: Handle assigning conversation to agent
+  const handleAssign = async (agentId: string | null) => {
+    if (!selectedConversationId) return;
+
+    try {
+      await assignToAgent(selectedConversationId, agentId);
+      const agentName = agentId ? agents.find((a) => a.id === agentId)?.name : null;
+      toast.success(agentId ? `Assigned to ${agentName}` : "Unassigned");
+    } catch (error) {
+      console.error("Failed to assign conversation:", error);
+      toast.error("Failed to assign conversation");
+    }
+  };
+
+  // Task 046: Get assigned agent info
+  const getAssignedAgent = (conv: Conversation): Agent | undefined => {
+    if (!conv.assigned_to) return undefined;
+    return agents.find((a) => a.id === conv.assigned_to);
+  };
+
   const getTags = (conv: Conversation | undefined): string[] => {
     if (!conv) return [];
     const metadata = conv.metadata as { tags?: string[] } | null;
@@ -572,22 +652,47 @@ export default function InboxPage() {
           </div>
         </div>
 
-        {/* Filter Tabs */}
+        {/* Filter Tabs - Task 046: Added Mine and Unassigned */}
         <div className="border-b px-2 py-2">
-          <div className="grid w-full grid-cols-4 bg-slate-100 rounded-lg p-1">
-            {(["all", "pending", "active", "resolved"] as const).map((filter) => (
-              <button
-                key={filter}
-                onClick={() => setActiveFilter(filter)}
-                className={`text-xs py-1.5 px-2 rounded-md font-medium transition-colors ${
-                  activeFilter === filter
-                    ? "bg-white text-slate-900 shadow-sm"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                {filter === "all" ? "All" : filter === "pending" ? "Unassigned" : filter === "active" ? "Active" : "Resolved"}
-              </button>
-            ))}
+          <div className="flex flex-wrap gap-1 bg-slate-100 rounded-lg p-1">
+            {(["all", "mine", "unassigned", "active", "resolved"] as const).map((filter) => {
+              const filterLabels: Record<FilterTab, string> = {
+                all: "All",
+                mine: "My Chats",
+                unassigned: "Unassigned",
+                pending: "Pending",
+                active: "Active",
+                resolved: "Resolved",
+              };
+              const filterCounts: Record<FilterTab, number> = {
+                all: conversations.length,
+                mine: conversations.filter((c) => c.assigned_to === currentAgent?.id).length,
+                unassigned: conversations.filter((c) => !c.assigned_to && c.status !== "resolved").length,
+                pending: conversations.filter((c) => c.status === "pending").length,
+                active: conversations.filter((c) => c.status === "active").length,
+                resolved: conversations.filter((c) => c.status === "resolved").length,
+              };
+              return (
+                <button
+                  key={filter}
+                  onClick={() => setActiveFilter(filter)}
+                  className={`text-xs py-1.5 px-2 rounded-md font-medium transition-colors flex items-center gap-1 ${
+                    activeFilter === filter
+                      ? "bg-white text-slate-900 shadow-sm"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  {filterLabels[filter]}
+                  {filter !== "all" && filterCounts[filter] > 0 && (
+                    <span className={`text-[10px] px-1 rounded ${
+                      activeFilter === filter ? "bg-blue-100 text-blue-700" : "bg-slate-200 text-slate-600"
+                    }`}>
+                      {filterCounts[filter]}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -606,6 +711,7 @@ export default function InboxPage() {
           ) : (
             filteredConversations.map((conv) => {
               const isHandoff = hasHandoffRequested(conv);
+              const assignedAgent = getAssignedAgent(conv);
               return (
                 <div
                   key={conv.id}
@@ -641,7 +747,7 @@ export default function InboxPage() {
                         <span className="text-xs text-slate-400">{formatTimeAgo(conv.updated_at)}</span>
                       </div>
                       <p className="truncate text-sm text-slate-500">{conv.visitor_email || "No email"}</p>
-                      <div className="mt-1.5 flex items-center gap-2">
+                      <div className="mt-1.5 flex items-center gap-2 flex-wrap">
                         {isHandoff && (
                           <Badge className="flex items-center gap-1 text-xs bg-orange-500 text-white hover:bg-orange-600">
                             <Bell className="h-3 w-3" />
@@ -655,6 +761,16 @@ export default function InboxPage() {
                           {getStatusIcon(conv.status)}
                           {conv.status}
                         </Badge>
+                        {/* Task 046: Show assigned agent */}
+                        {assignedAgent && (
+                          <Badge
+                            variant="outline"
+                            className="flex items-center gap-1 text-xs border-green-200 bg-green-50 text-green-700"
+                          >
+                            <UserCircle className="h-3 w-3" />
+                            {assignedAgent.name.split(" ")[0]}
+                          </Badge>
+                        )}
                         {conv.rating && (
                           <div className="flex items-center gap-0.5 text-amber-500" title={`Rated ${conv.rating}/5`}>
                             <Star className="h-3 w-3 fill-current" />
@@ -718,10 +834,95 @@ export default function InboxPage() {
                     Take Over
                   </Button>
                 )}
-                <Button variant="outline" size="sm" className="gap-1">
-                  <UserCircle className="h-4 w-4" />
-                  Assign
-                </Button>
+                {/* Task 046: Assignment dropdown */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-1">
+                      {selectedConversation.assigned_to ? (
+                        <>
+                          <UserCheck className="h-4 w-4 text-green-600" />
+                          {getAssignedAgent(selectedConversation)?.name.split(" ")[0] || "Assigned"}
+                        </>
+                      ) : (
+                        <>
+                          <UserCircle className="h-4 w-4" />
+                          Assign
+                        </>
+                      )}
+                      <ChevronDown className="h-3 w-3 ml-1" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuLabel>Assign to</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {loadingAgents ? (
+                      <div className="flex items-center justify-center py-2">
+                        <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                      </div>
+                    ) : (
+                      <>
+                        {/* Assign to me option */}
+                        {currentAgent && (
+                          <DropdownMenuItem
+                            onClick={() => handleAssign(currentAgent.id)}
+                            className={selectedConversation.assigned_to === currentAgent.id ? "bg-green-50" : ""}
+                          >
+                            <div className="flex items-center gap-2 w-full">
+                              <Avatar className="h-6 w-6">
+                                <AvatarFallback className="text-xs bg-blue-100 text-blue-600">
+                                  {getInitials(currentAgent.name)}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span className="flex-1">{currentAgent.name} (me)</span>
+                              {selectedConversation.assigned_to === currentAgent.id && (
+                                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                              )}
+                            </div>
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuSeparator />
+                        {/* Other agents */}
+                        {agents
+                          .filter((a) => a.id !== currentAgent?.id)
+                          .map((agent) => (
+                            <DropdownMenuItem
+                              key={agent.id}
+                              onClick={() => handleAssign(agent.id)}
+                              className={selectedConversation.assigned_to === agent.id ? "bg-green-50" : ""}
+                            >
+                              <div className="flex items-center gap-2 w-full">
+                                <Avatar className="h-6 w-6">
+                                  <AvatarFallback className="text-xs bg-slate-100 text-slate-600">
+                                    {getInitials(agent.name)}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span className="flex-1">{agent.name}</span>
+                                {agent.is_online && (
+                                  <span className="h-2 w-2 rounded-full bg-green-500" />
+                                )}
+                                {selectedConversation.assigned_to === agent.id && (
+                                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                )}
+                              </div>
+                            </DropdownMenuItem>
+                          ))}
+                        {/* Unassign option */}
+                        {selectedConversation.assigned_to && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => handleAssign(null)}
+                              className="text-slate-500"
+                            >
+                              <Users className="h-4 w-4 mr-2" />
+                              Unassign
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <Button variant="outline" size="sm" onClick={handleResolve}>
                   {selectedConversation.status === "resolved" ? "Reopen" : "Resolve"}
                 </Button>
