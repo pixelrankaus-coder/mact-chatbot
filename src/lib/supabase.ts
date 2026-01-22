@@ -5,13 +5,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 // Client-side Supabase client (uses anon key)
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    // Use localStorage instead of locks to avoid AbortError in strict mode
-    storageKey: "mact-auth",
-    flowType: "pkce",
-  },
-});
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
 
 // Server-side Supabase client with service role (for admin operations)
 export function createServiceClient() {

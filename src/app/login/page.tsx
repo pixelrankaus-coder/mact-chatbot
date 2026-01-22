@@ -23,10 +23,17 @@ export default function LoginPage() {
     setError("");
 
     try {
-      const { error: authError } = await supabase.auth.signInWithPassword({
+      // Sign in with timeout
+      const signInPromise = supabase.auth.signInWithPassword({
         email,
         password,
       });
+
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("Login timed out. Please try again.")), 15000);
+      });
+
+      const { error: authError } = await Promise.race([signInPromise, timeoutPromise]);
 
       if (authError) {
         setError(authError.message);
@@ -38,7 +45,7 @@ export default function LoginPage() {
       const { data: agent, error: agentError } = await supabase
         .from("agents")
         .select("id")
-        .eq("email", email)
+        .eq("email", email.toLowerCase())
         .single();
 
       if (agentError || !agent) {
@@ -60,9 +67,8 @@ export default function LoginPage() {
 
       router.push("/inbox");
     } catch (err: unknown) {
-      // Ignore AbortError - it's from React strict mode double-mounting
+      // Ignore AbortError - it's from React strict mode
       if (err instanceof Error && err.name === "AbortError") {
-        console.warn("Auth request aborted (likely strict mode)");
         setLoading(false);
         return;
       }
