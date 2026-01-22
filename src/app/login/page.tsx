@@ -59,9 +59,16 @@ export default function LoginPage() {
         .eq("id", agent.id);
 
       router.push("/inbox");
-    } catch (err) {
+    } catch (err: unknown) {
+      // Ignore AbortError - it's from React strict mode double-mounting
+      if (err instanceof Error && err.name === "AbortError") {
+        console.warn("Auth request aborted (likely strict mode)");
+        setLoading(false);
+        return;
+      }
       console.error("Login error:", err);
-      setError("An unexpected error occurred. Please try again.");
+      const message = err instanceof Error ? err.message : "An unexpected error occurred";
+      setError(message);
       setLoading(false);
     }
   };
