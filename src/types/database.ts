@@ -28,6 +28,9 @@ export interface Database {
           rating_feedback: string | null;
           created_at: string;
           updated_at: string;
+          // Task 043: Auto-resolve fields
+          resolved_at: string | null;
+          last_activity_at: string;
         };
         Insert: {
           id?: string;
@@ -43,6 +46,9 @@ export interface Database {
           rating_feedback?: string | null;
           created_at?: string;
           updated_at?: string;
+          // Task 043: Auto-resolve fields
+          resolved_at?: string | null;
+          last_activity_at?: string;
         };
         Update: {
           id?: string;
@@ -58,6 +64,9 @@ export interface Database {
           rating_feedback?: string | null;
           created_at?: string;
           updated_at?: string;
+          // Task 043: Auto-resolve fields
+          resolved_at?: string | null;
+          last_activity_at?: string;
         };
       };
       messages: {

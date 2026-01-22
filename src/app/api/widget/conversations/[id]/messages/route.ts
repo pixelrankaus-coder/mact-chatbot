@@ -142,12 +142,24 @@ export async function POST(
       }).catch((err) => console.error("Failed to send notification email:", err));
     }
 
-    // Update conversation timestamp
+    // Task 043: Update conversation timestamp and last_activity_at
+    // If conversation is resolved and visitor sends a message, re-activate it
+    const now = new Date().toISOString();
+    const updateData: Record<string, unknown> = {
+      updated_at: now,
+      last_activity_at: now,
+    };
+
+    // Re-activate resolved conversations when visitor sends a message
+    if (conversation.status === "resolved") {
+      updateData.status = "active";
+      updateData.resolved_at = null;
+      console.log(`[Auto-resolve] Re-activating resolved conversation ${id} due to visitor message`);
+    }
+
     await supabase
       .from("conversations")
-      .update({
-        updated_at: new Date().toISOString(),
-      })
+      .update(updateData)
       .eq("id", id);
 
     // Check if AI agent is enabled
