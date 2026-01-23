@@ -1,0 +1,772 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Users,
+  FileText,
+  Eye,
+  Send,
+  Loader2,
+  Check,
+  Clock,
+  Mail,
+} from "lucide-react";
+import { toast } from "sonner";
+import type { OutreachTemplate } from "@/types/outreach";
+
+interface Segment {
+  id: string;
+  name: string;
+  description: string;
+  count?: number;
+}
+
+interface SampleRecipient {
+  email: string;
+  name: string;
+  company?: string;
+  personalization: Record<string, unknown>;
+  preview: { subject: string; body: string };
+}
+
+const STEPS = [
+  { id: 1, name: "Segment", icon: Users },
+  { id: 2, name: "Template", icon: FileText },
+  { id: 3, name: "Preview", icon: Eye },
+  { id: 4, name: "Launch", icon: Send },
+];
+
+const SEND_RATES = [
+  { value: 25, label: "25/hour", description: "Conservative" },
+  { value: 50, label: "50/hour", description: "Recommended" },
+  { value: 100, label: "100/hour", description: "Faster" },
+];
+
+export default function NewCampaignPage() {
+  const router = useRouter();
+  const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [creating, setCreating] = useState(false);
+
+  // Step 1: Segment
+  const [segments, setSegments] = useState<Segment[]>([]);
+  const [selectedSegment, setSelectedSegment] = useState<string>("");
+  const [loadingSegments, setLoadingSegments] = useState(true);
+
+  // Step 2: Template
+  const [templates, setTemplates] = useState<OutreachTemplate[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>("");
+  const [loadingTemplates, setLoadingTemplates] = useState(true);
+
+  // Step 3: Preview
+  const [campaignName, setCampaignName] = useState("");
+  const [fromName, setFromName] = useState("Chris Born");
+  const [fromEmail, setFromEmail] = useState("c.born@mact.au");
+  const [replyTo, setReplyTo] = useState("replies@mact.au");
+  const [sendRate, setSendRate] = useState(50);
+  const [sampleRecipients, setSampleRecipients] = useState<SampleRecipient[]>(
+    []
+  );
+  const [totalRecipients, setTotalRecipients] = useState(0);
+
+  // Step 4: Schedule
+  const [sendNow, setSendNow] = useState(true);
+  const [scheduledDate, setScheduledDate] = useState("");
+  const [scheduledTime, setScheduledTime] = useState("09:00");
+
+  // Fetch segments on mount
+  useEffect(() => {
+    fetchSegments();
+    fetchTemplates();
+  }, []);
+
+  const fetchSegments = async () => {
+    try {
+      const res = await fetch("/api/outreach/segments");
+      const data = await res.json();
+      setSegments(data.segments || []);
+    } catch (error) {
+      console.error("Failed to fetch segments:", error);
+      toast.error("Failed to load segments");
+    } finally {
+      setLoadingSegments(false);
+    }
+  };
+
+  const fetchTemplates = async () => {
+    try {
+      const res = await fetch("/api/outreach/templates");
+      const data = await res.json();
+      setTemplates(data.templates || []);
+    } catch (error) {
+      console.error("Failed to fetch templates:", error);
+      toast.error("Failed to load templates");
+    } finally {
+      setLoadingTemplates(false);
+    }
+  };
+
+  const fetchPreview = async (campaignId: string) => {
+    try {
+      const res = await fetch(`/api/outreach/campaigns/${campaignId}/preview`);
+      const data = await res.json();
+      setSampleRecipients(data.sample_recipients || []);
+      setTotalRecipients(data.total_recipients || 0);
+    } catch (error) {
+      console.error("Failed to fetch preview:", error);
+    }
+  };
+
+  const getEstimatedTime = () => {
+    if (totalRecipients === 0 || sendRate === 0) return "N/A";
+    const hours = totalRecipients / sendRate;
+    if (hours < 1) {
+      return `~${Math.round(hours * 60)} minutes`;
+    }
+    return `~${hours.toFixed(1)} hours`;
+  };
+
+  const handleNext = async () => {
+    if (step === 1 && !selectedSegment) {
+      toast.error("Please select a segment");
+      return;
+    }
+
+    if (step === 2 && !selectedTemplate) {
+      toast.error("Please select a template");
+      return;
+    }
+
+    if (step === 2) {
+      // Create draft campaign before moving to step 3
+      setLoading(true);
+      try {
+        const segmentInfo = segments.find((s) => s.id === selectedSegment);
+        const templateInfo = templates.find((t) => t.id === selectedTemplate);
+
+        const res = await fetch("/api/outreach/campaigns", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name:
+              campaignName ||
+              `${segmentInfo?.name} - ${templateInfo?.name}` ||
+              "New Campaign",
+            template_id: selectedTemplate,
+            segment: selectedSegment,
+            from_name: fromName,
+            from_email: fromEmail,
+            reply_to: replyTo,
+            send_rate: sendRate,
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Failed to create campaign");
+        }
+
+        setCampaignName(data.campaign.name);
+        setTotalRecipients(data.total_recipients);
+
+        // Fetch preview
+        await fetchPreview(data.campaign.id);
+        // Store campaign id for later
+        sessionStorage.setItem("draft_campaign_id", data.campaign.id);
+      } catch (error) {
+        console.error("Failed to create draft:", error);
+        toast.error(
+          error instanceof Error ? error.message : "Failed to create campaign"
+        );
+        setLoading(false);
+        return;
+      }
+      setLoading(false);
+    }
+
+    if (step === 3 && !campaignName) {
+      toast.error("Please enter a campaign name");
+      return;
+    }
+
+    if (step < 4) {
+      setStep(step + 1);
+    }
+  };
+
+  const handleBack = () => {
+    if (step > 1) {
+      setStep(step - 1);
+    }
+  };
+
+  const handleLaunch = async (saveAsDraft = false) => {
+    setCreating(true);
+    try {
+      const campaignId = sessionStorage.getItem("draft_campaign_id");
+      if (!campaignId) {
+        throw new Error("Campaign not found");
+      }
+
+      // Update campaign with final settings
+      let scheduledAt = null;
+      if (!saveAsDraft && !sendNow && scheduledDate && scheduledTime) {
+        scheduledAt = new Date(`${scheduledDate}T${scheduledTime}`).toISOString();
+      }
+
+      const updateRes = await fetch(`/api/outreach/campaigns/${campaignId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: campaignName,
+          from_name: fromName,
+          from_email: fromEmail,
+          reply_to: replyTo,
+          send_rate: sendRate,
+          scheduled_at: scheduledAt,
+          status: saveAsDraft ? "draft" : sendNow ? "scheduled" : "scheduled",
+        }),
+      });
+
+      if (!updateRes.ok) {
+        const data = await updateRes.json();
+        throw new Error(data.error || "Failed to update campaign");
+      }
+
+      if (!saveAsDraft && sendNow) {
+        // Start sending immediately
+        const sendRes = await fetch(
+          `/api/outreach/campaigns/${campaignId}/send`,
+          {
+            method: "POST",
+          }
+        );
+
+        if (!sendRes.ok) {
+          const data = await sendRes.json();
+          throw new Error(data.error || "Failed to start campaign");
+        }
+
+        toast.success("Campaign launched!");
+      } else if (saveAsDraft) {
+        toast.success("Campaign saved as draft");
+      } else {
+        toast.success("Campaign scheduled");
+      }
+
+      sessionStorage.removeItem("draft_campaign_id");
+      router.push(`/outreach/${campaignId}`);
+    } catch (error) {
+      console.error("Launch error:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Failed to launch campaign"
+      );
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const selectedSegmentInfo = segments.find((s) => s.id === selectedSegment);
+  const selectedTemplateInfo = templates.find(
+    (t) => t.id === selectedTemplate
+  );
+
+  return (
+    <div className="container mx-auto py-6 px-4 max-w-4xl">
+      {/* Header */}
+      <div className="flex items-center gap-4 mb-6">
+        <Link href="/outreach">
+          <Button variant="ghost" size="icon">
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+        </Link>
+        <div className="flex-1">
+          <h1 className="text-2xl font-bold">New Campaign</h1>
+          <p className="text-sm text-slate-500">
+            Create a new outreach campaign
+          </p>
+        </div>
+      </div>
+
+      {/* Step Indicator */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between">
+          {STEPS.map((s, index) => {
+            const Icon = s.icon;
+            const isActive = step === s.id;
+            const isComplete = step > s.id;
+
+            return (
+              <div key={s.id} className="flex items-center">
+                <div
+                  className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
+                    isActive
+                      ? "border-blue-600 bg-blue-600 text-white"
+                      : isComplete
+                        ? "border-green-600 bg-green-600 text-white"
+                        : "border-slate-300 text-slate-400"
+                  }`}
+                >
+                  {isComplete ? (
+                    <Check className="h-5 w-5" />
+                  ) : (
+                    <Icon className="h-5 w-5" />
+                  )}
+                </div>
+                <span
+                  className={`ml-2 text-sm font-medium ${
+                    isActive
+                      ? "text-blue-600"
+                      : isComplete
+                        ? "text-green-600"
+                        : "text-slate-400"
+                  }`}
+                >
+                  {s.name}
+                </span>
+                {index < STEPS.length - 1 && (
+                  <div
+                    className={`w-12 h-0.5 mx-4 ${
+                      isComplete ? "bg-green-600" : "bg-slate-200"
+                    }`}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Step Content */}
+      <Card>
+        <CardContent className="pt-6">
+          {/* Step 1: Select Segment */}
+          {step === 1 && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-lg font-semibold mb-2">
+                  Who do you want to reach?
+                </h2>
+                <p className="text-sm text-slate-500">
+                  Select a customer segment for your campaign
+                </p>
+              </div>
+
+              {loadingSegments ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+                </div>
+              ) : (
+                <RadioGroup
+                  value={selectedSegment}
+                  onValueChange={setSelectedSegment}
+                  className="space-y-3"
+                >
+                  {segments.map((segment) => (
+                    <label
+                      key={segment.id}
+                      className={`flex items-center justify-between p-4 rounded-lg border cursor-pointer transition-colors ${
+                        selectedSegment === segment.id
+                          ? "border-blue-600 bg-blue-50"
+                          : "border-slate-200 hover:border-slate-300"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <RadioGroupItem value={segment.id} />
+                        <div>
+                          <p className="font-medium">{segment.name}</p>
+                          <p className="text-sm text-slate-500">
+                            {segment.description}
+                          </p>
+                        </div>
+                      </div>
+                      <Badge variant="secondary">
+                        {segment.count !== undefined
+                          ? `${segment.count} customers`
+                          : "Loading..."}
+                      </Badge>
+                    </label>
+                  ))}
+                </RadioGroup>
+              )}
+            </div>
+          )}
+
+          {/* Step 2: Select Template */}
+          {step === 2 && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-lg font-semibold mb-2">
+                  Choose an email template
+                </h2>
+                <p className="text-sm text-slate-500">
+                  Select the template for your campaign emails
+                </p>
+              </div>
+
+              {loadingTemplates ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+                </div>
+              ) : templates.length === 0 ? (
+                <div className="text-center py-8">
+                  <Mail className="h-12 w-12 mx-auto text-slate-300 mb-4" />
+                  <p className="text-slate-500 mb-4">
+                    No templates yet. Create one first.
+                  </p>
+                  <Link href="/outreach/templates/new">
+                    <Button>Create Template</Button>
+                  </Link>
+                </div>
+              ) : (
+                <RadioGroup
+                  value={selectedTemplate}
+                  onValueChange={setSelectedTemplate}
+                  className="space-y-3"
+                >
+                  {templates.map((template) => (
+                    <label
+                      key={template.id}
+                      className={`flex items-start p-4 rounded-lg border cursor-pointer transition-colors ${
+                        selectedTemplate === template.id
+                          ? "border-blue-600 bg-blue-50"
+                          : "border-slate-200 hover:border-slate-300"
+                      }`}
+                    >
+                      <RadioGroupItem value={template.id} className="mt-1" />
+                      <div className="ml-3">
+                        <p className="font-medium">{template.name}</p>
+                        <p className="text-sm text-slate-500 mt-1">
+                          Subject: {template.subject}
+                        </p>
+                        <p className="text-xs text-slate-400 mt-2">
+                          {template.variables?.length || 0} variables
+                        </p>
+                      </div>
+                    </label>
+                  ))}
+                </RadioGroup>
+              )}
+            </div>
+          )}
+
+          {/* Step 3: Preview & Configure */}
+          {step === 3 && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-lg font-semibold mb-2">
+                  Preview & Configure
+                </h2>
+                <p className="text-sm text-slate-500">
+                  Review your campaign settings and preview sample emails
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-6">
+                {/* Settings */}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Campaign Name</Label>
+                    <Input
+                      id="name"
+                      value={campaignName}
+                      onChange={(e) => setCampaignName(e.target.value)}
+                      placeholder="e.g., January Win-back"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="fromName">From Name</Label>
+                    <Input
+                      id="fromName"
+                      value={fromName}
+                      onChange={(e) => setFromName(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="fromEmail">From Email</Label>
+                    <Input
+                      id="fromEmail"
+                      value={fromEmail}
+                      onChange={(e) => setFromEmail(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Send Rate</Label>
+                    <Select
+                      value={sendRate.toString()}
+                      onValueChange={(v) => setSendRate(parseInt(v))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SEND_RATES.map((rate) => (
+                          <SelectItem
+                            key={rate.value}
+                            value={rate.value.toString()}
+                          >
+                            {rate.label} - {rate.description}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="bg-slate-50 rounded-lg p-4 mt-4">
+                    <h4 className="font-medium mb-2">Summary</h4>
+                    <div className="space-y-1 text-sm">
+                      <p>
+                        <span className="text-slate-500">Segment:</span>{" "}
+                        {selectedSegmentInfo?.name}
+                      </p>
+                      <p>
+                        <span className="text-slate-500">Template:</span>{" "}
+                        {selectedTemplateInfo?.name}
+                      </p>
+                      <p>
+                        <span className="text-slate-500">Recipients:</span>{" "}
+                        {totalRecipients}
+                      </p>
+                      <p>
+                        <span className="text-slate-500">Est. Time:</span>{" "}
+                        {getEstimatedTime()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sample Previews */}
+                <div className="space-y-4">
+                  <h3 className="font-medium">Sample Emails</h3>
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                    {sampleRecipients.map((recipient, index) => (
+                      <div
+                        key={index}
+                        className="bg-slate-50 rounded-lg p-3 text-sm"
+                      >
+                        <p className="font-medium text-blue-600 mb-1">
+                          To: {recipient.name} &lt;{recipient.email}&gt;
+                        </p>
+                        <p className="text-slate-600 mb-2">
+                          <span className="text-slate-400">Subject:</span>{" "}
+                          {recipient.preview.subject}
+                        </p>
+                        <div className="whitespace-pre-wrap text-xs text-slate-500 max-h-24 overflow-hidden">
+                          {recipient.preview.body.substring(0, 200)}...
+                        </div>
+                      </div>
+                    ))}
+                    {sampleRecipients.length === 0 && (
+                      <div className="text-center py-4 text-slate-400">
+                        No preview available
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Step 4: Schedule & Launch */}
+          {step === 4 && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-lg font-semibold mb-2">
+                  Schedule & Launch
+                </h2>
+                <p className="text-sm text-slate-500">
+                  Choose when to send your campaign
+                </p>
+              </div>
+
+              <RadioGroup
+                value={sendNow ? "now" : "scheduled"}
+                onValueChange={(v) => setSendNow(v === "now")}
+                className="space-y-3"
+              >
+                <label
+                  className={`flex items-center p-4 rounded-lg border cursor-pointer ${
+                    sendNow
+                      ? "border-blue-600 bg-blue-50"
+                      : "border-slate-200 hover:border-slate-300"
+                  }`}
+                >
+                  <RadioGroupItem value="now" />
+                  <div className="ml-3">
+                    <p className="font-medium flex items-center gap-2">
+                      <Send className="h-4 w-4" />
+                      Send Now
+                    </p>
+                    <p className="text-sm text-slate-500">
+                      Start sending immediately at {sendRate} emails/hour
+                    </p>
+                  </div>
+                </label>
+
+                <label
+                  className={`flex items-center p-4 rounded-lg border cursor-pointer ${
+                    !sendNow
+                      ? "border-blue-600 bg-blue-50"
+                      : "border-slate-200 hover:border-slate-300"
+                  }`}
+                >
+                  <RadioGroupItem value="scheduled" />
+                  <div className="ml-3">
+                    <p className="font-medium flex items-center gap-2">
+                      <Clock className="h-4 w-4" />
+                      Schedule
+                    </p>
+                    <p className="text-sm text-slate-500">
+                      Choose a specific date and time
+                    </p>
+                  </div>
+                </label>
+              </RadioGroup>
+
+              {!sendNow && (
+                <div className="flex gap-4 pl-8">
+                  <div className="space-y-2">
+                    <Label htmlFor="date">Date</Label>
+                    <Input
+                      id="date"
+                      type="date"
+                      value={scheduledDate}
+                      onChange={(e) => setScheduledDate(e.target.value)}
+                      min={new Date().toISOString().split("T")[0]}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="time">Time</Label>
+                    <Input
+                      id="time"
+                      type="time"
+                      value={scheduledTime}
+                      onChange={(e) => setScheduledTime(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Final Summary */}
+              <Card className="bg-slate-50 border-slate-200">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Campaign Summary</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-slate-500">Name</p>
+                      <p className="font-medium">{campaignName}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500">Segment</p>
+                      <p className="font-medium">{selectedSegmentInfo?.name}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500">Template</p>
+                      <p className="font-medium">
+                        {selectedTemplateInfo?.name}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500">Recipients</p>
+                      <p className="font-medium">{totalRecipients}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500">From</p>
+                      <p className="font-medium">
+                        {fromName} &lt;{fromEmail}&gt;
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500">Send Rate</p>
+                      <p className="font-medium">{sendRate}/hour</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500">Est. Duration</p>
+                      <p className="font-medium">{getEstimatedTime()}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500">Scheduled</p>
+                      <p className="font-medium">
+                        {sendNow
+                          ? "Send immediately"
+                          : scheduledDate
+                            ? `${scheduledDate} ${scheduledTime}`
+                            : "Not set"}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Navigation */}
+          <div className="flex items-center justify-between mt-8 pt-6 border-t">
+            <Button
+              variant="outline"
+              onClick={handleBack}
+              disabled={step === 1}
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back
+            </Button>
+
+            <div className="flex gap-2">
+              {step === 4 && (
+                <Button
+                  variant="outline"
+                  onClick={() => handleLaunch(true)}
+                  disabled={creating}
+                >
+                  Save as Draft
+                </Button>
+              )}
+
+              {step < 4 ? (
+                <Button onClick={handleNext} disabled={loading}>
+                  {loading ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <ArrowRight className="h-4 w-4 mr-2" />
+                  )}
+                  Next
+                </Button>
+              ) : (
+                <Button onClick={() => handleLaunch(false)} disabled={creating}>
+                  {creating ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4 mr-2" />
+                  )}
+                  {sendNow ? "Launch Campaign" : "Schedule Campaign"}
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

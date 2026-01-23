@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -419,9 +419,8 @@ export default function OrdersPage() {
                       const isLoadingDetails = loadingDetails.has(order.id);
 
                       return (
-                        <>
+                        <Fragment key={order.id}>
                           <TableRow
-                            key={order.id}
                             className="cursor-pointer hover:bg-slate-50"
                             onClick={() => router.push(`/orders/${order.id}`)}
                           >
@@ -495,7 +494,7 @@ export default function OrdersPage() {
                               loading={isLoadingDetails}
                             />
                           )}
-                        </>
+                        </Fragment>
                       );
                     })}
                   </TableBody>
