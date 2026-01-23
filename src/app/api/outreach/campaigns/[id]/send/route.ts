@@ -4,7 +4,7 @@ import {
   getSegmentRecipients,
   buildPersonalizationData,
 } from "@/lib/outreach/segments";
-import { startCampaignProcessing } from "@/lib/outreach/send";
+import { processCampaignBatch } from "@/lib/outreach/send";
 
 function getSupabase() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -101,17 +101,20 @@ export async function POST(
       })
       .eq("id", campaignId);
 
-    // Start processing in background (don't await)
-    // This will continue after response is sent
-    startCampaignProcessing(campaignId).catch((err) => {
-      console.error("Campaign processing error:", err);
-    });
+    // Process first batch synchronously (Vercel kills background processes)
+    // Client will call /process endpoint to continue for larger campaigns
+    const batchResult = await processCampaignBatch(campaignId, 10);
 
     return NextResponse.json({
       success: true,
       campaign_id: campaignId,
       total_recipients: recipients.length,
-      message: "Campaign sending started",
+      processed: batchResult.processed,
+      remaining: batchResult.remaining,
+      completed: batchResult.completed,
+      message: batchResult.completed
+        ? "Campaign completed"
+        : "Campaign started - processing continues",
     });
   } catch (error) {
     console.error("Send campaign error:", error);

@@ -122,10 +122,21 @@ export default function CampaignDetailPage({
     fetchData();
   }, [id]);
 
-  // Poll stats while sending
+  // Poll stats and trigger processing while sending
   useEffect(() => {
     if (campaign?.status === "sending") {
-      const interval = setInterval(fetchStats, 5000);
+      const interval = setInterval(async () => {
+        // Trigger processing of next batch
+        try {
+          await fetch(`/api/outreach/campaigns/${id}/process`, {
+            method: "POST",
+          });
+        } catch (err) {
+          console.error("Process error:", err);
+        }
+        // Then refresh stats
+        await fetchStats();
+      }, 5000);
       return () => clearInterval(interval);
     }
   }, [campaign?.status, id]);

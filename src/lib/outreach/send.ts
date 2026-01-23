@@ -26,6 +26,7 @@ export interface SendResult {
 }
 
 export async function sendSingleEmail(emailId: string): Promise<SendResult> {
+  console.log(`[Outreach] Sending email ${emailId}...`);
   const supabase = getSupabase();
 
   // Get email with campaign and template
@@ -44,12 +45,17 @@ export async function sendSingleEmail(emailId: string): Promise<SendResult> {
     .single();
 
   if (fetchError || !email) {
+    console.log(`[Outreach] ❌ Email ${emailId} not found`);
     return { success: false, error: "Email not found" };
   }
 
   if (!email.campaign || !email.campaign.template) {
+    console.log(`[Outreach] ❌ Campaign or template not found for email ${emailId}`);
     return { success: false, error: "Campaign or template not found" };
   }
+
+  console.log(`[Outreach] Sending to: ${email.recipient_email} (${email.recipient_name})`);
+  console.log(`[Outreach] Campaign: ${email.campaign.name}, Template: ${email.campaign.template.name}`);
 
   // Render template
   const { subject, body } = renderTemplate(
@@ -75,6 +81,7 @@ export async function sendSingleEmail(emailId: string): Promise<SendResult> {
     });
 
     if (error) {
+      console.log(`[Outreach] ❌ Resend API error: ${error.message}`);
       await supabase
         .from("outreach_emails")
         .update({
@@ -86,6 +93,8 @@ export async function sendSingleEmail(emailId: string): Promise<SendResult> {
 
       return { success: false, error: error.message };
     }
+
+    console.log(`[Outreach] ✅ Email sent successfully! Resend ID: ${data?.id}`);
 
     // Update email as sent
     await supabase
@@ -138,18 +147,22 @@ export async function processCampaignBatch(
   campaignId: string,
   batchSize: number = 10
 ): Promise<BatchResult> {
+  console.log(`[Outreach] Processing batch for campaign ${campaignId}...`);
   const supabase = getSupabase();
 
   // Check campaign is still sending
   const { data: campaign } = await supabase
     .from("outreach_campaigns")
-    .select("status, send_delay_ms")
+    .select("status, send_delay_ms, name")
     .eq("id", campaignId)
     .single();
 
   if (!campaign || campaign.status !== "sending") {
+    console.log(`[Outreach] Campaign not in sending status (${campaign?.status}), skipping`);
     return { processed: 0, remaining: 0, completed: false };
   }
+
+  console.log(`[Outreach] Campaign "${campaign.name}" is sending, delay: ${campaign.send_delay_ms}ms`);
 
   // Get pending emails
   const { data: pendingEmails } = await supabase
@@ -161,6 +174,7 @@ export async function processCampaignBatch(
     .limit(batchSize);
 
   if (!pendingEmails || pendingEmails.length === 0) {
+    console.log(`[Outreach] ✅ No pending emails - campaign complete!`);
     // Mark campaign complete
     await supabase
       .from("outreach_campaigns")
@@ -172,6 +186,8 @@ export async function processCampaignBatch(
 
     return { processed: 0, remaining: 0, completed: true };
   }
+
+  console.log(`[Outreach] Found ${pendingEmails.length} pending emails to send`);
 
   // Send each email with delay
   let processed = 0;
@@ -207,7 +223,12 @@ export async function processCampaignBatch(
     .eq("campaign_id", campaignId)
     .eq("status", "pending");
 
-  return { processed, remaining: count || 0, completed: (count || 0) === 0 };
+  const remaining = count || 0;
+  const completed = remaining === 0;
+
+  console.log(`[Outreach] Batch complete: ${processed} sent, ${remaining} remaining${completed ? " - CAMPAIGN DONE!" : ""}`);
+
+  return { processed, remaining, completed };
 }
 
 export async function startCampaignProcessing(
