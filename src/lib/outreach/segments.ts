@@ -83,56 +83,128 @@ export async function getSegmentRecipients(
 
   const supabase = getSupabase();
 
-  // Query unified_customers table (from Klaviyo dormant sync)
-  let query = supabase
-    .from("unified_customers")
-    .select(
-      `
-      id,
-      email,
-      name,
-      company,
-      total_spent,
-      order_count,
-      last_order_date,
-      last_product
-    `
-    )
+  // Get all Cin7 customers with email
+  const { data: cin7Customers, error: customerError } = await supabase
+    .from("cin7_customers")
+    .select("id, cin7_id, email, name, company")
     .not("email", "is", null)
     .neq("email", "");
 
+  if (customerError) {
+    console.error("Error fetching cin7_customers:", customerError);
+    return [];
+  }
+
+  if (!cin7Customers || cin7Customers.length === 0) {
+    console.log("[Segments] No customers found with email addresses");
+    return [];
+  }
+
+  // Get all Cin7 orders to compute aggregates
+  const { data: cin7Orders, error: orderError } = await supabase
+    .from("cin7_orders")
+    .select("customer_id, order_date, total, line_items");
+
+  if (orderError) {
+    console.error("Error fetching cin7_orders:", orderError);
+    return [];
+  }
+
+  // Build order stats per customer (keyed by cin7_id)
+  const orderStats: Record<
+    string,
+    {
+      total_spent: number;
+      order_count: number;
+      last_order_date: string | null;
+      last_product: string | null;
+    }
+  > = {};
+
+  (cin7Orders || []).forEach((order) => {
+    const cid = order.customer_id;
+    if (!cid) return;
+
+    if (!orderStats[cid]) {
+      orderStats[cid] = {
+        total_spent: 0,
+        order_count: 0,
+        last_order_date: null,
+        last_product: null,
+      };
+    }
+
+    orderStats[cid].order_count++;
+    orderStats[cid].total_spent += parseFloat(String(order.total)) || 0;
+
+    // Track most recent order date and product
+    if (
+      !orderStats[cid].last_order_date ||
+      order.order_date > orderStats[cid].last_order_date
+    ) {
+      orderStats[cid].last_order_date = order.order_date;
+      // Get first line item name from most recent order
+      const lineItems = order.line_items as Array<{ name?: string }> | null;
+      if (lineItems && lineItems.length > 0 && lineItems[0].name) {
+        orderStats[cid].last_product = lineItems[0].name;
+      }
+    }
+  });
+
+  // Combine customers with their order stats
   const today = new Date();
   const oneYearAgo = new Date();
   oneYearAgo.setFullYear(today.getFullYear() - 1);
   const oneYearAgoStr = oneYearAgo.toISOString().split("T")[0];
 
-  switch (segment) {
-    case "dormant":
-      // No order in 12+ months
-      query = query.lt("last_order_date", oneYearAgoStr);
-      break;
-    case "vip":
-      // Spent $5000+ OR 5+ orders
-      query = query.or("total_spent.gte.5000,order_count.gte.5");
-      break;
-    case "active":
-      // Ordered within last 12 months
-      query = query.gte("last_order_date", oneYearAgoStr);
-      break;
-    case "all":
-    default:
-      // No additional filter
-      break;
-  }
+  const recipients: CustomerRecipient[] = [];
 
-  const { data, error } = await query;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  cin7Customers.forEach((customer: any) => {
+    const stats = orderStats[customer.cin7_id] || {
+      total_spent: 0,
+      order_count: 0,
+      last_order_date: null,
+      last_product: null,
+    };
 
-  if (error) {
-    console.error("Error fetching segment:", error);
-    return [];
-  }
+    // Apply segment filters
+    switch (segment) {
+      case "dormant":
+        // No order in 12+ months (but has ordered before)
+        if (stats.order_count === 0) return;
+        if (!stats.last_order_date || stats.last_order_date >= oneYearAgoStr)
+          return;
+        break;
+      case "vip":
+        // Spent $5000+ OR 5+ orders
+        if (stats.total_spent < 5000 && stats.order_count < 5) return;
+        break;
+      case "active":
+        // Ordered within last 12 months
+        if (!stats.last_order_date || stats.last_order_date < oneYearAgoStr)
+          return;
+        break;
+      case "all":
+      default:
+        // No additional filter
+        break;
+    }
 
-  return (data || []) as CustomerRecipient[];
+    recipients.push({
+      id: customer.id,
+      email: customer.email.toLowerCase(),
+      name: customer.name || "",
+      company: customer.company || undefined,
+      total_spent: stats.total_spent,
+      order_count: stats.order_count,
+      last_order_date: stats.last_order_date || undefined,
+      last_product: stats.last_product || undefined,
+    });
+  });
+
+  console.log(`[Segments] Found ${recipients.length} recipients for segment "${segment}"`);
+  return recipients;
 }
 
 export async function getSegmentCount(
