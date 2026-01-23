@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get recipient count
-    const totalRecipients = await getSegmentCount(segment);
+    const totalRecipients = await getSegmentCount(segment, segment_filter);
 
     if (totalRecipients === 0) {
       return NextResponse.json(

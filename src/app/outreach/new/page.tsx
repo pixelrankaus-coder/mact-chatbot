@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowLeft,
   ArrowRight,
@@ -27,6 +28,7 @@ import {
   Check,
   Clock,
   Mail,
+  UserPlus,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { OutreachTemplate } from "@/types/outreach";
@@ -69,6 +71,14 @@ export default function NewCampaignPage() {
   const [segments, setSegments] = useState<Segment[]>([]);
   const [selectedSegment, setSelectedSegment] = useState<string>("");
   const [loadingSegments, setLoadingSegments] = useState(true);
+  const [customEmails, setCustomEmails] = useState<string>("");
+
+  // Parse custom emails and get count
+  const parsedCustomEmails = customEmails
+    .split("\n")
+    .map((e) => e.trim().toLowerCase())
+    .filter((e) => e && e.includes("@"));
+  const customEmailCount = parsedCustomEmails.length;
 
   // Step 2: Template
   const [templates, setTemplates] = useState<OutreachTemplate[]>([]);
@@ -149,6 +159,11 @@ export default function NewCampaignPage() {
       return;
     }
 
+    if (step === 1 && selectedSegment === "custom" && customEmailCount === 0) {
+      toast.error("Please enter at least one email address");
+      return;
+    }
+
     if (step === 2 && !selectedTemplate) {
       toast.error("Please select a template");
       return;
@@ -171,6 +186,10 @@ export default function NewCampaignPage() {
               "New Campaign",
             template_id: selectedTemplate,
             segment: selectedSegment,
+            segment_filter:
+              selectedSegment === "custom"
+                ? { emails: parsedCustomEmails }
+                : undefined,
             from_name: fromName,
             from_email: fromEmail,
             reply_to: replyTo,
@@ -384,27 +403,60 @@ export default function NewCampaignPage() {
                       key={segment.id}
                       className={`flex items-center justify-between p-4 rounded-lg border cursor-pointer transition-colors ${
                         selectedSegment === segment.id
-                          ? "border-blue-600 bg-blue-50"
+                          ? segment.id === "custom"
+                            ? "border-purple-600 bg-purple-50"
+                            : "border-blue-600 bg-blue-50"
                           : "border-slate-200 hover:border-slate-300"
                       }`}
                     >
                       <div className="flex items-center gap-3">
                         <RadioGroupItem value={segment.id} />
-                        <div>
-                          <p className="font-medium">{segment.name}</p>
-                          <p className="text-sm text-slate-500">
-                            {segment.description}
-                          </p>
+                        <div className="flex items-center gap-2">
+                          {segment.id === "custom" && (
+                            <UserPlus className="h-4 w-4 text-purple-600" />
+                          )}
+                          <div>
+                            <p className="font-medium">{segment.name}</p>
+                            <p className="text-sm text-slate-500">
+                              {segment.description}
+                            </p>
+                          </div>
                         </div>
                       </div>
-                      <Badge variant="secondary">
-                        {segment.count !== undefined
-                          ? `${segment.count} customers`
-                          : "Loading..."}
+                      <Badge
+                        variant="secondary"
+                        className={
+                          segment.id === "custom"
+                            ? "bg-purple-100 text-purple-700"
+                            : ""
+                        }
+                      >
+                        {segment.id === "custom"
+                          ? `${customEmailCount} recipients`
+                          : segment.count !== undefined
+                            ? `${segment.count} customers`
+                            : "Loading..."}
                       </Badge>
                     </label>
                   ))}
                 </RadioGroup>
+              )}
+
+              {/* Custom emails textarea */}
+              {selectedSegment === "custom" && (
+                <div className="mt-4 space-y-2">
+                  <Label htmlFor="customEmails">Email Addresses</Label>
+                  <Textarea
+                    id="customEmails"
+                    value={customEmails}
+                    onChange={(e) => setCustomEmails(e.target.value)}
+                    placeholder="Enter email addresses (one per line)&#10;&#10;example@test.com&#10;another@test.com"
+                    className="min-h-[120px] font-mono text-sm"
+                  />
+                  <p className="text-xs text-slate-500">
+                    {customEmailCount} valid email{customEmailCount !== 1 ? "s" : ""} entered
+                  </p>
+                </div>
               )}
             </div>
           )}

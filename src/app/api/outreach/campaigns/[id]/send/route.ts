@@ -65,9 +65,11 @@ export async function POST(
 
     // Queue all emails if not already queued
     if (!existingCount || existingCount === 0) {
+      const isCustomSegment = campaign.segment === "custom";
       const emailRecords = recipients.map((recipient) => ({
         campaign_id: campaignId,
-        customer_id: recipient.id,
+        // For custom/test segments, customer_id is null (not a real customer)
+        customer_id: isCustomSegment ? null : recipient.id,
         recipient_email: recipient.email,
         recipient_name: recipient.name,
         recipient_company: recipient.company,

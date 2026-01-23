@@ -39,6 +39,11 @@ export const SEGMENTS: SegmentInfo[] = [
     name: "All Customers",
     description: "Everyone with an email address",
   },
+  {
+    id: "custom",
+    name: "Custom / Test",
+    description: "Enter email addresses manually",
+  },
 ];
 
 export interface CustomerRecipient {
@@ -56,6 +61,26 @@ export async function getSegmentRecipients(
   segment: SegmentType,
   segmentFilter?: Record<string, unknown>
 ): Promise<CustomerRecipient[]> {
+  // Handle custom/test segment with manually entered emails
+  if (segment === "custom" && segmentFilter?.emails) {
+    const emails = segmentFilter.emails as string[];
+    return emails.map((email, index) => {
+      const namePart = email.split("@")[0];
+      // Capitalize first letter
+      const firstName = namePart.charAt(0).toUpperCase() + namePart.slice(1);
+      return {
+        id: `custom-${index}`,
+        email: email.toLowerCase().trim(),
+        name: firstName,
+        company: undefined,
+        total_spent: 0,
+        order_count: 0,
+        last_order_date: undefined,
+        last_product: undefined,
+      };
+    });
+  }
+
   const supabase = getSupabase();
 
   // Query unified_customers table (from Klaviyo dormant sync)
@@ -110,8 +135,11 @@ export async function getSegmentRecipients(
   return (data || []) as CustomerRecipient[];
 }
 
-export async function getSegmentCount(segment: SegmentType): Promise<number> {
-  const recipients = await getSegmentRecipients(segment);
+export async function getSegmentCount(
+  segment: SegmentType,
+  segmentFilter?: Record<string, unknown>
+): Promise<number> {
+  const recipients = await getSegmentRecipients(segment, segmentFilter);
   return recipients.length;
 }
 
