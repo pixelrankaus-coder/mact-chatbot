@@ -10,6 +10,7 @@ import { updateSession } from "@/utils/supabase/middleware";
 
 // Routes that require authentication
 const PROTECTED_ROUTES = [
+  "/",
   "/inbox",
   "/customers",
   "/settings",
@@ -29,9 +30,12 @@ export async function middleware(request: NextRequest) {
   }
 
   // Check if the path is a protected route
-  const isProtectedRoute = PROTECTED_ROUTES.some(
-    (route) => pathname === route || pathname.startsWith(`${route}/`)
-  );
+  const isProtectedRoute = PROTECTED_ROUTES.some((route) => {
+    if (route === "/") {
+      return pathname === "/";
+    }
+    return pathname === route || pathname.startsWith(`${route}/`);
+  });
 
   // For non-protected routes, just pass through
   if (!isProtectedRoute) {
