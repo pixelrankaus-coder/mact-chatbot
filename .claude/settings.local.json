@@ -26,7 +26,20 @@
       "Bash(if [ -f \"c:/DATA/mact-chatbot/.env.local\" ])",
       "Bash(then cat \"c:/DATA/mact-chatbot/.env.local\")",
       "Bash(else echo \".env.local not found\")",
-      "Bash(fi)"
+      "Bash(fi)",
+      "Bash(cd:*)",
+      "Bash(npx ts-node:*)",
+      "Bash(__NEW_LINE_12b8e3b9d6f48b70__ echo \"\")",
+      "Bash(python -c:*)",
+      "Bash(npm run lint)",
+      "Bash(powershell -Command \"Invoke-WebRequest -Uri ''http://localhost:3000/api/klaviyo/sync-dormant'' -Method POST -ContentType ''application/json'' -Headers @{''Accept''=''application/json''} | Select-Object -ExpandProperty Content\")",
+      "Bash(powershell -Command \"cd ''c:\\\\DATA\\\\mact-chatbot''; npm run dev\")",
+      "Bash(powershell -Command \"Start-Sleep -Seconds 15; Invoke-WebRequest -Uri ''http://localhost:3000/api/klaviyo/sync-dormant'' -Method POST -ContentType ''application/json'' -Headers @{''Accept''=''application/json''} | Select-Object -ExpandProperty Content\")",
+      "Bash(powershell -Command \"Start-Sleep -Seconds 30\")",
+      "Bash(more:*)",
+      "Bash(powershell -Command \"Stop-Process -Id 186168 -Force\")",
+      "Bash(powershell:*)",
+      "Bash(tasklist:*)"
     ]
   }
 }

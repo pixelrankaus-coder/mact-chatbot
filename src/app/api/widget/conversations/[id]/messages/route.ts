@@ -142,12 +142,11 @@ export async function POST(
       }).catch((err) => console.error("Failed to send notification email:", err));
     }
 
-    // Task 043: Update conversation timestamp and last_activity_at
+    // Update conversation timestamp
     // If conversation is resolved and visitor sends a message, re-activate it
     const now = new Date().toISOString();
     const updateData: Record<string, unknown> = {
       updated_at: now,
-      last_activity_at: now,
     };
 
     // Re-activate resolved conversations when visitor sends a message

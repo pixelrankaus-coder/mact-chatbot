@@ -113,7 +113,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Create new conversation with visitor info
-    // Task 043: Set last_activity_at for auto-resolve tracking
     const { data: conversation, error: insertError } = await supabase
       .from("conversations")
       .insert({
@@ -124,7 +123,6 @@ export async function POST(request: NextRequest) {
         metadata: metadata,
         prechat_data: prechatData || {},
         status: "active",
-        last_activity_at: new Date().toISOString(),
       })
       .select()
       .single();

@@ -25,13 +25,12 @@ export async function POST(request: NextRequest) {
     twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
     const cutoffTime = twentyFourHoursAgo.toISOString();
 
-    // Find all active/pending conversations with last_activity_at older than 24 hours
-    // Use updated_at as fallback if last_activity_at doesn't exist yet
+    // Find all active/pending conversations with updated_at older than 24 hours
     const { data: inactiveConversations, error: fetchError } = await supabase
       .from("conversations")
-      .select("id, visitor_name, visitor_email, status, updated_at, last_activity_at")
+      .select("id, visitor_name, visitor_email, status, updated_at")
       .in("status", ["active", "pending"])
-      .or(`last_activity_at.lt.${cutoffTime},and(last_activity_at.is.null,updated_at.lt.${cutoffTime})`);
+      .lt("updated_at", cutoffTime);
 
     if (fetchError) {
       console.error("Failed to fetch inactive conversations:", fetchError);
@@ -101,12 +100,12 @@ export async function GET(request: NextRequest) {
     twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
     const cutoffTime = twentyFourHoursAgo.toISOString();
 
-    // Find all active/pending conversations with last_activity_at older than 24 hours
+    // Find all active/pending conversations with updated_at older than 24 hours
     const { data: inactiveConversations, error: fetchError } = await supabase
       .from("conversations")
-      .select("id, visitor_name, visitor_email, status, updated_at, last_activity_at")
+      .select("id, visitor_name, visitor_email, status, updated_at")
       .in("status", ["active", "pending"])
-      .or(`last_activity_at.lt.${cutoffTime},and(last_activity_at.is.null,updated_at.lt.${cutoffTime})`);
+      .lt("updated_at", cutoffTime);
 
     if (fetchError) {
       return NextResponse.json(
