@@ -25,6 +25,7 @@ import {
   CheckCircle2,
   Clock,
   XCircle,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { OutreachCampaign } from "@/types/outreach";
@@ -68,10 +69,35 @@ const statusConfig: Record<
 export default function OutreachPage() {
   const [campaigns, setCampaigns] = useState<OutreachCampaign[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCampaigns();
   }, []);
+
+  const handleDelete = async (campaignId: string, campaignName: string) => {
+    if (!confirm(`Delete campaign "${campaignName}"? This cannot be undone.`)) {
+      return;
+    }
+
+    setDeletingId(campaignId);
+    try {
+      const res = await fetch(`/api/outreach/campaigns/${campaignId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to delete campaign");
+      }
+      toast.success("Campaign deleted");
+      setCampaigns((prev) => prev.filter((c) => c.id !== campaignId));
+    } catch (error) {
+      console.error("Failed to delete campaign:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to delete");
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const fetchCampaigns = async () => {
     try {
@@ -244,6 +270,7 @@ export default function OutreachPage() {
                   <TableHead>Open Rate</TableHead>
                   <TableHead>Reply Rate</TableHead>
                   <TableHead>Created</TableHead>
+                  <TableHead className="w-12"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -290,6 +317,25 @@ export default function OutreachPage() {
                       <TableCell>{getReplyRate(campaign)}</TableCell>
                       <TableCell className="text-slate-500">
                         {formatDate(campaign.created_at)}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-slate-400 hover:text-red-500"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            handleDelete(campaign.id, campaign.name);
+                          }}
+                          disabled={deletingId === campaign.id || campaign.status === "sending"}
+                          title={campaign.status === "sending" ? "Cannot delete while sending" : "Delete campaign"}
+                        >
+                          {deletingId === campaign.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </Button>
                       </TableCell>
                     </TableRow>
                   );

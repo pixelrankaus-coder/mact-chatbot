@@ -95,8 +95,26 @@ const widgetChangelog: ChangelogEntry[] = [
 // Admin panel changelog
 const adminChangelog: ChangelogEntry[] = [
   {
+    version: "2.11.0",
+    date: "2025-01-24",
+    type: "feature",
+    title: "Outreach Real-time Send Logs + Delete Campaigns (TASK #055)",
+    description:
+      "Real-time send logs displayed in the app UI during email campaigns, plus the ability to delete test campaigns.",
+    details: [
+      "New outreach_send_logs table stores detailed send logs per campaign",
+      "Logs written to database during send (info, success, warning, error levels)",
+      "Terminal-style log viewer on campaign detail page with auto-scroll",
+      "Live polling (1.5s) shows logs in real-time while campaign is sending",
+      "Color-coded log levels (green=success, red=error, yellow=warning)",
+      "Delete button on campaigns list to remove failed/test campaigns",
+      "Fixed segments.ts to use cin7_customers + cin7_orders tables",
+      "Resend + Supabase integration supported for webhook events",
+    ],
+  },
+  {
     version: "2.10.0",
-    date: "2026-01-23",
+    date: "2025-01-23",
     type: "feature",
     title: "Inbox Polish & Team System (TASK #043-046)",
     description:
