@@ -246,23 +246,24 @@ export async function getSegmentRecipients(
     return [];
   }
 
-  // Get all Cin7 orders to compute aggregates
+  // Get all Cin7 orders to compute aggregates (include cin7_id for API lookup)
   const { data: cin7Orders, error: orderError } = await supabase
     .from("cin7_orders")
-    .select("customer_id, order_date, total, line_items");
+    .select("cin7_id, customer_id, order_date, total, line_items");
 
   if (orderError) {
     console.error("Error fetching cin7_orders:", orderError);
     return [];
   }
 
-  // Build order stats per customer (keyed by cin7_id)
+  // Build order stats per customer (keyed by customer_id)
   const orderStats: Record<
     string,
     {
       total_spent: number;
       order_count: number;
       last_order_date: string | null;
+      last_order_cin7_id: string | null; // Store cin7_id of most recent order
       last_product: string | null;
     }
   > = {};
@@ -276,6 +277,7 @@ export async function getSegmentRecipients(
         total_spent: 0,
         order_count: 0,
         last_order_date: null,
+        last_order_cin7_id: null,
         last_product: null,
       };
     }
@@ -283,12 +285,13 @@ export async function getSegmentRecipients(
     orderStats[cid].order_count++;
     orderStats[cid].total_spent += parseFloat(String(order.total)) || 0;
 
-    // Track most recent order date and product
+    // Track most recent order date, cin7_id, and product
     if (
       !orderStats[cid].last_order_date ||
       order.order_date > orderStats[cid].last_order_date
     ) {
       orderStats[cid].last_order_date = order.order_date;
+      orderStats[cid].last_order_cin7_id = order.cin7_id; // Store sale ID for API lookup
       // Get first line item name from most recent order
       const lineItems = order.line_items as Array<{ name?: string }> | null;
       if (lineItems && lineItems.length > 0 && lineItems[0].name) {
@@ -303,7 +306,11 @@ export async function getSegmentRecipients(
   oneYearAgo.setFullYear(today.getFullYear() - 1);
   const oneYearAgoStr = oneYearAgo.toISOString().split("T")[0];
 
-  const recipients: CustomerRecipient[] = [];
+  // First pass: filter customers and collect those needing product lookups
+  const recipientsWithStats: Array<{
+    customer: { id: string; cin7_id: string; email: string; name: string; company?: string };
+    stats: typeof orderStats[string];
+  }> = [];
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   cin7Customers.forEach((customer: any) => {
@@ -311,6 +318,7 @@ export async function getSegmentRecipients(
       total_spent: 0,
       order_count: 0,
       last_order_date: null,
+      last_order_cin7_id: null,
       last_product: null,
     };
 
@@ -337,19 +345,62 @@ export async function getSegmentRecipients(
         break;
     }
 
-    recipients.push({
-      id: customer.id,
-      email: customer.email.toLowerCase(),
-      name: customer.name || "",
-      company: customer.company || undefined,
-      total_spent: stats.total_spent,
-      order_count: stats.order_count,
-      last_order_date: stats.last_order_date || undefined,
-      last_product: stats.last_product || undefined,
-    });
+    recipientsWithStats.push({ customer, stats });
   });
 
-  console.log(`[Segments] Found ${recipients.length} recipients for segment "${segment}"`);
+  console.log(`[Segments] Found ${recipientsWithStats.length} recipients for segment "${segment}"`);
+
+  // Second pass: Fetch product names from Cin7 API for recipients without them
+  const recipientsNeedingProducts = recipientsWithStats.filter(
+    (r) => !r.stats.last_product && r.stats.last_order_cin7_id
+  );
+
+  if (recipientsNeedingProducts.length > 0) {
+    console.log(
+      `[Segments] Fetching product names from Cin7 API for ${recipientsNeedingProducts.length} recipients...`
+    );
+
+    // Fetch in parallel batches of 10 to avoid overwhelming the API
+    const batchSize = 10;
+    for (let i = 0; i < recipientsNeedingProducts.length; i += batchSize) {
+      const batch = recipientsNeedingProducts.slice(i, i + batchSize);
+      await Promise.all(
+        batch.map(async (recipient) => {
+          const saleId = recipient.stats.last_order_cin7_id;
+          if (!saleId) return;
+
+          try {
+            const saleDetails = await getSale(saleId);
+            if (saleDetails?.Order?.Lines && saleDetails.Order.Lines.length > 0) {
+              recipient.stats.last_product = saleDetails.Order.Lines[0].Name || null;
+            } else if (saleDetails?.Invoices && saleDetails.Invoices.length > 0) {
+              const invoiceLines = saleDetails.Invoices[0].Lines;
+              if (invoiceLines && invoiceLines.length > 0) {
+                recipient.stats.last_product = invoiceLines[0].Name || null;
+              }
+            }
+          } catch (error) {
+            console.error(`[Segments] Failed to fetch Cin7 sale ${saleId}:`, error);
+          }
+        })
+      );
+    }
+
+    console.log(`[Segments] Finished fetching Cin7 product names`);
+  }
+
+  // Build final recipients array
+  const recipients: CustomerRecipient[] = recipientsWithStats.map(({ customer, stats }) => ({
+    id: customer.id,
+    email: customer.email.toLowerCase(),
+    name: customer.name || "",
+    company: customer.company || undefined,
+    total_spent: stats.total_spent,
+    order_count: stats.order_count,
+    last_order_date: stats.last_order_date || undefined,
+    last_product: stats.last_product || undefined,
+  }));
+
   return recipients;
 }
 
