@@ -54,7 +54,8 @@ export function renderTemplate(
   data: Record<string, unknown>
 ): { subject: string; body: string } {
   const render = (text: string) => {
-    return text.replace(/\{\{(\w+)\}\}/g, (match, key) => {
+    // Match {{variable}} with optional whitespace: {{ variable }}, {{variable}}, {{ variable}}, etc.
+    return text.replace(/\{\{\s*(\w+)\s*\}\}/g, (match, key) => {
       const value = data[key];
 
       // Use fallback if value is missing, null, or empty string
@@ -88,7 +89,8 @@ export function renderTemplate(
 }
 
 export function extractVariables(text: string): string[] {
-  const regex = /\{\{(\w+)\}\}/g;
+  // Match {{variable}} with optional whitespace
+  const regex = /\{\{\s*(\w+)\s*\}\}/g;
   const variables: string[] = [];
   let match;
   while ((match = regex.exec(text)) !== null) {
