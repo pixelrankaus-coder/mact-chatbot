@@ -116,7 +116,8 @@ export async function getSegmentRecipients(
         }
       }
 
-      // Check WooCommerce orders (use correct column names: order_date, customer_email)
+      // Check WooCommerce orders by customer_id first (if customer exists)
+      let foundWooOrdersByCustomerId = false;
       if (wooCustomer?.woo_id) {
         const { data: wooOrders } = await supabase
           .from("woo_orders")
@@ -125,6 +126,7 @@ export async function getSegmentRecipients(
           .order("order_date", { ascending: false });
 
         if (wooOrders && wooOrders.length > 0) {
+          foundWooOrdersByCustomerId = true;
           wooOrders.forEach((order) => {
             totalSpent += parseFloat(String(order.total)) || 0;
             orderCount++;
@@ -143,8 +145,9 @@ export async function getSegmentRecipients(
         }
       }
 
-      // Also check WooCommerce orders by email (for guest checkouts)
-      if (!wooCustomer) {
+      // ALWAYS check WooCommerce orders by email if no orders found by customer_id
+      // This catches guest checkouts and mismatched customer_ids
+      if (!foundWooOrdersByCustomerId) {
         const { data: wooOrdersByEmail } = await supabase
           .from("woo_orders")
           .select("order_date, total, line_items")
@@ -152,6 +155,9 @@ export async function getSegmentRecipients(
           .order("order_date", { ascending: false });
 
         if (wooOrdersByEmail && wooOrdersByEmail.length > 0) {
+          console.log(
+            `[Segments] Found ${wooOrdersByEmail.length} WooCommerce orders by email for ${email}`
+          );
           wooOrdersByEmail.forEach((order) => {
             totalSpent += parseFloat(String(order.total)) || 0;
             orderCount++;
