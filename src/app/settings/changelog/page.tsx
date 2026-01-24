@@ -95,6 +95,20 @@ const widgetChangelog: ChangelogEntry[] = [
 // Admin panel changelog
 const adminChangelog: ChangelogEntry[] = [
   {
+    version: "2.17.0",
+    date: "2025-01-24",
+    type: "fix",
+    title: "Fix Campaign Preview Template Variables + coupon_code Support",
+    description:
+      "Fixed woo_orders column names in segments.ts and added {{coupon_code}} as a supported template variable with fallback.",
+    details: [
+      "Fixed woo_orders queries: order_date (not date_created), customer_email (not billing_email)",
+      "Added {{coupon_code}} variable with THANKYOU10 as default fallback",
+      "Campaign preview now renders all variables correctly with real customer data",
+      "Template editor shows coupon_code in variable dropdown",
+    ],
+  },
+  {
     version: "2.16.0",
     date: "2025-01-24",
     type: "improvement",

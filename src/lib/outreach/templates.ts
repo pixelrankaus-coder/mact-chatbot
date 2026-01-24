@@ -29,6 +29,11 @@ export const TEMPLATE_VARIABLES = [
     example: "$36,768.59",
   },
   { key: "order_count", description: "Number of orders", example: "6" },
+  {
+    key: "coupon_code",
+    description: "Coupon/discount code",
+    example: "THANKYOU10",
+  },
 ];
 
 // Fallback values for empty/missing personalization data
@@ -41,6 +46,7 @@ const FALLBACK_VALUES: Record<string, string> = {
   days_since_order: "",
   total_spent: "",
   order_count: "",
+  coupon_code: "THANKYOU10",
 };
 
 export function renderTemplate(
@@ -103,6 +109,7 @@ export function getSampleData(): Record<string, unknown> {
     days_since_order: 650,
     total_spent: 36768.59,
     order_count: 6,
+    coupon_code: "THANKYOU10",
   };
 }
 

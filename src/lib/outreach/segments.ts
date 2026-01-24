@@ -116,13 +116,13 @@ export async function getSegmentRecipients(
         }
       }
 
-      // Check WooCommerce orders
+      // Check WooCommerce orders (use correct column names: order_date, customer_email)
       if (wooCustomer?.woo_id) {
         const { data: wooOrders } = await supabase
           .from("woo_orders")
-          .select("date_created, total, line_items")
+          .select("order_date, total, line_items")
           .eq("customer_id", wooCustomer.woo_id)
-          .order("date_created", { ascending: false });
+          .order("order_date", { ascending: false });
 
         if (wooOrders && wooOrders.length > 0) {
           wooOrders.forEach((order) => {
@@ -130,7 +130,7 @@ export async function getSegmentRecipients(
             orderCount++;
           });
           // Use WooCommerce date if more recent than Cin7
-          const wooDate = wooOrders[0].date_created?.split("T")[0];
+          const wooDate = wooOrders[0].order_date?.split("T")[0];
           if (!lastOrderDate || (wooDate && wooDate > lastOrderDate)) {
             lastOrderDate = wooDate || null;
             const lineItems = wooOrders[0].line_items as Array<{
@@ -147,16 +147,16 @@ export async function getSegmentRecipients(
       if (!wooCustomer) {
         const { data: wooOrdersByEmail } = await supabase
           .from("woo_orders")
-          .select("date_created, total, line_items")
-          .ilike("billing_email", email)
-          .order("date_created", { ascending: false });
+          .select("order_date, total, line_items")
+          .ilike("customer_email", email)
+          .order("order_date", { ascending: false });
 
         if (wooOrdersByEmail && wooOrdersByEmail.length > 0) {
           wooOrdersByEmail.forEach((order) => {
             totalSpent += parseFloat(String(order.total)) || 0;
             orderCount++;
           });
-          const wooDate = wooOrdersByEmail[0].date_created?.split("T")[0];
+          const wooDate = wooOrdersByEmail[0].order_date?.split("T")[0];
           if (!lastOrderDate || (wooDate && wooDate > lastOrderDate)) {
             lastOrderDate = wooDate || null;
             const lineItems = wooOrdersByEmail[0].line_items as Array<{
