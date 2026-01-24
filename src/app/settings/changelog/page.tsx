@@ -95,6 +95,19 @@ const widgetChangelog: ChangelogEntry[] = [
 // Admin panel changelog
 const adminChangelog: ChangelogEntry[] = [
   {
+    version: "2.14.0",
+    date: "2025-01-24",
+    type: "feature",
+    title: "Add Outreach to Main Sidebar Navigation",
+    description:
+      "Outreach module now accessible from the main sidebar navigation with proper active state highlighting for all sub-pages.",
+    details: [
+      "Added Outreach (Mail icon) to main sidebar between Orders and AI Agent",
+      "Active state highlights for all nested routes (/outreach/*)",
+      "Quick access to Campaigns, Templates, Analytics, and Settings from one click",
+    ],
+  },
+  {
     version: "2.13.0",
     date: "2025-01-24",
     type: "feature",

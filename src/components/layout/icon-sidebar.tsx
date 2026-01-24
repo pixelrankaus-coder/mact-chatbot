@@ -12,6 +12,7 @@ import {
   User,
   Users,
   Package,
+  Mail,
 } from "lucide-react";
 import {
   Tooltip,
@@ -36,6 +37,7 @@ const navItems = [
   { icon: Inbox, label: "Inbox", href: "/inbox" },
   { icon: Users, label: "Customers", href: "/customers" },
   { icon: Package, label: "Orders", href: "/orders" },
+  { icon: Mail, label: "Outreach", href: "/outreach" },
   { icon: Bot, label: "AI Agent", href: "/ai-agent" },
   { icon: Settings, label: "Settings", href: "/settings" },
 ];
@@ -80,7 +82,9 @@ export function IconSidebar() {
       <TooltipProvider delayDuration={0}>
         <nav className="flex flex-1 flex-col items-center gap-2">
           {navItems.map((item) => {
-            const isActive = pathname === item.href;
+            const isActive =
+              pathname === item.href ||
+              (item.href !== "/" && pathname.startsWith(item.href));
             return (
               <Tooltip key={item.href}>
                 <TooltipTrigger asChild>
