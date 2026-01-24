@@ -26,6 +26,7 @@ import {
   Clock,
   XCircle,
   Trash2,
+  Settings,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { OutreachCampaign } from "@/types/outreach";
@@ -160,6 +161,12 @@ export default function OutreachPage() {
             <Button variant="outline" className="gap-2">
               <BarChart3 className="h-4 w-4" />
               Analytics
+            </Button>
+          </Link>
+          <Link href="/outreach/settings">
+            <Button variant="outline" className="gap-2">
+              <Settings className="h-4 w-4" />
+              Settings
             </Button>
           </Link>
           <Link href="/outreach/new">

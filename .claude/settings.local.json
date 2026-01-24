@@ -39,7 +39,9 @@
       "Bash(more:*)",
       "Bash(powershell -Command \"Stop-Process -Id 186168 -Force\")",
       "Bash(powershell:*)",
-      "Bash(tasklist:*)"
+      "Bash(tasklist:*)",
+      "Bash(git restore:*)",
+      "Bash(git checkout:*)"
     ]
   }
 }

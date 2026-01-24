@@ -95,6 +95,23 @@ const widgetChangelog: ChangelogEntry[] = [
 // Admin panel changelog
 const adminChangelog: ChangelogEntry[] = [
   {
+    version: "2.13.0",
+    date: "2025-01-24",
+    type: "feature",
+    title: "Unlayer Drag-and-Drop Email Signature Editor (TASK #056)",
+    description:
+      "Visual drag-and-drop editor for designing email signatures at /outreach/settings, using Unlayer (same as Klaviyo).",
+    details: [
+      "New Settings page accessible from Outreach navigation",
+      "Unlayer react-email-editor integration with SSR disabled",
+      "Design JSON saved to signature_json for re-editing",
+      "Rendered HTML saved to signature_html for email sending",
+      "Default signature pre-loaded matching Chris's Outlook signature",
+      "Save, Reset to Default, and Preview functionality",
+      "Modal preview shows full email with signature appended",
+    ],
+  },
+  {
     version: "2.12.0",
     date: "2025-01-24",
     type: "feature",
