@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { getSale } from "@/lib/cin7";
 
 // Server-side Supabase client
 function getSupabase() {
@@ -97,7 +98,7 @@ export async function getSegmentRecipients(
       if (cin7Customer?.cin7_id) {
         const { data: cin7Orders } = await supabase
           .from("cin7_orders")
-          .select("order_date, total, line_items")
+          .select("cin7_id, order_date, total, line_items")
           .eq("customer_id", cin7Customer.cin7_id)
           .order("order_date", { ascending: false });
 
@@ -107,11 +108,31 @@ export async function getSegmentRecipients(
             orderCount++;
           });
           lastOrderDate = cin7Orders[0].order_date;
+
+          // Check if line_items has data
           const lineItems = cin7Orders[0].line_items as Array<{
             name?: string;
           }> | null;
           if (lineItems && lineItems.length > 0 && lineItems[0].name) {
             lastProduct = lineItems[0].name;
+          } else {
+            // Cin7 sync doesn't include line items - fetch from API
+            const saleId = cin7Orders[0].cin7_id;
+            if (saleId) {
+              console.log(`[Segments] Fetching Cin7 sale ${saleId} for product details...`);
+              const saleDetails = await getSale(saleId);
+              if (saleDetails?.Order?.Lines && saleDetails.Order.Lines.length > 0) {
+                lastProduct = saleDetails.Order.Lines[0].Name || null;
+                console.log(`[Segments] Found Cin7 product: ${lastProduct}`);
+              } else if (saleDetails?.Invoices && saleDetails.Invoices.length > 0) {
+                // Try invoice lines as fallback
+                const invoiceLines = saleDetails.Invoices[0].Lines;
+                if (invoiceLines && invoiceLines.length > 0) {
+                  lastProduct = invoiceLines[0].Name || null;
+                  console.log(`[Segments] Found Cin7 product from invoice: ${lastProduct}`);
+                }
+              }
+            }
           }
         }
       }
