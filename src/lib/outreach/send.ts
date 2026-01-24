@@ -151,6 +151,14 @@ export async function sendSingleEmail(emailId: string): Promise<SendResult> {
     replyTo: email.campaign.reply_to,
   }, ctx);
 
+  // Fetch signature from outreach_settings
+  const { data: settings } = await supabase
+    .from("outreach_settings")
+    .select("signature_html")
+    .single();
+
+  const signatureHtml = settings?.signature_html || "";
+
   // Render template
   await logToDb("info", "render_template", "Rendering email template...", null, ctx);
   const { subject, body } = renderTemplate(
@@ -167,13 +175,34 @@ export async function sendSingleEmail(emailId: string): Promise<SendResult> {
     personalization: email.personalization,
   }, ctx);
 
+  // Convert body to HTML and append signature
+  const bodyHtml = body
+    .split("\n")
+    .map((line) => `<p style="margin: 0 0 10px 0;">${line || "&nbsp;"}</p>`)
+    .join("");
+
+  const htmlEmail = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: Arial, sans-serif; font-size: 14px; color: #333; line-height: 1.6; margin: 0; padding: 20px;">
+  <div style="max-width: 600px;">
+    ${bodyHtml}
+    ${signatureHtml}
+  </div>
+</body>
+</html>`;
+
   // Prepare Resend payload
   const resendPayload = {
     from: `${email.campaign.from_name} <${email.campaign.from_email}>`,
     replyTo: email.campaign.reply_to,
     to: email.recipient_email,
     subject: subject,
-    text: body,
+    html: htmlEmail,
+    text: body, // Plain text fallback
     headers: {
       "X-Campaign-Id": email.campaign_id,
       "X-Email-Id": email.id,

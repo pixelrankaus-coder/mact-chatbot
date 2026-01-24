@@ -95,10 +95,27 @@ const widgetChangelog: ChangelogEntry[] = [
 // Admin panel changelog
 const adminChangelog: ChangelogEntry[] = [
   {
+    version: "2.12.0",
+    date: "2025-01-24",
+    type: "feature",
+    title: "Master Email Signature Template (TASK #055)",
+    description:
+      "HTML email support with professional signature auto-appended to all outreach emails, matching Chris's real Outlook signature.",
+    details: [
+      "Outreach emails now sent as HTML instead of plain text",
+      "Professional signature with MACt branding auto-appended",
+      "Signature includes logo, contact details, and service tags",
+      "Signature stored in outreach_settings.signature_html (editable)",
+      "Templates now only contain message body (no manual signature)",
+      "Fallback values for empty template variables (e.g., 'our products')",
+      "Plain text fallback included for email clients that don't support HTML",
+    ],
+  },
+  {
     version: "2.11.0",
     date: "2025-01-24",
     type: "feature",
-    title: "Outreach Real-time Send Logs + Delete Campaigns (TASK #055)",
+    title: "Outreach Real-time Send Logs + Delete Campaigns",
     description:
       "Real-time send logs displayed in the app UI during email campaigns, plus the ability to delete test campaigns.",
     details: [

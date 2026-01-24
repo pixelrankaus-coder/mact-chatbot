@@ -125,6 +125,7 @@ export interface OutreachSettings {
   max_emails_per_day: number;
   track_opens: boolean;
   track_clicks: boolean;
+  signature_html: string;
   updated_at: string;
 }
 
