@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, use, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,8 @@ import {
   XCircle,
   FileText,
   RefreshCcw,
+  Terminal,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { OutreachCampaign, OutreachEvent, OutreachReply } from "@/types/outreach";
@@ -56,6 +58,17 @@ interface ActivityEvent extends OutreachEvent {
     recipient_email: string;
     recipient_name: string;
   };
+}
+
+interface SendLog {
+  id: string;
+  campaign_id: string;
+  email_id: string | null;
+  level: "info" | "success" | "warning" | "error";
+  step: string;
+  message: string;
+  data: Record<string, unknown> | null;
+  created_at: string;
 }
 
 const statusConfig: Record<
@@ -115,18 +128,34 @@ export default function CampaignDetailPage({
   const [stats, setStats] = useState<CampaignStats | null>(null);
   const [activity, setActivity] = useState<ActivityEvent[]>([]);
   const [replies, setReplies] = useState<OutreachReply[]>([]);
+  const [sendLogs, setSendLogs] = useState<SendLog[]>([]);
+  const [showLogs, setShowLogs] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const logsEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchData();
   }, [id]);
 
-  // Poll stats and trigger processing while sending
+  // Auto-scroll logs to bottom when new logs arrive
+  useEffect(() => {
+    if (logsEndRef.current && showLogs) {
+      logsEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [sendLogs, showLogs]);
+
+  // Poll stats, logs and trigger processing while sending
   useEffect(() => {
     if (campaign?.status === "sending") {
-      const interval = setInterval(async () => {
-        // Trigger processing of next batch
+      // Poll for new logs more frequently
+      const logInterval = setInterval(async () => {
+        const lastLog = sendLogs[sendLogs.length - 1];
+        await fetchSendLogs(lastLog?.created_at);
+      }, 1500);
+
+      // Trigger processing and refresh stats less frequently
+      const processInterval = setInterval(async () => {
         try {
           await fetch(`/api/outreach/campaigns/${id}/process`, {
             method: "POST",
@@ -134,15 +163,18 @@ export default function CampaignDetailPage({
         } catch (err) {
           console.error("Process error:", err);
         }
-        // Then refresh stats
         await fetchStats();
       }, 5000);
-      return () => clearInterval(interval);
+
+      return () => {
+        clearInterval(logInterval);
+        clearInterval(processInterval);
+      };
     }
-  }, [campaign?.status, id]);
+  }, [campaign?.status, id, sendLogs]);
 
   const fetchData = async () => {
-    await Promise.all([fetchStats(), fetchActivity(), fetchReplies()]);
+    await Promise.all([fetchStats(), fetchActivity(), fetchReplies(), fetchSendLogs()]);
     setLoading(false);
   };
 
@@ -180,6 +212,36 @@ export default function CampaignDetailPage({
       }
     } catch (error) {
       console.error("Failed to fetch replies:", error);
+    }
+  };
+
+  const fetchSendLogs = async (since?: string) => {
+    try {
+      const url = since
+        ? `/api/outreach/campaigns/${id}/logs?limit=100&since=${encodeURIComponent(since)}`
+        : `/api/outreach/campaigns/${id}/logs?limit=100`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (res.ok && data.logs) {
+        if (since) {
+          // Append new logs
+          setSendLogs((prev) => [...prev, ...data.logs]);
+        } else {
+          setSendLogs(data.logs);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch send logs:", error);
+    }
+  };
+
+  const clearSendLogs = async () => {
+    try {
+      await fetch(`/api/outreach/campaigns/${id}/logs`, { method: "DELETE" });
+      setSendLogs([]);
+      toast.success("Logs cleared");
+    } catch (error) {
+      console.error("Failed to clear logs:", error);
     }
   };
 
@@ -412,6 +474,83 @@ export default function CampaignDetailPage({
               </div>
             </div>
           </CardContent>
+        </Card>
+      )}
+
+      {/* Send Logs (Real-time) */}
+      {(campaign.status === "sending" || sendLogs.length > 0) && (
+        <Card className="mb-6">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Terminal className="h-5 w-5" />
+                Send Logs
+                {campaign.status === "sending" && (
+                  <span className="ml-2 flex items-center gap-1 text-sm font-normal text-amber-600">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Live
+                  </span>
+                )}
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowLogs(!showLogs)}
+                >
+                  {showLogs ? "Hide" : "Show"}
+                </Button>
+                {sendLogs.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearSendLogs}
+                    className="text-slate-500 hover:text-red-500"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          </CardHeader>
+          {showLogs && (
+            <CardContent>
+              <div className="bg-slate-900 rounded-lg p-3 max-h-80 overflow-y-auto font-mono text-xs">
+                {sendLogs.length === 0 ? (
+                  <p className="text-slate-500">No logs yet. Start the campaign to see real-time activity.</p>
+                ) : (
+                  <div className="space-y-1">
+                    {sendLogs.map((log) => (
+                      <div
+                        key={log.id}
+                        className={`flex gap-2 ${
+                          log.level === "error"
+                            ? "text-red-400"
+                            : log.level === "warning"
+                            ? "text-yellow-400"
+                            : log.level === "success"
+                            ? "text-green-400"
+                            : "text-slate-300"
+                        }`}
+                      >
+                        <span className="text-slate-500 shrink-0">
+                          {new Date(log.created_at).toLocaleTimeString()}
+                        </span>
+                        <span className="shrink-0 w-16">
+                          [{log.level.toUpperCase()}]
+                        </span>
+                        <span className="text-slate-400 shrink-0">
+                          {log.step}:
+                        </span>
+                        <span className="break-all">{log.message}</span>
+                      </div>
+                    ))}
+                    <div ref={logsEndRef} />
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          )}
         </Card>
       )}
 
