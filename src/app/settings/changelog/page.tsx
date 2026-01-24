@@ -95,6 +95,21 @@ const widgetChangelog: ChangelogEntry[] = [
 // Admin panel changelog
 const adminChangelog: ChangelogEntry[] = [
   {
+    version: "2.15.0",
+    date: "2025-01-24",
+    type: "fix",
+    title: "Fix Custom Email Personalization - WooCommerce Support",
+    description:
+      "Custom/test emails now look up order data from BOTH Cin7 AND WooCommerce, fixing missing {{last_product}} and {{last_order_date}} for WooCommerce-only customers.",
+    details: [
+      "Custom segment now queries cin7_customers, woo_customers, and woo_orders by email",
+      "Also checks billing_email in woo_orders for guest checkout customers",
+      "Combines order totals and counts from both systems",
+      "Uses most recent order date/product across both systems",
+      "Logs found order data for debugging",
+    ],
+  },
+  {
     version: "2.14.0",
     date: "2025-01-24",
     type: "feature",

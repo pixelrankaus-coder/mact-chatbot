@@ -62,23 +62,142 @@ export async function getSegmentRecipients(
   segmentFilter?: Record<string, unknown>
 ): Promise<CustomerRecipient[]> {
   // Handle custom/test segment with manually entered emails
+  // Look up actual customer data from both Cin7 and WooCommerce
   if (segment === "custom" && segmentFilter?.emails) {
-    const emails = segmentFilter.emails as string[];
-    return emails.map((email, index) => {
-      const namePart = email.split("@")[0];
-      // Capitalize first letter
-      const firstName = namePart.charAt(0).toUpperCase() + namePart.slice(1);
-      return {
-        id: `custom-${index}`,
-        email: email.toLowerCase().trim(),
-        name: firstName,
-        company: undefined,
-        total_spent: 0,
-        order_count: 0,
-        last_order_date: undefined,
-        last_product: undefined,
-      };
-    });
+    const emails = (segmentFilter.emails as string[]).map((e) =>
+      e.toLowerCase().trim()
+    );
+    const supabase = getSupabase();
+
+    // Look up customers in both systems
+    const recipients: CustomerRecipient[] = [];
+
+    for (const email of emails) {
+      // Try to find in Cin7 first
+      const { data: cin7Customer } = await supabase
+        .from("cin7_customers")
+        .select("id, cin7_id, email, name, company")
+        .ilike("email", email)
+        .single();
+
+      // Try to find in WooCommerce
+      const { data: wooCustomer } = await supabase
+        .from("woo_customers")
+        .select("id, woo_id, email, first_name, last_name, company")
+        .ilike("email", email)
+        .single();
+
+      // Get order data from both systems
+      let totalSpent = 0;
+      let orderCount = 0;
+      let lastOrderDate: string | null = null;
+      let lastProduct: string | null = null;
+
+      // Check Cin7 orders
+      if (cin7Customer?.cin7_id) {
+        const { data: cin7Orders } = await supabase
+          .from("cin7_orders")
+          .select("order_date, total, line_items")
+          .eq("customer_id", cin7Customer.cin7_id)
+          .order("order_date", { ascending: false });
+
+        if (cin7Orders && cin7Orders.length > 0) {
+          cin7Orders.forEach((order) => {
+            totalSpent += parseFloat(String(order.total)) || 0;
+            orderCount++;
+          });
+          lastOrderDate = cin7Orders[0].order_date;
+          const lineItems = cin7Orders[0].line_items as Array<{
+            name?: string;
+          }> | null;
+          if (lineItems && lineItems.length > 0 && lineItems[0].name) {
+            lastProduct = lineItems[0].name;
+          }
+        }
+      }
+
+      // Check WooCommerce orders
+      if (wooCustomer?.woo_id) {
+        const { data: wooOrders } = await supabase
+          .from("woo_orders")
+          .select("date_created, total, line_items")
+          .eq("customer_id", wooCustomer.woo_id)
+          .order("date_created", { ascending: false });
+
+        if (wooOrders && wooOrders.length > 0) {
+          wooOrders.forEach((order) => {
+            totalSpent += parseFloat(String(order.total)) || 0;
+            orderCount++;
+          });
+          // Use WooCommerce date if more recent than Cin7
+          const wooDate = wooOrders[0].date_created?.split("T")[0];
+          if (!lastOrderDate || (wooDate && wooDate > lastOrderDate)) {
+            lastOrderDate = wooDate || null;
+            const lineItems = wooOrders[0].line_items as Array<{
+              name?: string;
+            }> | null;
+            if (lineItems && lineItems.length > 0 && lineItems[0].name) {
+              lastProduct = lineItems[0].name;
+            }
+          }
+        }
+      }
+
+      // Also check WooCommerce orders by email (for guest checkouts)
+      if (!wooCustomer) {
+        const { data: wooOrdersByEmail } = await supabase
+          .from("woo_orders")
+          .select("date_created, total, line_items")
+          .ilike("billing_email", email)
+          .order("date_created", { ascending: false });
+
+        if (wooOrdersByEmail && wooOrdersByEmail.length > 0) {
+          wooOrdersByEmail.forEach((order) => {
+            totalSpent += parseFloat(String(order.total)) || 0;
+            orderCount++;
+          });
+          const wooDate = wooOrdersByEmail[0].date_created?.split("T")[0];
+          if (!lastOrderDate || (wooDate && wooDate > lastOrderDate)) {
+            lastOrderDate = wooDate || null;
+            const lineItems = wooOrdersByEmail[0].line_items as Array<{
+              name?: string;
+            }> | null;
+            if (lineItems && lineItems.length > 0 && lineItems[0].name) {
+              lastProduct = lineItems[0].name;
+            }
+          }
+        }
+      }
+
+      // Build recipient with best available data
+      const customerName =
+        cin7Customer?.name ||
+        (wooCustomer
+          ? `${wooCustomer.first_name || ""} ${wooCustomer.last_name || ""}`.trim()
+          : null) ||
+        email.split("@")[0].charAt(0).toUpperCase() +
+          email.split("@")[0].slice(1);
+
+      const customerCompany =
+        cin7Customer?.company || wooCustomer?.company || undefined;
+
+      recipients.push({
+        id: cin7Customer?.id || wooCustomer?.id || `custom-${email}`,
+        email,
+        name: customerName,
+        company: customerCompany,
+        total_spent: totalSpent,
+        order_count: orderCount,
+        last_order_date: lastOrderDate || undefined,
+        last_product: lastProduct || undefined,
+      });
+
+      console.log(
+        `[Segments] Custom email ${email}: found ${orderCount} orders, last_product: ${lastProduct}, last_order_date: ${lastOrderDate}`
+      );
+    }
+
+    return recipients;
   }
 
   const supabase = getSupabase();
