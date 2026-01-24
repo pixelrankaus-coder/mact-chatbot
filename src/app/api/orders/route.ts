@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase";
-import { listWooOrders } from "@/lib/woocommerce";
-import { wooToUnifiedOrder } from "@/lib/order-merge";
 import type { OrderSource, UnifiedOrder } from "@/types/order";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -71,20 +69,56 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Fetch WooCommerce orders from API (not synced to Supabase yet)
+    // Fetch WooCommerce orders from Supabase cache (synced via cron)
     let wooOrders: UnifiedOrder[] = [];
     let wooTotal = 0;
 
     if (source !== "cin7") {
-      const wooResult = await listWooOrders({
-        search: search || undefined,
-        status: status || undefined,
-        page,
-        per_page: limit,
-      });
+      let wooQuery = supabase
+        .from("woo_orders")
+        .select("*", { count: "exact" })
+        .order("date_created", { ascending: false });
 
-      wooTotal = wooResult.total || 0;
-      wooOrders = (wooResult.orders || []).map(wooToUnifiedOrder);
+      // Apply search filter
+      if (search) {
+        wooQuery = wooQuery.or(
+          `order_number.ilike.%${search}%,billing_first_name.ilike.%${search}%,billing_last_name.ilike.%${search}%,billing_email.ilike.%${search}%`
+        );
+      }
+
+      // Apply status filter
+      if (status) {
+        wooQuery = wooQuery.eq("status", status.toLowerCase());
+      }
+
+      // Pagination
+      wooQuery = wooQuery.range(offset, offset + limit - 1);
+
+      const { data: wooData, count: wooCount, error: wooError } = await wooQuery;
+
+      if (wooError) {
+        console.error("Supabase woo_orders query error:", wooError);
+      } else {
+        wooTotal = wooCount || 0;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        wooOrders = (wooData || []).map((o: any) => ({
+          id: `woo-${o.woo_id}`,
+          wooId: o.woo_id,
+          orderNumber: o.order_number || `#${o.woo_id}`,
+          source: "woocommerce" as const,
+          status: o.status || "",
+          statusLabel: o.status ? o.status.charAt(0).toUpperCase() + o.status.slice(1).replace(/-/g, " ") : "",
+          orderDate: o.date_created || "",
+          total: parseFloat(String(o.total)) || 0,
+          currency: o.currency || "AUD",
+          customerName: `${o.billing_first_name || ""} ${o.billing_last_name || ""}`.trim() || "Guest",
+          customerEmail: o.billing_email || "",
+          customerId: o.customer_id ? String(o.customer_id) : "",
+          trackingNumber: undefined,
+          items: o.line_items || [],
+          lastUpdated: o.date_modified || o.date_created || "",
+        }));
+      }
     }
 
     // Merge orders from both sources
