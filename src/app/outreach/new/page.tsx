@@ -40,12 +40,13 @@ interface Segment {
   count?: number;
 }
 
-interface SampleRecipient {
+interface PreviewRecipient {
   email: string;
   name: string;
   company?: string;
   personalization: Record<string, unknown>;
   preview: { subject: string; body: string };
+  html_preview: string;
 }
 
 const STEPS = [
@@ -91,10 +92,9 @@ export default function NewCampaignPage() {
   const [fromEmail, setFromEmail] = useState("c.born@mact.au");
   const [replyTo, setReplyTo] = useState("replies@mact.au");
   const [sendRate, setSendRate] = useState(50);
-  const [sampleRecipients, setSampleRecipients] = useState<SampleRecipient[]>(
-    []
-  );
+  const [allRecipients, setAllRecipients] = useState<PreviewRecipient[]>([]);
   const [totalRecipients, setTotalRecipients] = useState(0);
+  const [previewIndex, setPreviewIndex] = useState(0);
 
   // Step 4: Schedule
   const [sendNow, setSendNow] = useState(true);
@@ -137,8 +137,9 @@ export default function NewCampaignPage() {
     try {
       const res = await fetch(`/api/outreach/campaigns/${campaignId}/preview`);
       const data = await res.json();
-      setSampleRecipients(data.sample_recipients || []);
+      setAllRecipients(data.all_recipients || []);
       setTotalRecipients(data.total_recipients || 0);
+      setPreviewIndex(0); // Reset to first recipient
     } catch (error) {
       console.error("Failed to fetch preview:", error);
     }
@@ -527,114 +528,173 @@ export default function NewCampaignPage() {
                   Preview & Configure
                 </h2>
                 <p className="text-sm text-slate-500">
-                  Review your campaign settings and preview sample emails
+                  Review your campaign settings and preview exactly what each recipient will see
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-6">
-                {/* Settings */}
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Campaign Name</Label>
-                    <Input
-                      id="name"
-                      value={campaignName}
-                      onChange={(e) => setCampaignName(e.target.value)}
-                      placeholder="e.g., January Win-back"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="fromName">From Name</Label>
-                    <Input
-                      id="fromName"
-                      value={fromName}
-                      onChange={(e) => setFromName(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="fromEmail">From Email</Label>
-                    <Input
-                      id="fromEmail"
-                      value={fromEmail}
-                      onChange={(e) => setFromEmail(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Send Rate</Label>
-                    <Select
-                      value={sendRate.toString()}
-                      onValueChange={(v) => setSendRate(parseInt(v))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {SEND_RATES.map((rate) => (
-                          <SelectItem
-                            key={rate.value}
-                            value={rate.value.toString()}
-                          >
-                            {rate.label} - {rate.description}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="bg-slate-50 rounded-lg p-4 mt-4">
-                    <h4 className="font-medium mb-2">Summary</h4>
-                    <div className="space-y-1 text-sm">
-                      <p>
-                        <span className="text-slate-500">Segment:</span>{" "}
-                        {selectedSegmentInfo?.name}
-                      </p>
-                      <p>
-                        <span className="text-slate-500">Template:</span>{" "}
-                        {selectedTemplateInfo?.name}
-                      </p>
-                      <p>
-                        <span className="text-slate-500">Recipients:</span>{" "}
-                        {totalRecipients}
-                      </p>
-                      <p>
-                        <span className="text-slate-500">Est. Time:</span>{" "}
-                        {getEstimatedTime()}
-                      </p>
-                    </div>
-                  </div>
+              {/* Campaign Settings Row */}
+              <div className="grid grid-cols-4 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Campaign Name</Label>
+                  <Input
+                    id="name"
+                    value={campaignName}
+                    onChange={(e) => setCampaignName(e.target.value)}
+                    placeholder="e.g., January Win-back"
+                  />
                 </div>
 
-                {/* Sample Previews */}
-                <div className="space-y-4">
-                  <h3 className="font-medium">Sample Emails</h3>
-                  <div className="space-y-3 max-h-[400px] overflow-y-auto">
-                    {sampleRecipients.map((recipient, index) => (
-                      <div
-                        key={index}
-                        className="bg-slate-50 rounded-lg p-3 text-sm"
-                      >
-                        <p className="font-medium text-blue-600 mb-1">
-                          To: {recipient.name} &lt;{recipient.email}&gt;
-                        </p>
-                        <p className="text-slate-600 mb-2">
-                          <span className="text-slate-400">Subject:</span>{" "}
-                          {recipient.preview.subject}
-                        </p>
-                        <div className="whitespace-pre-wrap text-xs text-slate-500 max-h-24 overflow-hidden">
-                          {recipient.preview.body.substring(0, 200)}...
-                        </div>
-                      </div>
-                    ))}
-                    {sampleRecipients.length === 0 && (
-                      <div className="text-center py-4 text-slate-400">
-                        No preview available
-                      </div>
+                <div className="space-y-2">
+                  <Label htmlFor="fromName">From Name</Label>
+                  <Input
+                    id="fromName"
+                    value={fromName}
+                    onChange={(e) => setFromName(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="fromEmail">From Email</Label>
+                  <Input
+                    id="fromEmail"
+                    value={fromEmail}
+                    onChange={(e) => setFromEmail(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Send Rate</Label>
+                  <Select
+                    value={sendRate.toString()}
+                    onValueChange={(v) => setSendRate(parseInt(v))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SEND_RATES.map((rate) => (
+                        <SelectItem
+                          key={rate.value}
+                          value={rate.value.toString()}
+                        >
+                          {rate.label} - {rate.description}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Summary Bar */}
+              <div className="flex items-center gap-6 bg-slate-50 rounded-lg p-3 text-sm">
+                <div>
+                  <span className="text-slate-500">Segment:</span>{" "}
+                  <span className="font-medium">{selectedSegmentInfo?.name}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500">Template:</span>{" "}
+                  <span className="font-medium">{selectedTemplateInfo?.name}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500">Recipients:</span>{" "}
+                  <span className="font-medium">{totalRecipients}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500">Est. Time:</span>{" "}
+                  <span className="font-medium">{getEstimatedTime()}</span>
+                </div>
+              </div>
+
+              {/* Full Email Preview with Navigation */}
+              <div className="border rounded-lg">
+                {/* Preview Header with Navigation */}
+                <div className="flex items-center justify-between bg-slate-100 px-4 py-3 border-b">
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-slate-500" />
+                    <span className="font-medium">Email Preview</span>
+                    {allRecipients.length > 0 && (
+                      <Badge variant="secondary">
+                        {previewIndex + 1} of {allRecipients.length}
+                      </Badge>
                     )}
                   </div>
+                  {allRecipients.length > 1 && (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPreviewIndex(Math.max(0, previewIndex - 1))}
+                        disabled={previewIndex === 0}
+                      >
+                        <ArrowLeft className="h-4 w-4 mr-1" />
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPreviewIndex(Math.min(allRecipients.length - 1, previewIndex + 1))}
+                        disabled={previewIndex === allRecipients.length - 1}
+                      >
+                        Next
+                        <ArrowRight className="h-4 w-4 ml-1" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
+
+                {allRecipients.length > 0 && allRecipients[previewIndex] ? (
+                  <div>
+                    {/* Email Headers */}
+                    <div className="bg-white px-4 py-3 border-b space-y-1 text-sm">
+                      <div>
+                        <span className="text-slate-500 w-16 inline-block">To:</span>
+                        <span className="font-medium text-blue-600">
+                          {allRecipients[previewIndex].name} &lt;{allRecipients[previewIndex].email}&gt;
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 w-16 inline-block">From:</span>
+                        <span>{fromName} &lt;{fromEmail}&gt;</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 w-16 inline-block">Subject:</span>
+                        <span className="font-medium">{allRecipients[previewIndex].preview.subject}</span>
+                      </div>
+                    </div>
+
+                    {/* Email Body - Full HTML Preview */}
+                    <div className="bg-white p-4">
+                      <div
+                        className="border rounded-lg overflow-hidden"
+                        style={{ minHeight: "400px" }}
+                      >
+                        <iframe
+                          srcDoc={allRecipients[previewIndex].html_preview}
+                          title="Email Preview"
+                          className="w-full h-[400px] border-0"
+                          sandbox="allow-same-origin"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Personalization Data (Collapsible) */}
+                    <details className="border-t">
+                      <summary className="px-4 py-2 text-sm text-slate-500 cursor-pointer hover:bg-slate-50">
+                        View Personalization Data
+                      </summary>
+                      <div className="px-4 py-2 bg-slate-50 text-xs font-mono">
+                        <pre className="whitespace-pre-wrap">
+                          {JSON.stringify(allRecipients[previewIndex].personalization, null, 2)}
+                        </pre>
+                      </div>
+                    </details>
+                  </div>
+                ) : (
+                  <div className="text-center py-12 text-slate-400">
+                    <Mail className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No preview available</p>
+                  </div>
+                )}
               </div>
             </div>
           )}

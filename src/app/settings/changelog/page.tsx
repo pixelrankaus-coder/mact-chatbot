@@ -95,6 +95,23 @@ const widgetChangelog: ChangelogEntry[] = [
 // Admin panel changelog
 const adminChangelog: ChangelogEntry[] = [
   {
+    version: "2.18.0",
+    date: "2025-01-25",
+    type: "feature",
+    title: "Full Email Preview with Recipient Navigation (TASK #057)",
+    description:
+      "Campaign preview step now shows EXACTLY what each recipient will see, including full HTML email with signature and Previous/Next navigation to review all recipients.",
+    details: [
+      "Preview shows full HTML email in iframe (exactly as sent)",
+      "Email signature included in preview",
+      "Previous/Next buttons to navigate through ALL recipients",
+      "Shows email headers: To, From, Subject with rendered values",
+      "Collapsible personalization data viewer for debugging",
+      "Compact settings layout with summary bar",
+      "Fixed template regex to handle {{ variable }} with spaces",
+    ],
+  },
+  {
     version: "2.17.0",
     date: "2025-01-24",
     type: "fix",

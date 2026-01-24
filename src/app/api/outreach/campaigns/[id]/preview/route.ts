@@ -14,7 +14,29 @@ function getSupabase() {
   return createClient(supabaseUrl, supabaseKey);
 }
 
-// GET /api/outreach/campaigns/[id]/preview - Preview campaign with sample recipients
+// Build full HTML email exactly as it will be sent
+function buildHtmlEmail(body: string, signatureHtml: string): string {
+  const bodyHtml = body
+    .split("\n")
+    .map((line) => `<p style="margin: 0 0 10px 0;">${line || "&nbsp;"}</p>`)
+    .join("");
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: Arial, sans-serif; font-size: 14px; color: #333; line-height: 1.6; margin: 0; padding: 20px;">
+  <div style="max-width: 600px;">
+    ${bodyHtml}
+    ${signatureHtml}
+  </div>
+</body>
+</html>`;
+}
+
+// GET /api/outreach/campaigns/[id]/preview - Preview campaign with ALL recipients
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -49,14 +71,22 @@ export async function GET(
       );
     }
 
-    // Get recipients
+    // Get signature from outreach_settings
+    const { data: settings } = await supabase
+      .from("outreach_settings")
+      .select("signature_html")
+      .single();
+
+    const signatureHtml = settings?.signature_html || "";
+
+    // Get ALL recipients (not just first 5)
     const recipients = await getSegmentRecipients(
       campaign.segment,
       campaign.segment_filter
     );
 
-    // Build sample previews (first 5 recipients)
-    const sampleRecipients = recipients.slice(0, 5).map((recipient) => {
+    // Build previews for ALL recipients with full HTML
+    const allRecipients = recipients.map((recipient) => {
       const personalization = buildPersonalizationData(recipient);
       const preview = renderTemplate(
         {
@@ -66,12 +96,16 @@ export async function GET(
         personalization
       );
 
+      // Build full HTML email exactly as it will be sent
+      const htmlPreview = buildHtmlEmail(preview.body, signatureHtml);
+
       return {
         email: recipient.email,
         name: recipient.name,
         company: recipient.company,
         personalization,
         preview,
+        html_preview: htmlPreview,
       };
     });
 
@@ -79,7 +113,8 @@ export async function GET(
       campaign,
       template: campaign.template,
       total_recipients: recipients.length,
-      sample_recipients: sampleRecipients,
+      all_recipients: allRecipients,
+      signature_html: signatureHtml,
     });
   } catch (error) {
     console.error("Campaign preview error:", error);
