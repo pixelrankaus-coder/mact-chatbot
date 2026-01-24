@@ -31,6 +31,18 @@ export const TEMPLATE_VARIABLES = [
   { key: "order_count", description: "Number of orders", example: "6" },
 ];
 
+// Fallback values for empty/missing personalization data
+const FALLBACK_VALUES: Record<string, string> = {
+  first_name: "there",
+  last_name: "",
+  company: "your company",
+  last_product: "our products",
+  last_order_date: "a while back",
+  days_since_order: "",
+  total_spent: "",
+  order_count: "",
+};
+
 export function renderTemplate(
   template: { subject: string; body: string },
   data: Record<string, unknown>
@@ -38,7 +50,12 @@ export function renderTemplate(
   const render = (text: string) => {
     return text.replace(/\{\{(\w+)\}\}/g, (match, key) => {
       const value = data[key];
-      if (value === undefined || value === null) return match;
+
+      // Use fallback if value is missing, null, or empty string
+      if (value === undefined || value === null || value === "") {
+        const fallback = FALLBACK_VALUES[key];
+        return fallback !== undefined ? fallback : match;
+      }
 
       // Format special values
       if (key === "total_spent" && typeof value === "number") {

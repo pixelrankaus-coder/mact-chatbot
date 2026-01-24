@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
       segment_filter,
       from_name = "Chris Born",
       from_email = "c.born@mact.au",
-      reply_to = "replies@mact.au",
+      reply_to = "c.born@mact.au",
       send_rate = 50,
       scheduled_at,
       start_immediately = false,
