@@ -77,12 +77,12 @@ export async function GET(req: NextRequest) {
       let wooQuery = supabase
         .from("woo_orders")
         .select("*", { count: "exact" })
-        .order("date_created", { ascending: false });
+        .order("order_date", { ascending: false });
 
       // Apply search filter
       if (search) {
         wooQuery = wooQuery.or(
-          `order_number.ilike.%${search}%,billing_first_name.ilike.%${search}%,billing_last_name.ilike.%${search}%,billing_email.ilike.%${search}%`
+          `order_number.ilike.%${search}%,customer_name.ilike.%${search}%,customer_email.ilike.%${search}%`
         );
       }
 
@@ -107,16 +107,16 @@ export async function GET(req: NextRequest) {
           orderNumber: o.order_number || `#${o.woo_id}`,
           source: "woocommerce" as const,
           status: o.status || "",
-          statusLabel: o.status ? o.status.charAt(0).toUpperCase() + o.status.slice(1).replace(/-/g, " ") : "",
-          orderDate: o.date_created || "",
+          statusLabel: o.status_label || (o.status ? o.status.charAt(0).toUpperCase() + o.status.slice(1).replace(/-/g, " ") : ""),
+          orderDate: o.order_date || "",
           total: parseFloat(String(o.total)) || 0,
           currency: o.currency || "AUD",
-          customerName: `${o.billing_first_name || ""} ${o.billing_last_name || ""}`.trim() || "Guest",
-          customerEmail: o.billing_email || "",
+          customerName: o.customer_name || "Guest",
+          customerEmail: o.customer_email || "",
           customerId: o.customer_id ? String(o.customer_id) : "",
-          trackingNumber: undefined,
+          trackingNumber: o.tracking_number || undefined,
           items: o.line_items || [],
-          lastUpdated: o.date_modified || o.date_created || "",
+          lastUpdated: o.updated_at || o.order_date || "",
         }));
       }
     }
