@@ -237,6 +237,64 @@ export async function sendSingleEmail(emailId: string): Promise<SendResult> {
     },
   };
 
+  // Check if this is a dry run / simulation
+  const isDryRun = email.campaign.is_dry_run === true;
+
+  if (isDryRun) {
+    await logToDb("info", "send_api", `[DRY RUN] Simulating send to ${email.recipient_email}...`, {
+      to: resendPayload.to,
+      from: resendPayload.from,
+      subject: resendPayload.subject,
+      mode: "simulation",
+    }, ctx);
+
+    // Simulate a small delay for realism
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    await logToDb("success", "send_api", `[DRY RUN] Email simulated successfully to ${email.recipient_email}`, {
+      mode: "simulation",
+      note: "No actual email was sent",
+    }, ctx);
+
+    // Update email as "sent" (simulated)
+    const { error: updateError } = await supabase
+      .from("outreach_emails")
+      .update({
+        status: "sent",
+        sent_at: new Date().toISOString(),
+        resend_id: `dry-run-${Date.now()}`,
+        rendered_subject: subject,
+        rendered_body: body,
+      })
+      .eq("id", emailId);
+
+    if (updateError) {
+      await logToDb("warning", "update_status", "Failed to update email status to sent", { error: updateError.message }, ctx);
+    }
+
+    // Log event
+    await supabase.from("outreach_events").insert({
+      email_id: emailId,
+      campaign_id: email.campaign_id,
+      event_type: "sent",
+    });
+
+    // Increment counter using RPC
+    const { error: rpcError } = await supabase.rpc("increment_campaign_sent", {
+      p_campaign_id: email.campaign_id,
+    });
+
+    if (rpcError) {
+      await logToDb("warning", "update_counter", "Failed to increment sent counter", { error: rpcError.message }, ctx);
+    }
+
+    await logToDb("success", "complete", `[DRY RUN] Simulated delivery to ${email.recipient_email}`, {
+      mode: "simulation",
+    }, ctx);
+
+    return { success: true, resendId: `dry-run-${Date.now()}` };
+  }
+
   await logToDb("info", "send_api", `Calling Resend API to send to ${email.recipient_email}...`, {
     to: resendPayload.to,
     from: resendPayload.from,

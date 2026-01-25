@@ -34,6 +34,7 @@ import {
   RefreshCcw,
   Terminal,
   Trash2,
+  FlaskConical,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { OutreachCampaign, OutreachEvent, OutreachReply } from "@/types/outreach";
@@ -453,6 +454,20 @@ export default function CampaignDetailPage({
         </div>
       </div>
 
+      {/* Dry Run Banner */}
+      {campaign.is_dry_run && (
+        <div className="mb-6 p-4 bg-purple-50 border-2 border-purple-300 rounded-lg flex items-center gap-3">
+          <FlaskConical className="h-6 w-6 text-purple-600 shrink-0" />
+          <div>
+            <p className="font-semibold text-purple-900">Simulation Mode (Dry Run)</p>
+            <p className="text-sm text-purple-700">
+              This campaign ran in simulation mode. No actual emails were sent to recipients.
+              All statistics show simulated results only.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Progress */}
       {stats && (
         <Card className="mb-6">
@@ -731,6 +746,15 @@ export default function CampaignDetailPage({
                 )}
               </p>
             </div>
+            {campaign.is_dry_run && (
+              <div>
+                <p className="text-slate-500">Mode</p>
+                <p className="font-medium text-purple-600 flex items-center gap-1">
+                  <FlaskConical className="h-4 w-4" />
+                  Simulation (Dry Run)
+                </p>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

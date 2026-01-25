@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
       send_rate = 50,
       scheduled_at,
       start_immediately = false,
+      is_dry_run = false,
     } = body;
 
     if (!name || !template_id || !segment) {
@@ -120,6 +121,7 @@ export async function POST(request: NextRequest) {
         status,
         scheduled_at: scheduled_at || null,
         total_recipients: totalRecipients,
+        is_dry_run: is_dry_run,
       })
       .select()
       .single();

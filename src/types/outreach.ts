@@ -40,6 +40,7 @@ export interface OutreachCampaign {
   clicked_count: number;
   replied_count: number;
   bounced_count: number;
+  is_dry_run?: boolean;
   created_at: string;
   updated_at: string;
   created_by?: string;
@@ -169,6 +170,7 @@ export interface CreateCampaignRequest {
   send_rate?: number;
   scheduled_at?: string;
   start_immediately?: boolean;
+  is_dry_run?: boolean;
 }
 
 export interface CreateTemplateRequest {

@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   ArrowLeft,
   ArrowRight,
@@ -29,6 +30,7 @@ import {
   Clock,
   Mail,
   UserPlus,
+  FlaskConical,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { OutreachTemplate } from "@/types/outreach";
@@ -100,6 +102,7 @@ export default function NewCampaignPage() {
   const [sendNow, setSendNow] = useState(true);
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("09:00");
+  const [isDryRun, setIsDryRun] = useState(false);
 
   // Fetch segments on mount
   useEffect(() => {
@@ -195,6 +198,7 @@ export default function NewCampaignPage() {
             from_email: fromEmail,
             reply_to: replyTo,
             send_rate: sendRate,
+            is_dry_run: isDryRun,
           }),
         });
 
@@ -262,6 +266,7 @@ export default function NewCampaignPage() {
           send_rate: sendRate,
           scheduled_at: scheduledAt,
           status: saveAsDraft ? "draft" : sendNow ? "scheduled" : "scheduled",
+          is_dry_run: isDryRun,
         }),
       });
 
@@ -711,6 +716,33 @@ export default function NewCampaignPage() {
                 </p>
               </div>
 
+              {/* Simulation Mode Toggle */}
+              <div className={`p-4 rounded-lg border-2 ${isDryRun ? "border-purple-500 bg-purple-50" : "border-slate-200"}`}>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <Checkbox
+                    id="dryRun"
+                    checked={isDryRun}
+                    onCheckedChange={(checked) => setIsDryRun(checked === true)}
+                    className="mt-1"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <FlaskConical className="h-4 w-4 text-purple-600" />
+                      <span className="font-medium">Simulation Mode (Dry Run)</span>
+                    </div>
+                    <p className="text-sm text-slate-500 mt-1">
+                      Test your campaign without sending real emails. All emails will be marked as
+                      &quot;sent&quot; but no actual delivery will occur. Great for testing templates and workflows.
+                    </p>
+                    {isDryRun && (
+                      <div className="mt-2 p-2 bg-purple-100 rounded text-sm text-purple-700">
+                        <strong>Note:</strong> No emails will be sent to recipients. This is a test run only.
+                      </div>
+                    )}
+                  </div>
+                </label>
+              </div>
+
               <RadioGroup
                 value={sendNow ? "now" : "scheduled"}
                 onValueChange={(v) => setSendNow(v === "now")}
@@ -828,6 +860,15 @@ export default function NewCampaignPage() {
                             : "Not set"}
                       </p>
                     </div>
+                    {isDryRun && (
+                      <div className="col-span-2">
+                        <p className="text-slate-500">Mode</p>
+                        <p className="font-medium text-purple-600 flex items-center gap-1">
+                          <FlaskConical className="h-4 w-4" />
+                          Simulation (No real emails)
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
