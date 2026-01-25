@@ -176,7 +176,18 @@ export async function sendSingleEmail(emailId: string): Promise<SendResult> {
   }, ctx);
 
   // Convert body to HTML and append signature
-  const bodyHtml = body
+  // Decode any HTML entities that might have been double-encoded (e.g., &lt; -> <)
+  const decodeHtmlEntities = (text: string): string => {
+    return text
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&amp;/g, '&');
+  };
+
+  const decodedBody = decodeHtmlEntities(body);
+  const bodyHtml = decodedBody
     .split("\n")
     .map((line) => `<p style="margin: 0 0 10px 0;">${line || "&nbsp;"}</p>`)
     .join("");
@@ -186,6 +197,9 @@ export async function sendSingleEmail(emailId: string): Promise<SendResult> {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    a { color: #2563eb; text-decoration: underline; }
+  </style>
 </head>
 <body style="font-family: Arial, sans-serif; font-size: 14px; color: #333; line-height: 1.6; margin: 0; padding: 20px;">
   <div style="max-width: 600px;">
@@ -195,6 +209,9 @@ export async function sendSingleEmail(emailId: string): Promise<SendResult> {
 </body>
 </html>`;
 
+  // Create plain text version (strip HTML tags for email clients that prefer plain text)
+  const plainText = decodedBody.replace(/<a[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/gi, '$2 ($1)');
+
   // Prepare Resend payload
   const resendPayload = {
     from: `${email.campaign.from_name} <${email.campaign.from_email}>`,
@@ -202,7 +219,7 @@ export async function sendSingleEmail(emailId: string): Promise<SendResult> {
     to: email.recipient_email,
     subject: subject,
     html: htmlEmail,
-    text: body, // Plain text fallback
+    text: plainText, // Plain text fallback with links converted to "text (url)" format
     headers: {
       "X-Campaign-Id": email.campaign_id,
       "X-Email-Id": email.id,

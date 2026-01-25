@@ -14,9 +14,20 @@ function getSupabase() {
   return createClient(supabaseUrl, supabaseKey);
 }
 
+// Decode any HTML entities that might have been double-encoded
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&');
+}
+
 // Build full HTML email exactly as it will be sent
 function buildHtmlEmail(body: string, signatureHtml: string): string {
-  const bodyHtml = body
+  const decodedBody = decodeHtmlEntities(body);
+  const bodyHtml = decodedBody
     .split("\n")
     .map((line) => `<p style="margin: 0 0 10px 0;">${line || "&nbsp;"}</p>`)
     .join("");
@@ -26,6 +37,9 @@ function buildHtmlEmail(body: string, signatureHtml: string): string {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    a { color: #2563eb; text-decoration: underline; }
+  </style>
 </head>
 <body style="font-family: Arial, sans-serif; font-size: 14px; color: #333; line-height: 1.6; margin: 0; padding: 20px;">
   <div style="max-width: 600px;">
