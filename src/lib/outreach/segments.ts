@@ -1,5 +1,4 @@
 import { createClient } from "@supabase/supabase-js";
-import { getSale } from "@/lib/cin7";
 
 // Server-side Supabase client
 function getSupabase() {
@@ -109,31 +108,14 @@ export async function getSegmentRecipients(
           });
           lastOrderDate = cin7Orders[0].order_date;
 
-          // Check if line_items has data
+          // Get product name from line_items (populated during Cin7 sync)
           const lineItems = cin7Orders[0].line_items as Array<{
             name?: string;
           }> | null;
           if (lineItems && lineItems.length > 0 && lineItems[0].name) {
             lastProduct = lineItems[0].name;
-          } else {
-            // Cin7 sync doesn't include line items - fetch from API
-            const saleId = cin7Orders[0].cin7_id;
-            if (saleId) {
-              console.log(`[Segments] Fetching Cin7 sale ${saleId} for product details...`);
-              const saleDetails = await getSale(saleId);
-              if (saleDetails?.Order?.Lines && saleDetails.Order.Lines.length > 0) {
-                lastProduct = saleDetails.Order.Lines[0].Name || null;
-                console.log(`[Segments] Found Cin7 product: ${lastProduct}`);
-              } else if (saleDetails?.Invoices && saleDetails.Invoices.length > 0) {
-                // Try invoice lines as fallback
-                const invoiceLines = saleDetails.Invoices[0].Lines;
-                if (invoiceLines && invoiceLines.length > 0) {
-                  lastProduct = invoiceLines[0].Name || null;
-                  console.log(`[Segments] Found Cin7 product from invoice: ${lastProduct}`);
-                }
-              }
-            }
           }
+          // No API fallback - if line_items is empty, product will be empty
         }
       }
 
@@ -268,6 +250,12 @@ export async function getSegmentRecipients(
     }
   > = {};
 
+  // Debug: Log first order to see structure
+  if (cin7Orders && cin7Orders.length > 0) {
+    console.log(`[Segments] Sample order fields:`, Object.keys(cin7Orders[0]));
+    console.log(`[Segments] Sample order cin7_id:`, cin7Orders[0].cin7_id);
+  }
+
   (cin7Orders || []).forEach((order) => {
     const cid = order.customer_id;
     if (!cid) return;
@@ -350,44 +338,10 @@ export async function getSegmentRecipients(
 
   console.log(`[Segments] Found ${recipientsWithStats.length} recipients for segment "${segment}"`);
 
-  // Second pass: Fetch product names from Cin7 API for recipients without them
-  const recipientsNeedingProducts = recipientsWithStats.filter(
-    (r) => !r.stats.last_product && r.stats.last_order_cin7_id
-  );
-
-  if (recipientsNeedingProducts.length > 0) {
-    console.log(
-      `[Segments] Fetching product names from Cin7 API for ${recipientsNeedingProducts.length} recipients...`
-    );
-
-    // Fetch in parallel batches of 10 to avoid overwhelming the API
-    const batchSize = 10;
-    for (let i = 0; i < recipientsNeedingProducts.length; i += batchSize) {
-      const batch = recipientsNeedingProducts.slice(i, i + batchSize);
-      await Promise.all(
-        batch.map(async (recipient) => {
-          const saleId = recipient.stats.last_order_cin7_id;
-          if (!saleId) return;
-
-          try {
-            const saleDetails = await getSale(saleId);
-            if (saleDetails?.Order?.Lines && saleDetails.Order.Lines.length > 0) {
-              recipient.stats.last_product = saleDetails.Order.Lines[0].Name || null;
-            } else if (saleDetails?.Invoices && saleDetails.Invoices.length > 0) {
-              const invoiceLines = saleDetails.Invoices[0].Lines;
-              if (invoiceLines && invoiceLines.length > 0) {
-                recipient.stats.last_product = invoiceLines[0].Name || null;
-              }
-            }
-          } catch (error) {
-            console.error(`[Segments] Failed to fetch Cin7 sale ${saleId}:`, error);
-          }
-        })
-      );
-    }
-
-    console.log(`[Segments] Finished fetching Cin7 product names`);
-  }
+  // Note: We no longer make Cin7 API calls here. Product names come from:
+  // 1. The cin7_orders.line_items column (populated during sync)
+  // 2. If missing, the template will just show empty {{last_product}}
+  // To fix missing products, re-run the Cin7 sync which now fetches line items.
 
   // Build final recipients array
   const recipients: CustomerRecipient[] = recipientsWithStats.map(({ customer, stats }) => ({
