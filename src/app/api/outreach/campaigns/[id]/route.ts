@@ -70,12 +70,25 @@ export async function PUT(
       );
     }
 
-    // Only draft campaigns can be fully edited
-    if (!["draft", "scheduled"].includes(existing.status)) {
-      return NextResponse.json(
-        { error: "Cannot edit campaign in current status" },
-        { status: 400 }
-      );
+    // Check what kind of edit is allowed based on current status
+    const isStatusChangeOnly = Object.keys(body).length === 1 && body.status !== undefined;
+
+    // Allow cancelling from paused or sending status
+    if (isStatusChangeOnly && body.status === "cancelled") {
+      if (!["draft", "scheduled", "paused", "sending"].includes(existing.status)) {
+        return NextResponse.json(
+          { error: "Cannot cancel campaign in current status" },
+          { status: 400 }
+        );
+      }
+    } else {
+      // Full edits only allowed for draft/scheduled campaigns
+      if (!["draft", "scheduled"].includes(existing.status)) {
+        return NextResponse.json(
+          { error: "Cannot edit campaign in current status" },
+          { status: 400 }
+        );
+      }
     }
 
     const allowedFields = [
