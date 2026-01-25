@@ -543,10 +543,16 @@ export async function processCampaignBatch(
       failed++;
     }
 
-    // Delay before next (except last in batch)
+    // Delay before next (except last in batch) - skip for dry runs
     if (i < pendingEmails.length - 1 && campaign.send_delay_ms > 0) {
-      await logToDb("info", "batch_delay", `Waiting ${campaign.send_delay_ms}ms before next email...`, null, ctx);
-      await new Promise((resolve) => setTimeout(resolve, campaign.send_delay_ms));
+      // Check if dry run - skip the delay
+      const isDryRun = campaign.is_dry_run === true;
+      if (isDryRun) {
+        await logToDb("info", "batch_delay", `[DRY RUN] Skipping delay`, null, ctx);
+      } else {
+        await logToDb("info", "batch_delay", `Waiting ${campaign.send_delay_ms}ms before next email...`, null, ctx);
+        await new Promise((resolve) => setTimeout(resolve, campaign.send_delay_ms));
+      }
     }
   }
 
