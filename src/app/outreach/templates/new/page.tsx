@@ -49,10 +49,30 @@ export default function NewTemplatePage() {
   const sampleData = getSampleData();
   const preview = renderTemplate({ subject, body }, sampleData);
 
-  // Convert body to HTML for preview (same as email rendering)
-  const bodyAsHtml = preview.body
+  // Decode HTML entities and style links (same as email rendering)
+  const decodeHtmlEntities = (text: string): string => {
+    return text
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&amp;/g, '&');
+  };
+
+  const styleLinks = (html: string): string => {
+    return html.replace(
+      /<a\s+href="([^"]+)"[^>]*>([^<]+)<\/a>/gi,
+      '<a href="$1" style="color: #2563eb; text-decoration: underline;">$2</a>'
+    );
+  };
+
+  const decodedBody = decodeHtmlEntities(preview.body);
+  const bodyAsHtml = decodedBody
     .split("\n")
-    .map((line) => `<p style="margin: 0 0 10px 0;">${line || "&nbsp;"}</p>`)
+    .map((line) => {
+      const styledLine = styleLinks(line);
+      return `<p style="margin: 0 0 10px 0;">${styledLine || "&nbsp;"}</p>`;
+    })
     .join("");
 
   const insertVariable = (variable: string) => {

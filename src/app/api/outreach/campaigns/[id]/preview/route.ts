@@ -24,12 +24,23 @@ function decodeHtmlEntities(text: string): string {
     .replace(/&amp;/g, '&');
 }
 
+// Add inline styles to links (email clients often strip <style> tags)
+function styleLinks(html: string): string {
+  return html.replace(
+    /<a\s+href="([^"]+)"[^>]*>([^<]+)<\/a>/gi,
+    '<a href="$1" style="color: #2563eb; text-decoration: underline;">$2</a>'
+  );
+}
+
 // Build full HTML email exactly as it will be sent
 function buildHtmlEmail(body: string, signatureHtml: string): string {
   const decodedBody = decodeHtmlEntities(body);
   const bodyHtml = decodedBody
     .split("\n")
-    .map((line) => `<p style="margin: 0 0 10px 0;">${line || "&nbsp;"}</p>`)
+    .map((line) => {
+      const styledLine = styleLinks(line);
+      return `<p style="margin: 0 0 10px 0;">${styledLine || "&nbsp;"}</p>`;
+    })
     .join("");
 
   return `<!DOCTYPE html>
