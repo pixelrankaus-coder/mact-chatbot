@@ -15,7 +15,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Save, Loader2, Eye, Variable } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ArrowLeft, Save, Loader2, Eye, Variable, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   TEMPLATE_VARIABLES,
@@ -32,8 +40,20 @@ export default function NewTemplatePage() {
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
 
+  // Link dialog state
+  const [showLinkDialog, setShowLinkDialog] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("");
+  const [linkText, setLinkText] = useState("");
+  const [selectedText, setSelectedText] = useState({ start: 0, end: 0, text: "" });
+
   const sampleData = getSampleData();
   const preview = renderTemplate({ subject, body }, sampleData);
+
+  // Convert body to HTML for preview (same as email rendering)
+  const bodyAsHtml = preview.body
+    .split("\n")
+    .map((line) => `<p style="margin: 0 0 10px 0;">${line || "&nbsp;"}</p>`)
+    .join("");
 
   const insertVariable = (variable: string) => {
     const textarea = document.getElementById("body") as HTMLTextAreaElement;
@@ -53,6 +73,53 @@ export default function NewTemplatePage() {
     } else {
       setBody(body + `{{${variable}}}`);
     }
+  };
+
+  const openLinkDialog = () => {
+    const textarea = document.getElementById("body") as HTMLTextAreaElement;
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const text = body.substring(start, end);
+      setSelectedText({ start, end, text });
+      setLinkText(text || "");
+      setLinkUrl("");
+    }
+    setShowLinkDialog(true);
+  };
+
+  const insertLink = () => {
+    if (!linkUrl) {
+      toast.error("Please enter a URL");
+      return;
+    }
+
+    // Add https:// if no protocol specified
+    let url = linkUrl;
+    if (!url.match(/^https?:\/\//)) {
+      url = "https://" + url;
+    }
+
+    const text = linkText || url;
+    const linkHtml = `<a href="${url}">${text}</a>`;
+
+    const textarea = document.getElementById("body") as HTMLTextAreaElement;
+    const start = selectedText.start;
+    const end = selectedText.end;
+
+    const newBody = body.substring(0, start) + linkHtml + body.substring(end);
+    setBody(newBody);
+
+    setShowLinkDialog(false);
+    setLinkUrl("");
+    setLinkText("");
+
+    setTimeout(() => {
+      if (textarea) {
+        textarea.focus();
+        textarea.selectionStart = textarea.selectionEnd = start + linkHtml.length;
+      }
+    }, 0);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -134,6 +201,16 @@ export default function NewTemplatePage() {
                 <div className="flex items-center justify-between">
                   <Label htmlFor="body">Email Body</Label>
                   <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-sm gap-2"
+                      onClick={openLinkDialog}
+                    >
+                      <Link2 className="h-4 w-4" />
+                      Insert Link
+                    </Button>
                     <Select onValueChange={insertVariable}>
                       <SelectTrigger className="w-[180px] h-8 text-sm">
                         <Variable className="h-4 w-4 mr-2" />
@@ -219,13 +296,16 @@ export default function NewTemplatePage() {
                     <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">
                       Body
                     </p>
-                    <div className="whitespace-pre-wrap text-sm">
-                      {preview.body || (
-                        <span className="text-slate-400">
-                          Start typing your email...
-                        </span>
-                      )}
-                    </div>
+                    {preview.body ? (
+                      <div
+                        className="text-sm [&_a]:text-blue-600 [&_a]:underline"
+                        dangerouslySetInnerHTML={{ __html: bodyAsHtml }}
+                      />
+                    ) : (
+                      <div className="text-sm text-slate-400">
+                        Start typing your email...
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -247,6 +327,54 @@ export default function NewTemplatePage() {
           </Card>
         </div>
       </form>
+
+      {/* Insert Link Dialog */}
+      <Dialog open={showLinkDialog} onOpenChange={setShowLinkDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Insert Link</DialogTitle>
+            <DialogDescription>
+              Add a clickable hyperlink to your email template.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="linkUrl">URL</Label>
+              <Input
+                id="linkUrl"
+                value={linkUrl}
+                onChange={(e) => setLinkUrl(e.target.value)}
+                placeholder="https://example.com"
+                autoFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="linkText">Link Text</Label>
+              <Input
+                id="linkText"
+                value={linkText}
+                onChange={(e) => setLinkText(e.target.value)}
+                placeholder="Click here"
+              />
+              <p className="text-xs text-slate-500">
+                Leave blank to use the URL as the text
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowLinkDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="button" onClick={insertLink}>
+              Insert Link
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
