@@ -417,7 +417,7 @@ export async function processCampaignBatch(
   // Check campaign status
   const { data: campaign, error: campaignError } = await supabase
     .from("outreach_campaigns")
-    .select("status, send_delay_ms, name, total_recipients, sent_count")
+    .select("status, send_delay_ms, name, total_recipients, sent_count, is_dry_run")
     .eq("id", campaignId)
     .single();
 
