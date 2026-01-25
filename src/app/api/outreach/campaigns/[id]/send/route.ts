@@ -44,31 +44,38 @@ export async function POST(
       );
     }
 
-    // Get recipients based on segment
-    const recipients = await getSegmentRecipients(
-      campaign.segment,
-      campaign.segment_filter
-    );
-
-    if (recipients.length === 0) {
-      return NextResponse.json(
-        { error: "No recipients in segment" },
-        { status: 400 }
-      );
-    }
-
-    // Check if emails already queued (for resume)
+    // Check if emails already queued (from preview step - this is the fast path!)
     const { count: existingCount } = await supabase
       .from("outreach_emails")
       .select("*", { count: "exact", head: true })
       .eq("campaign_id", campaignId);
 
-    // Queue all emails if not already queued
+    let totalRecipients = existingCount || 0;
+
+    // Only fetch segment recipients if NOT already queued (fallback for edge cases)
+    // This skips the expensive Cin7 API calls when emails were queued during preview
     if (!existingCount || existingCount === 0) {
+      console.log(`[Send] No emails queued yet for campaign ${campaignId}, fetching segment recipients...`);
+
+      // Get recipients based on segment (expensive - includes Cin7 API calls!)
+      const recipients = await getSegmentRecipients(
+        campaign.segment,
+        campaign.segment_filter
+      );
+
+      if (recipients.length === 0) {
+        return NextResponse.json(
+          { error: "No recipients in segment" },
+          { status: 400 }
+        );
+      }
+
+      totalRecipients = recipients.length;
+
+      // Queue all emails
       const isCustomSegment = campaign.segment === "custom";
       const emailRecords = recipients.map((recipient) => ({
         campaign_id: campaignId,
-        // For custom/test segments, customer_id is null (not a real customer)
         customer_id: isCustomSegment ? null : recipient.id,
         recipient_email: recipient.email,
         recipient_name: recipient.name,
@@ -85,9 +92,19 @@ export async function POST(
           .insert(batch);
 
         if (insertError) {
-          console.error("Failed to insert email batch:", insertError);
+          console.error("[Send] Failed to insert email batch:", insertError);
         }
       }
+    } else {
+      // Emails already queued from preview - FAST path, no Cin7 API calls!
+      console.log(`[Send] Using ${existingCount} already queued emails for campaign ${campaignId}`);
+    }
+
+    if (totalRecipients === 0) {
+      return NextResponse.json(
+        { error: "No recipients in segment" },
+        { status: 400 }
+      );
     }
 
     // Update campaign to sending
@@ -96,7 +113,7 @@ export async function POST(
       .update({
         status: "sending",
         started_at: campaign.started_at || new Date().toISOString(),
-        total_recipients: recipients.length,
+        total_recipients: totalRecipients,
         updated_at: new Date().toISOString(),
       })
       .eq("id", campaignId);
@@ -108,7 +125,7 @@ export async function POST(
     return NextResponse.json({
       success: true,
       campaign_id: campaignId,
-      total_recipients: recipients.length,
+      total_recipients: totalRecipients,
       processed: batchResult.processed,
       remaining: batchResult.remaining,
       completed: batchResult.completed,

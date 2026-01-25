@@ -62,6 +62,7 @@ function buildHtmlEmail(body: string, signatureHtml: string): string {
 }
 
 // GET /api/outreach/campaigns/[id]/preview - Preview campaign with ALL recipients
+// Also queues emails if not already queued (to avoid re-fetching during send)
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -104,15 +105,69 @@ export async function GET(
 
     const signatureHtml = settings?.signature_html || "";
 
-    // Get ALL recipients (not just first 5)
-    const recipients = await getSegmentRecipients(
-      campaign.segment,
-      campaign.segment_filter
-    );
+    // Check if emails are already queued
+    const { count: existingCount } = await supabase
+      .from("outreach_emails")
+      .select("*", { count: "exact", head: true })
+      .eq("campaign_id", id);
+
+    let recipients;
+
+    if (existingCount && existingCount > 0) {
+      // Emails already queued - read from database (fast!)
+      console.log(`[Preview] Using ${existingCount} already queued emails for campaign ${id}`);
+      const { data: queuedEmails } = await supabase
+        .from("outreach_emails")
+        .select("recipient_email, recipient_name, recipient_company, personalization")
+        .eq("campaign_id", id);
+
+      recipients = (queuedEmails || []).map((e) => ({
+        id: e.recipient_email,
+        email: e.recipient_email,
+        name: e.recipient_name || "",
+        company: e.recipient_company,
+        ...((e.personalization as Record<string, unknown>) || {}),
+      }));
+    } else {
+      // Get ALL recipients (expensive - includes Cin7 API calls)
+      console.log(`[Preview] Fetching segment recipients for campaign ${id} (first time)`);
+      recipients = await getSegmentRecipients(
+        campaign.segment,
+        campaign.segment_filter
+      );
+
+      // Queue emails now so /send doesn't have to re-fetch
+      if (recipients.length > 0) {
+        console.log(`[Preview] Queuing ${recipients.length} emails for campaign ${id}`);
+        const isCustomSegment = campaign.segment === "custom";
+        const emailRecords = recipients.map((recipient) => ({
+          campaign_id: id,
+          customer_id: isCustomSegment ? null : recipient.id,
+          recipient_email: recipient.email,
+          recipient_name: recipient.name,
+          recipient_company: recipient.company,
+          personalization: buildPersonalizationData(recipient),
+          status: "pending",
+        }));
+
+        // Insert in batches of 100
+        for (let i = 0; i < emailRecords.length; i += 100) {
+          const batch = emailRecords.slice(i, i + 100);
+          const { error: insertError } = await supabase
+            .from("outreach_emails")
+            .insert(batch);
+
+          if (insertError) {
+            console.error("[Preview] Failed to queue email batch:", insertError);
+          }
+        }
+        console.log(`[Preview] Successfully queued ${recipients.length} emails`);
+      }
+    }
 
     // Build previews for ALL recipients with full HTML
     const allRecipients = recipients.map((recipient) => {
-      const personalization = buildPersonalizationData(recipient);
+      const personalization = buildPersonalizationData(recipient as Parameters<typeof buildPersonalizationData>[0]);
       const preview = renderTemplate(
         {
           subject: campaign.template.subject,
