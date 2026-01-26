@@ -52,6 +52,21 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Fetch conversation data for each ticket
+    const ticketsWithConversations = await Promise.all(
+      (tickets || []).map(async (ticket) => {
+        if (!ticket.conversation_id) {
+          return { ...ticket, conversation: null };
+        }
+        const { data: conversation } = await supabase
+          .from("conversations")
+          .select("id, visitor_id, visitor_name, visitor_email")
+          .eq("id", ticket.conversation_id)
+          .single();
+        return { ...ticket, conversation: conversation || null };
+      })
+    );
+
     // Get stats
     const statsPromises = [
       supabase
@@ -86,7 +101,7 @@ export async function GET(request: NextRequest) {
     };
 
     return NextResponse.json({
-      tickets: tickets || [],
+      tickets: ticketsWithConversations,
       total: count || 0,
       page,
       per_page: perPage,

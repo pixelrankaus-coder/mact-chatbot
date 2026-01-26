@@ -40,10 +40,10 @@ import type {
 
 interface Message {
   id: string;
-  role: "user" | "assistant" | "agent";
+  sender_type: "visitor" | "ai" | "agent" | "system";
+  sender_name: string;
   content: string;
   created_at: string;
-  agent_name?: string;
   is_internal_note?: boolean;
 }
 
@@ -303,57 +303,74 @@ export function TicketDetail({
             <p>No messages yet</p>
           </div>
         ) : (
-          messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex gap-3 ${
-                message.role === "user" ? "" : "flex-row-reverse"
-              }`}
-            >
+          messages.map((message) => {
+            const isCustomer = message.sender_type === "visitor";
+            const isAgent = message.sender_type === "agent";
+            const isAI = message.sender_type === "ai";
+            const isSystem = message.sender_type === "system";
+
+            // System messages centered
+            if (isSystem) {
+              return (
+                <div key={message.id} className="flex justify-center">
+                  <div className="bg-slate-100 text-slate-500 text-xs px-3 py-1 rounded-full">
+                    {message.content}
+                  </div>
+                </div>
+              );
+            }
+
+            return (
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                  message.role === "user"
-                    ? "bg-slate-200"
-                    : message.role === "agent"
-                    ? "bg-blue-100"
-                    : "bg-purple-100"
-                }`}
+                key={message.id}
+                className={`flex gap-3 ${isCustomer ? "justify-end" : "justify-start"}`}
               >
-                {message.role === "user" ? (
-                  <User className="h-4 w-4 text-slate-600" />
-                ) : message.role === "agent" ? (
-                  <User className="h-4 w-4 text-blue-600" />
-                ) : (
-                  <Bot className="h-4 w-4 text-purple-600" />
+                {/* Avatar on left for AI/Agent */}
+                {!isCustomer && (
+                  <div
+                    className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                      isAgent ? "bg-blue-100" : "bg-slate-200"
+                    }`}
+                  >
+                    {isAgent ? (
+                      <User className="h-4 w-4 text-blue-600" />
+                    ) : (
+                      <Bot className="h-4 w-4 text-slate-600" />
+                    )}
+                  </div>
+                )}
+
+                <div className={`max-w-[70%] ${isCustomer ? "text-right" : "text-left"}`}>
+                  <div
+                    className={`rounded-lg p-3 ${
+                      isCustomer
+                        ? "bg-blue-500 text-white"
+                        : isAgent
+                        ? "bg-blue-50"
+                        : "bg-slate-100"
+                    } ${message.is_internal_note ? "border-2 border-yellow-300" : ""}`}
+                  >
+                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {isAgent && message.sender_name
+                      ? `${message.sender_name} • `
+                      : isAI
+                      ? `${message.sender_name || "AI Bot"} • `
+                      : ""}
+                    {formatTime(message.created_at)}
+                  </p>
+                </div>
+
+                {/* Avatar on right for Customer */}
+                {isCustomer && (
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-blue-500">
+                    <User className="h-4 w-4 text-white" />
+                  </div>
                 )}
               </div>
-              <div
-                className={`max-w-[70%] ${
-                  message.role === "user" ? "" : "text-right"
-                }`}
-              >
-                <div
-                  className={`rounded-lg p-3 ${
-                    message.role === "user"
-                      ? "bg-slate-100"
-                      : message.role === "agent"
-                      ? "bg-blue-50"
-                      : "bg-purple-50"
-                  } ${message.is_internal_note ? "border-2 border-yellow-300" : ""}`}
-                >
-                  <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                </div>
-                <p className="text-xs text-slate-400 mt-1">
-                  {message.role === "agent" && message.agent_name
-                    ? `${message.agent_name} • `
-                    : message.role === "assistant"
-                    ? "AI Bot • "
-                    : ""}
-                  {formatTime(message.created_at)}
-                </p>
-              </div>
-            </div>
-          ))
+            );
+          }))
         )}
         <div ref={messagesEndRef} />
       </div>

@@ -47,10 +47,9 @@ export async function POST(
       .from("messages")
       .insert({
         conversation_id: ticket.conversation_id,
-        role: "agent",
+        sender_type: "agent",
+        sender_name: agent_name,
         content,
-        agent_name,
-        is_internal_note,
       })
       .select()
       .single();
