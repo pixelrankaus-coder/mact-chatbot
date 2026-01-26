@@ -21,21 +21,10 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get("page") || "1");
     const perPage = parseInt(searchParams.get("per_page") || "50");
 
-    // Build query with conversation data
+    // Build query - simple select without joins
     let query = supabase
       .from("helpdesk_tickets")
-      .select(
-        `
-        *,
-        conversation:conversations(
-          id,
-          visitor_id,
-          visitor_name,
-          visitor_email
-        )
-      `,
-        { count: "exact" }
-      )
+      .select("*", { count: "exact" })
       .order("updated_at", { ascending: false });
 
     // Apply status filter

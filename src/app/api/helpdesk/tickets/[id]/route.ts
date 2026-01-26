@@ -18,22 +18,10 @@ export async function GET(
     const { id } = await params;
     const supabase = getSupabase();
 
-    // Get ticket with conversation
+    // Get ticket (simple query without join)
     const { data: ticket, error } = await supabase
       .from("helpdesk_tickets")
-      .select(
-        `
-        *,
-        conversation:conversations(
-          id,
-          visitor_id,
-          visitor_name,
-          visitor_email,
-          status,
-          created_at
-        )
-      `
-      )
+      .select("*")
       .eq("id", id)
       .single();
 
@@ -44,6 +32,13 @@ export async function GET(
       );
     }
 
+    // Get conversation data separately
+    const { data: conversation } = await supabase
+      .from("conversations")
+      .select("id, visitor_id, visitor_name, visitor_email, status, created_at")
+      .eq("id", ticket.conversation_id)
+      .single();
+
     // Get messages for this conversation
     const { data: messages } = await supabase
       .from("messages")
@@ -51,9 +46,10 @@ export async function GET(
       .eq("conversation_id", ticket.conversation_id)
       .order("created_at", { ascending: true });
 
-    // Add messages to ticket
+    // Combine ticket with conversation and messages
     const transformedTicket = {
       ...ticket,
+      conversation: conversation || null,
       messages: messages || [],
     };
 
