@@ -510,6 +510,40 @@ export async function processCampaignBatch(
     return { processed: 0, remaining: 0, completed: true, failed: 0 };
   }
 
+  // RATE LIMIT CHECK for live campaigns (not dry runs)
+  // This ensures we respect send_delay_ms even with batch size 1
+  const isDryRun = campaign.is_dry_run === true;
+  if (!isDryRun && campaign.send_delay_ms > 0) {
+    // Check when the last email was sent
+    const { data: lastSentEmail } = await supabase
+      .from("outreach_emails")
+      .select("sent_at")
+      .eq("campaign_id", campaignId)
+      .eq("status", "sent")
+      .order("sent_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    if (lastSentEmail?.sent_at) {
+      const lastSentTime = new Date(lastSentEmail.sent_at).getTime();
+      const now = Date.now();
+      const timeSinceLastSend = now - lastSentTime;
+      const timeToWait = campaign.send_delay_ms - timeSinceLastSend;
+
+      if (timeToWait > 0) {
+        await logToDb("info", "rate_limit", `Rate limit: ${Math.ceil(timeToWait / 1000)}s until next send allowed`, {
+          lastSentAt: lastSentEmail.sent_at,
+          timeSinceLastSend: Math.floor(timeSinceLastSend / 1000),
+          delayRequired: campaign.send_delay_ms / 1000,
+          waitingFor: Math.ceil(timeToWait / 1000),
+        }, ctx);
+
+        // Return early - client will poll again
+        return { processed: 0, remaining: pendingCount || 0, completed: false, failed: 0 };
+      }
+    }
+  }
+
   await logToDb("info", "batch_process", `Processing ${pendingEmails.length} emails in this batch`, {
     recipients: pendingEmails.map(e => e.recipient_email),
   }, ctx);
@@ -518,7 +552,6 @@ export async function processCampaignBatch(
   let failed = 0;
 
   // FAST PATH for dry runs - batch all operations
-  const isDryRun = campaign.is_dry_run === true;
   if (isDryRun) {
     await logToDb("info", "dry_run_batch", `[DRY RUN] FAST batch processing ${pendingEmails.length} emails...`, null, ctx);
 
