@@ -279,13 +279,24 @@ export async function sendSingleEmail(emailId: string): Promise<SendResult> {
       event_type: "sent",
     });
 
-    // Increment counter using RPC
+    // Increment counter using RPC, with fallback to direct update
     const { error: rpcError } = await supabase.rpc("increment_campaign_sent", {
       p_campaign_id: email.campaign_id,
     });
 
     if (rpcError) {
-      await logToDb("warning", "update_counter", "Failed to increment sent counter", { error: rpcError.message }, ctx);
+      await logToDb("info", "update_counter", "RPC not available, using direct update", { error: rpcError.message }, ctx);
+      // Fallback: Get current count and increment directly
+      const { data: currentCampaign } = await supabase
+        .from("outreach_campaigns")
+        .select("sent_count")
+        .eq("id", email.campaign_id)
+        .single();
+
+      await supabase
+        .from("outreach_campaigns")
+        .update({ sent_count: (currentCampaign?.sent_count || 0) + 1 })
+        .eq("id", email.campaign_id);
     }
 
     await logToDb("success", "complete", `[DRY RUN] Simulated delivery to ${email.recipient_email}`, {
@@ -363,13 +374,24 @@ export async function sendSingleEmail(emailId: string): Promise<SendResult> {
       event_type: "sent",
     });
 
-    // Increment counter using RPC
-    const { error: rpcError } = await supabase.rpc("increment_campaign_sent", {
+    // Increment counter using RPC, with fallback to direct update
+    const { error: rpcError2 } = await supabase.rpc("increment_campaign_sent", {
       p_campaign_id: email.campaign_id,
     });
 
-    if (rpcError) {
-      await logToDb("warning", "update_counter", "Failed to increment sent counter", { error: rpcError.message }, ctx);
+    if (rpcError2) {
+      await logToDb("info", "update_counter", "RPC not available, using direct update", { error: rpcError2.message }, ctx);
+      // Fallback: Get current count and increment directly
+      const { data: currentCampaign } = await supabase
+        .from("outreach_campaigns")
+        .select("sent_count")
+        .eq("id", email.campaign_id)
+        .single();
+
+      await supabase
+        .from("outreach_campaigns")
+        .update({ sent_count: (currentCampaign?.sent_count || 0) + 1 })
+        .eq("id", email.campaign_id);
     }
 
     await logToDb("success", "complete", `Email delivered to ${email.recipient_email}`, {
