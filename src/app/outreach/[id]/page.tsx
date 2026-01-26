@@ -147,13 +147,20 @@ export default function CampaignDetailPage({
     }
   }, [sendLogs, showLogs]);
 
+  // Track last log timestamp for incremental fetching
+  const lastLogRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (sendLogs.length > 0) {
+      lastLogRef.current = sendLogs[sendLogs.length - 1].created_at;
+    }
+  }, [sendLogs]);
+
   // Poll stats, logs and trigger processing while sending
   useEffect(() => {
     if (campaign?.status === "sending") {
       // Poll for new logs more frequently
       const logInterval = setInterval(async () => {
-        const lastLog = sendLogs[sendLogs.length - 1];
-        await fetchSendLogs(lastLog?.created_at);
+        await fetchSendLogs(lastLogRef.current);
       }, 1500);
 
       // Trigger processing and refresh stats less frequently
@@ -173,7 +180,7 @@ export default function CampaignDetailPage({
         clearInterval(processInterval);
       };
     }
-  }, [campaign?.status, id, sendLogs]);
+  }, [campaign?.status, id]); // Removed sendLogs to prevent interval reset
 
   const fetchData = async () => {
     await Promise.all([fetchStats(), fetchActivity(), fetchReplies(), fetchSendLogs()]);
