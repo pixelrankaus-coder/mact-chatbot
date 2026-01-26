@@ -18,20 +18,10 @@ export async function GET(
     const { id } = await params;
     const supabase = getSupabase();
 
-    // Get ticket with conversation
+    // Get ticket
     const { data: ticket, error: ticketError } = await supabase
       .from("helpdesk_tickets")
-      .select(
-        `
-        *,
-        conversation:conversations(
-          id,
-          customer_id,
-          customer_email,
-          customer_name
-        )
-      `
-      )
+      .select("*")
       .eq("id", id)
       .single();
 
@@ -42,8 +32,19 @@ export async function GET(
       );
     }
 
-    const customerEmail = ticket.conversation?.customer_email;
-    const customerId = ticket.customer_id || ticket.conversation?.customer_id;
+    // Get conversation separately
+    let conversation = null;
+    if (ticket.conversation_id) {
+      const { data: conv } = await supabase
+        .from("conversations")
+        .select("id, visitor_id, visitor_email, visitor_name")
+        .eq("id", ticket.conversation_id)
+        .single();
+      conversation = conv;
+    }
+
+    const customerEmail = conversation?.visitor_email;
+    const customerId = ticket.customer_id || conversation?.visitor_id;
 
     // Build context object
     const context: {
@@ -222,7 +223,7 @@ export async function GET(
       const { data: conversations, count } = await supabase
         .from("conversations")
         .select("id, created_at", { count: "exact" })
-        .eq("customer_email", customerEmail)
+        .eq("visitor_email", customerEmail)
         .order("created_at", { ascending: true });
 
       if (conversations && conversations.length > 0) {
