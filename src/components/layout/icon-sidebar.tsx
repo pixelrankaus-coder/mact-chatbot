@@ -13,6 +13,7 @@ import {
   Users,
   Package,
   Mail,
+  Headphones,
 } from "lucide-react";
 import {
   Tooltip,
@@ -38,6 +39,7 @@ const navItems = [
   { icon: Users, label: "Customers", href: "/customers" },
   { icon: Package, label: "Orders", href: "/orders" },
   { icon: Mail, label: "Outreach", href: "/outreach" },
+  { icon: Headphones, label: "Helpdesk", href: "/helpdesk" },
   { icon: Bot, label: "AI Agent", href: "/ai-agent" },
   { icon: Settings, label: "Settings", href: "/settings" },
 ];
