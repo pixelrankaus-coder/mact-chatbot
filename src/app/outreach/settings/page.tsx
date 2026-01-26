@@ -8,6 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Card,
   CardContent,
   CardDescription,
@@ -182,9 +189,24 @@ interface OutreachSettings {
   max_emails_per_hour: number;
   send_window_start: string;
   send_window_end: string;
+  timezone: string;
   signature_html: string;
   signature_json: Record<string, unknown> | null;
 }
+
+const TIMEZONE_OPTIONS = [
+  { value: "Australia/Melbourne", label: "Melbourne (AEST/AEDT)" },
+  { value: "Australia/Sydney", label: "Sydney (AEST/AEDT)" },
+  { value: "Australia/Brisbane", label: "Brisbane (AEST)" },
+  { value: "Australia/Perth", label: "Perth (AWST)" },
+  { value: "Australia/Adelaide", label: "Adelaide (ACST/ACDT)" },
+  { value: "Pacific/Auckland", label: "Auckland (NZST/NZDT)" },
+];
+
+const getTimezoneLabel = (tz: string) => {
+  const option = TIMEZONE_OPTIONS.find((o) => o.value === tz);
+  return option ? option.label.split(" (")[0] : tz;
+};
 
 const defaultSettings: Omit<OutreachSettings, "id"> = {
   default_from_name: "Chris Born",
@@ -195,6 +217,7 @@ const defaultSettings: Omit<OutreachSettings, "id"> = {
   max_emails_per_hour: 50,
   send_window_start: "09:00",
   send_window_end: "17:00",
+  timezone: "Australia/Melbourne",
   signature_html: "",
   signature_json: null,
 };
@@ -507,6 +530,24 @@ export default function OutreachSettingsPage() {
                     Maximum emails to send per hour (recommended: 50-100)
                   </p>
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="timezone">Timezone</Label>
+                  <Select
+                    value={settings.timezone}
+                    onValueChange={(value) => updateSetting("timezone", value)}
+                  >
+                    <SelectTrigger id="timezone">
+                      <SelectValue placeholder="Select timezone" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TIMEZONE_OPTIONS.map((tz) => (
+                        <SelectItem key={tz.value} value={tz.value}>
+                          {tz.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="window_start">Send Window Start</Label>
@@ -532,7 +573,7 @@ export default function OutreachSettingsPage() {
                   </div>
                 </div>
                 <p className="text-xs text-slate-500">
-                  Emails will only be sent during this time window (NZ time)
+                  Emails will only be sent during this time window ({getTimezoneLabel(settings.timezone)} time)
                 </p>
               </CardContent>
             </Card>

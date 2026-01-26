@@ -20,6 +20,7 @@ const DEFAULT_SETTINGS = {
   max_emails_per_day: 500,
   send_window_start: "09:00",
   send_window_end: "17:00",
+  timezone: "Australia/Melbourne",
   track_opens: true,
   track_clicks: true,
   signature_json: null,

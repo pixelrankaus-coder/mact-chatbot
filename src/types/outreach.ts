@@ -126,6 +126,7 @@ export interface OutreachSettings {
   max_emails_per_day: number;
   send_window_start: string;
   send_window_end: string;
+  timezone: string;
   track_opens: boolean;
   track_clicks: boolean;
   signature_json: Record<string, unknown> | null;
