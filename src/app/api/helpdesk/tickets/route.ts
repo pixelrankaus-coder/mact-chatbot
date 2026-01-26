@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
     if (error) {
       console.error("Failed to fetch tickets:", error);
       return NextResponse.json(
-        { error: "Failed to fetch tickets" },
+        { error: "Failed to fetch tickets", details: error.message },
         { status: 500 }
       );
     }

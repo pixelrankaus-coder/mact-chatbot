@@ -45,7 +45,8 @@
       "Bash(python3:*)",
       "Bash(npx next build:*)",
       "Bash(git reset:*)",
-      "WebFetch(domain:www.klaviyo.com)"
+      "WebFetch(domain:www.klaviyo.com)",
+      "Bash(find:*)"
     ]
   }
 }

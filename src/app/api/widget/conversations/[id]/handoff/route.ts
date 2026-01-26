@@ -123,6 +123,8 @@ export async function POST(
     const updateData: Record<string, unknown> = {
       status: "pending",
       updated_at: new Date().toISOString(),
+      needs_human: true,
+      handed_off_at: new Date().toISOString(),
     };
 
     if (visitorName) updateData.visitor_name = visitorName;
@@ -134,6 +136,31 @@ export async function POST(
       .eq("id", id);
 
     if (updateError) throw updateError;
+
+    // Create helpdesk ticket for this conversation
+    const ticketSubject = reason || message || "Customer requested human support";
+    const { data: ticket, error: ticketError } = await supabase
+      .from("helpdesk_tickets")
+      .insert({
+        conversation_id: id,
+        status: "open",
+        priority: "normal",
+        channel: "webchat",
+        subject: ticketSubject.substring(0, 200), // Limit subject length
+      })
+      .select("id")
+      .single();
+
+    if (ticketError) {
+      console.error("Failed to create helpdesk ticket:", ticketError);
+      // Don't fail the handoff if ticket creation fails - continue with email notification
+    } else if (ticket) {
+      // Link ticket to conversation
+      await supabase
+        .from("conversations")
+        .update({ helpdesk_ticket_id: ticket.id })
+        .eq("id", id);
+    }
 
     // Add system message about handoff
     const systemMessage = withinHours
