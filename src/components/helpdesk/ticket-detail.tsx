@@ -370,7 +370,7 @@ export function TicketDetail({
                 )}
               </div>
             );
-          }))
+          })
         )}
         <div ref={messagesEndRef} />
       </div>
