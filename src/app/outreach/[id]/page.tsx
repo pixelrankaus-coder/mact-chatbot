@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -492,29 +493,232 @@ export default function CampaignDetailPage({
         </Card>
       )}
 
-      {/* Send Logs (Real-time) */}
-      {(campaign.status === "sending" || sendLogs.length > 0) && (
-        <Card className="mb-6">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <Terminal className="h-5 w-5" />
-                Send Logs
-                {campaign.status === "sending" && (
-                  <span className="ml-2 flex items-center gap-1 text-sm font-normal text-amber-600">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    Live
-                  </span>
+      {/* Tabs for Overview vs Logs */}
+      <Tabs defaultValue={campaign.status === "sending" ? "logs" : "overview"} className="mb-6">
+        <TabsList className="mb-4">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="logs" className="flex items-center gap-2">
+            <Terminal className="h-4 w-4" />
+            Send Logs
+            {campaign.status === "sending" && (
+              <span className="flex items-center gap-1 text-amber-600">
+                <Loader2 className="h-3 w-3 animate-spin" />
+              </span>
+            )}
+            {sendLogs.length > 0 && (
+              <Badge variant="secondary" className="ml-1">{sendLogs.length}</Badge>
+            )}
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Overview Tab */}
+        <TabsContent value="overview" className="space-y-6">
+          {/* Stats Grid */}
+          {stats && (
+            <div className="grid grid-cols-6 gap-4">
+              <Card>
+                <CardContent className="pt-6 text-center">
+                  <Send className="h-6 w-6 mx-auto text-blue-500 mb-2" />
+                  <p className="text-2xl font-bold">{stats.sent}</p>
+                  <p className="text-xs text-slate-500">Sent</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6 text-center">
+                  <Mail className="h-6 w-6 mx-auto text-green-500 mb-2" />
+                  <p className="text-2xl font-bold">{stats.delivered}</p>
+                  <p className="text-xs text-slate-500">
+                    Delivered ({stats.delivery_rate}%)
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6 text-center">
+                  <MailOpen className="h-6 w-6 mx-auto text-green-600 mb-2" />
+                  <p className="text-2xl font-bold">{stats.opened}</p>
+                  <p className="text-xs text-slate-500">
+                    Opened ({stats.open_rate}%)
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6 text-center">
+                  <MousePointerClick className="h-6 w-6 mx-auto text-purple-500 mb-2" />
+                  <p className="text-2xl font-bold">{stats.clicked}</p>
+                  <p className="text-xs text-slate-500">
+                    Clicked ({stats.click_rate}%)
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6 text-center">
+                  <MessageSquare className="h-6 w-6 mx-auto text-blue-600 mb-2" />
+                  <p className="text-2xl font-bold">{stats.replied}</p>
+                  <p className="text-xs text-slate-500">
+                    Replied ({stats.reply_rate}%)
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6 text-center">
+                  <AlertTriangle className="h-6 w-6 mx-auto text-red-500 mb-2" />
+                  <p className="text-2xl font-bold">{stats.bounced}</p>
+                  <p className="text-xs text-slate-500">
+                    Bounced ({stats.bounce_rate}%)
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-6">
+            {/* Activity Feed */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Activity</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {activity.length === 0 ? (
+                  <p className="text-center text-slate-400 py-8">No activity yet</p>
+                ) : (
+                  <div className="space-y-3">
+                    {activity.map((event) => (
+                      <div
+                        key={event.id}
+                        className="flex items-center gap-3 py-2 border-b last:border-0"
+                      >
+                        {eventIcons[event.event_type] || <Mail className="h-4 w-4" />}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm truncate">
+                            <span className="font-medium">
+                              {event.email?.recipient_name ||
+                                event.email?.recipient_email ||
+                                "Unknown"}
+                            </span>{" "}
+                            <span className="text-slate-500">
+                              {event.event_type}
+                            </span>
+                          </p>
+                        </div>
+                        <span className="text-xs text-slate-400">
+                          {formatTimeAgo(event.created_at)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 )}
-              </CardTitle>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowLogs(!showLogs)}
-                >
-                  {showLogs ? "Hide" : "Show"}
-                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Replies */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Replies ({replies.length})</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {replies.length === 0 ? (
+                  <p className="text-center text-slate-400 py-8">No replies yet</p>
+                ) : (
+                  <div className="space-y-3">
+                    {replies.map((reply) => (
+                      <div
+                        key={reply.id}
+                        className="py-2 border-b last:border-0"
+                      >
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-medium">
+                            {reply.from_name || reply.from_email}
+                          </p>
+                          <span className="text-xs text-slate-400">
+                            {formatTimeAgo(reply.created_at)}
+                          </span>
+                        </div>
+                        <p className="text-sm text-slate-500 truncate mt-1">
+                          {reply.subject || "(No subject)"}
+                        </p>
+                        <p className="text-xs text-slate-400 truncate mt-1">
+                          {reply.body_text?.substring(0, 100) || "(No content)"}...
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Campaign Details */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Campaign Details</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-3 gap-4 text-sm">
+                <div>
+                  <p className="text-slate-500">Template</p>
+                  <p className="font-medium">
+                    {(campaign as OutreachCampaign & { template?: { name: string } }).template?.name || "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-slate-500">Segment</p>
+                  <p className="font-medium capitalize">{campaign.segment}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500">Send Rate</p>
+                  <p className="font-medium">{campaign.send_rate}/hour</p>
+                </div>
+                <div>
+                  <p className="text-slate-500">From</p>
+                  <p className="font-medium">
+                    {campaign.from_name} &lt;{campaign.from_email}&gt;
+                  </p>
+                </div>
+                <div>
+                  <p className="text-slate-500">Started</p>
+                  <p className="font-medium">{formatDate(campaign.started_at)}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500">
+                    {campaign.status === "completed" ? "Completed" : "Updated"}
+                  </p>
+                  <p className="font-medium">
+                    {formatDate(
+                      campaign.status === "completed"
+                        ? campaign.completed_at
+                        : campaign.updated_at
+                    )}
+                  </p>
+                </div>
+                {campaign.is_dry_run && (
+                  <div>
+                    <p className="text-slate-500">Mode</p>
+                    <p className="font-medium text-purple-600 flex items-center gap-1">
+                      <FlaskConical className="h-4 w-4" />
+                      Simulation (Dry Run)
+                    </p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Send Logs Tab */}
+        <TabsContent value="logs">
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Terminal className="h-5 w-5" />
+                  Real-time Send Logs
+                  {campaign.status === "sending" && (
+                    <span className="ml-2 flex items-center gap-1 text-sm font-normal text-amber-600">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Live
+                    </span>
+                  )}
+                </CardTitle>
                 {sendLogs.length > 0 && (
                   <Button
                     variant="ghost"
@@ -522,15 +726,14 @@ export default function CampaignDetailPage({
                     onClick={clearSendLogs}
                     className="text-slate-500 hover:text-red-500"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Clear Logs
                   </Button>
                 )}
               </div>
-            </div>
-          </CardHeader>
-          {showLogs && (
+            </CardHeader>
             <CardContent>
-              <div className="bg-slate-900 rounded-lg p-3 max-h-80 overflow-y-auto font-mono text-xs">
+              <div className="bg-slate-900 rounded-lg p-4 h-[500px] overflow-y-auto font-mono text-xs">
                 {sendLogs.length === 0 ? (
                   <p className="text-slate-500">No logs yet. Start the campaign to see real-time activity.</p>
                 ) : (
@@ -551,10 +754,10 @@ export default function CampaignDetailPage({
                         <span className="text-slate-500 shrink-0">
                           {new Date(log.created_at).toLocaleTimeString()}
                         </span>
-                        <span className="shrink-0 w-16">
+                        <span className="shrink-0 w-20">
                           [{log.level.toUpperCase()}]
                         </span>
-                        <span className="text-slate-400 shrink-0">
+                        <span className="text-slate-400 shrink-0 w-32 truncate">
                           {log.step}:
                         </span>
                         <span className="break-all">{log.message}</span>
@@ -565,199 +768,9 @@ export default function CampaignDetailPage({
                 )}
               </div>
             </CardContent>
-          )}
-        </Card>
-      )}
-
-      {/* Stats Grid */}
-      {stats && (
-        <div className="grid grid-cols-6 gap-4 mb-6">
-          <Card>
-            <CardContent className="pt-6 text-center">
-              <Send className="h-6 w-6 mx-auto text-blue-500 mb-2" />
-              <p className="text-2xl font-bold">{stats.sent}</p>
-              <p className="text-xs text-slate-500">Sent</p>
-            </CardContent>
           </Card>
-          <Card>
-            <CardContent className="pt-6 text-center">
-              <Mail className="h-6 w-6 mx-auto text-green-500 mb-2" />
-              <p className="text-2xl font-bold">{stats.delivered}</p>
-              <p className="text-xs text-slate-500">
-                Delivered ({stats.delivery_rate}%)
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6 text-center">
-              <MailOpen className="h-6 w-6 mx-auto text-green-600 mb-2" />
-              <p className="text-2xl font-bold">{stats.opened}</p>
-              <p className="text-xs text-slate-500">
-                Opened ({stats.open_rate}%)
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6 text-center">
-              <MousePointerClick className="h-6 w-6 mx-auto text-purple-500 mb-2" />
-              <p className="text-2xl font-bold">{stats.clicked}</p>
-              <p className="text-xs text-slate-500">
-                Clicked ({stats.click_rate}%)
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6 text-center">
-              <MessageSquare className="h-6 w-6 mx-auto text-blue-600 mb-2" />
-              <p className="text-2xl font-bold">{stats.replied}</p>
-              <p className="text-xs text-slate-500">
-                Replied ({stats.reply_rate}%)
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6 text-center">
-              <AlertTriangle className="h-6 w-6 mx-auto text-red-500 mb-2" />
-              <p className="text-2xl font-bold">{stats.bounced}</p>
-              <p className="text-xs text-slate-500">
-                Bounced ({stats.bounce_rate}%)
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 gap-6">
-        {/* Activity Feed */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {activity.length === 0 ? (
-              <p className="text-center text-slate-400 py-8">No activity yet</p>
-            ) : (
-              <div className="space-y-3">
-                {activity.map((event) => (
-                  <div
-                    key={event.id}
-                    className="flex items-center gap-3 py-2 border-b last:border-0"
-                  >
-                    {eventIcons[event.event_type] || <Mail className="h-4 w-4" />}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm truncate">
-                        <span className="font-medium">
-                          {event.email?.recipient_name ||
-                            event.email?.recipient_email ||
-                            "Unknown"}
-                        </span>{" "}
-                        <span className="text-slate-500">
-                          {event.event_type}
-                        </span>
-                      </p>
-                    </div>
-                    <span className="text-xs text-slate-400">
-                      {formatTimeAgo(event.created_at)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Replies */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Replies ({replies.length})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {replies.length === 0 ? (
-              <p className="text-center text-slate-400 py-8">No replies yet</p>
-            ) : (
-              <div className="space-y-3">
-                {replies.map((reply) => (
-                  <div
-                    key={reply.id}
-                    className="py-2 border-b last:border-0"
-                  >
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium">
-                        {reply.from_name || reply.from_email}
-                      </p>
-                      <span className="text-xs text-slate-400">
-                        {formatTimeAgo(reply.created_at)}
-                      </span>
-                    </div>
-                    <p className="text-sm text-slate-500 truncate mt-1">
-                      {reply.subject || "(No subject)"}
-                    </p>
-                    <p className="text-xs text-slate-400 truncate mt-1">
-                      {reply.body_text?.substring(0, 100) || "(No content)"}...
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Campaign Details */}
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle>Campaign Details</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-3 gap-4 text-sm">
-            <div>
-              <p className="text-slate-500">Template</p>
-              <p className="font-medium">
-                {(campaign as OutreachCampaign & { template?: { name: string } }).template?.name || "-"}
-              </p>
-            </div>
-            <div>
-              <p className="text-slate-500">Segment</p>
-              <p className="font-medium capitalize">{campaign.segment}</p>
-            </div>
-            <div>
-              <p className="text-slate-500">Send Rate</p>
-              <p className="font-medium">{campaign.send_rate}/hour</p>
-            </div>
-            <div>
-              <p className="text-slate-500">From</p>
-              <p className="font-medium">
-                {campaign.from_name} &lt;{campaign.from_email}&gt;
-              </p>
-            </div>
-            <div>
-              <p className="text-slate-500">Started</p>
-              <p className="font-medium">{formatDate(campaign.started_at)}</p>
-            </div>
-            <div>
-              <p className="text-slate-500">
-                {campaign.status === "completed" ? "Completed" : "Updated"}
-              </p>
-              <p className="font-medium">
-                {formatDate(
-                  campaign.status === "completed"
-                    ? campaign.completed_at
-                    : campaign.updated_at
-                )}
-              </p>
-            </div>
-            {campaign.is_dry_run && (
-              <div>
-                <p className="text-slate-500">Mode</p>
-                <p className="font-medium text-purple-600 flex items-center gap-1">
-                  <FlaskConical className="h-4 w-4" />
-                  Simulation (Dry Run)
-                </p>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Cancel Dialog */}
       <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
