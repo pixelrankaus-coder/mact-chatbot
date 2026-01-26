@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get("page") || "1");
     const perPage = parseInt(searchParams.get("per_page") || "50");
 
-    // Build query
+    // Build query - simplified to avoid join issues
     let query = supabase
       .from("helpdesk_tickets")
       .select(
@@ -32,9 +32,6 @@ export async function GET(request: NextRequest) {
           visitor_id,
           visitor_name,
           visitor_email
-        ),
-        tags:helpdesk_ticket_tags(
-          tag:helpdesk_tags(id, name, color)
         )
       `,
         { count: "exact" }
@@ -99,14 +96,8 @@ export async function GET(request: NextRequest) {
       avg_resolution_time: null,
     };
 
-    // Transform tags structure
-    const transformedTickets = tickets?.map((ticket) => ({
-      ...ticket,
-      tags: ticket.tags?.map((t: { tag: unknown }) => t.tag).filter(Boolean) || [],
-    }));
-
     return NextResponse.json({
-      tickets: transformedTickets || [],
+      tickets: tickets || [],
       total: count || 0,
       page,
       per_page: perPage,
