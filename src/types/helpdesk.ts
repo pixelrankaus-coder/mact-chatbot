@@ -101,7 +101,7 @@ export interface HelpdeskTicketWithRelations extends HelpdeskTicket {
   tags?: HelpdeskTag[];
   conversation?: {
     id: string;
-    session_id: string;
+    visitor_id: string;
     visitor_name: string | null;
     visitor_email: string | null;
   };

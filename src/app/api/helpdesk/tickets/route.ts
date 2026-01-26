@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
         *,
         conversation:conversations(
           id,
-          session_id,
+          visitor_id,
           visitor_name,
           visitor_email
         ),
