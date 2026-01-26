@@ -44,8 +44,10 @@ export async function POST(
       });
     }
 
-    // Process next batch - MUCH larger batch for dry runs since they're instant
-    const batchSize = campaign.is_dry_run ? 100 : 10;
+    // Batch size depends on campaign type:
+    // - Dry runs: 100 (instant, no delays)
+    // - Live: 1 (each email has long delay, avoid timeout)
+    const batchSize = campaign.is_dry_run ? 100 : 1;
     const batchResult = await processCampaignBatch(campaignId, batchSize);
 
     return NextResponse.json({

@@ -118,20 +118,33 @@ export async function POST(
       })
       .eq("id", campaignId);
 
-    // Process first batch synchronously (Vercel kills background processes)
-    // Client will call /process endpoint to continue for larger campaigns
-    const batchResult = await processCampaignBatch(campaignId, 10);
+    // For DRY RUNS only: process first batch here (it's instant)
+    // For LIVE campaigns: skip batch processing - let client polling handle it
+    // This avoids Vercel timeout (live emails have 36+ second delays between sends)
+    if (campaign.is_dry_run) {
+      const batchResult = await processCampaignBatch(campaignId, 100);
+      return NextResponse.json({
+        success: true,
+        campaign_id: campaignId,
+        total_recipients: totalRecipients,
+        processed: batchResult.processed,
+        remaining: batchResult.remaining,
+        completed: batchResult.completed,
+        message: batchResult.completed
+          ? "Campaign completed"
+          : "Campaign started - processing continues",
+      });
+    }
 
+    // Live campaign - just return success, client will poll /process endpoint
     return NextResponse.json({
       success: true,
       campaign_id: campaignId,
       total_recipients: totalRecipients,
-      processed: batchResult.processed,
-      remaining: batchResult.remaining,
-      completed: batchResult.completed,
-      message: batchResult.completed
-        ? "Campaign completed"
-        : "Campaign started - processing continues",
+      processed: 0,
+      remaining: totalRecipients,
+      completed: false,
+      message: "Campaign started - client polling will process emails",
     });
   } catch (error) {
     console.error("Send campaign error:", error);
