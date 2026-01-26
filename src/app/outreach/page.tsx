@@ -7,7 +7,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -445,10 +444,20 @@ export default function OutreachPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-3">
-                          <Progress
-                            value={progress}
-                            className="w-32 h-2 bg-slate-200"
-                          />
+                          <div className="w-32 h-2 bg-slate-200 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${
+                                campaign.status === "draft"
+                                  ? "bg-slate-300"
+                                  : campaign.status === "completed"
+                                  ? "bg-green-500"
+                                  : campaign.status === "cancelled"
+                                  ? "bg-red-400"
+                                  : "bg-blue-500"
+                              }`}
+                              style={{ width: `${progress}%` }}
+                            />
+                          </div>
                           <span className="text-sm text-slate-600">
                             {campaign.sent_count}/{campaign.total_recipients}
                           </span>
