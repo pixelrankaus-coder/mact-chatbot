@@ -95,6 +95,20 @@ const widgetChangelog: ChangelogEntry[] = [
 // Admin panel changelog
 const adminChangelog: ChangelogEntry[] = [
   {
+    version: "2.20.1",
+    date: "2025-01-27",
+    type: "fix",
+    title: "Fix Campaign Progress Stuck at 0/1",
+    description:
+      "Fixed campaign progress bar being stuck at 0/1 (0%) even though emails were successfully sent.",
+    details: [
+      "increment_campaign_sent RPC function was failing silently",
+      "Added fallback to direct sent_count update when RPC unavailable",
+      "Applies to both dry run and live email sends",
+      "Pause/Resume workaround no longer needed",
+    ],
+  },
+  {
     version: "2.20.0",
     date: "2025-01-27",
     type: "feature",

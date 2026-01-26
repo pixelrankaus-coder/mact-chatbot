@@ -46,16 +46,24 @@ export async function GET(request: NextRequest) {
 // POST /api/outreach/campaigns - Create new campaign
 export async function POST(request: NextRequest) {
   try {
+    const supabase = getSupabase();
     const body = await request.json();
+
+    // Fetch default settings from outreach_settings
+    const { data: settings } = await supabase
+      .from("outreach_settings")
+      .select("default_from_name, default_from_email, default_reply_to, max_emails_per_hour")
+      .single();
+
     const {
       name,
       template_id,
       segment,
       segment_filter,
-      from_name = "Chris Born",
-      from_email = "c.born@mact.au",
-      reply_to = "c.born@mact.au",
-      send_rate = 50,
+      from_name = settings?.default_from_name || "Chris Born",
+      from_email = settings?.default_from_email || "c.born@mact.au",
+      reply_to = settings?.default_reply_to || "c.born@reply.mact.au",
+      send_rate = settings?.max_emails_per_hour || 50,
       scheduled_at,
       start_immediately = false,
       is_dry_run = false,
@@ -67,8 +75,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    const supabase = getSupabase();
 
     // Verify template exists
     const { data: template, error: templateError } = await supabase
