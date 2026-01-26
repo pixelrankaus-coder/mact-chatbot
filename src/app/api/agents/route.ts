@@ -207,3 +207,68 @@ export async function PATCH(request: NextRequest) {
     );
   }
 }
+
+// PUT /api/agents - Reset agent password
+export async function PUT(request: NextRequest) {
+  const supabase = getSupabaseAdmin();
+
+  try {
+    const body = await request.json();
+    const { email, password } = body;
+
+    if (!email || !password) {
+      return NextResponse.json(
+        { error: "Email and new password are required" },
+        { status: 400 }
+      );
+    }
+
+    if (password.length < 6) {
+      return NextResponse.json(
+        { error: "Password must be at least 6 characters" },
+        { status: 400 }
+      );
+    }
+
+    // Find auth user by email
+    const { data: users, error: listError } = await supabase.auth.admin.listUsers();
+
+    if (listError) {
+      console.error("Failed to list users:", listError);
+      return NextResponse.json(
+        { error: "Failed to find user" },
+        { status: 500 }
+      );
+    }
+
+    const authUser = users.users.find((u) => u.email === email);
+    if (!authUser) {
+      return NextResponse.json(
+        { error: "User not found in auth system" },
+        { status: 404 }
+      );
+    }
+
+    // Update password using admin API
+    const { error: updateError } = await supabase.auth.admin.updateUserById(
+      authUser.id,
+      { password }
+    );
+
+    if (updateError) {
+      console.error("Failed to update password:", updateError);
+      return NextResponse.json(
+        { error: updateError.message },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json({ success: true, message: "Password updated successfully" });
+  } catch (error) {
+    console.error("Failed to reset password:", error);
+    return NextResponse.json(
+      { error: "Failed to reset password" },
+      { status: 500 }
+    );
+  }
+}

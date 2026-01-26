@@ -107,6 +107,7 @@ export default function TeamPage() {
   const [editAgent, setEditAgent] = useState({
     name: "",
     role: "agent" as "owner" | "admin" | "agent",
+    newPassword: "",
   });
 
   useEffect(() => {
@@ -182,9 +183,15 @@ export default function TeamPage() {
       return;
     }
 
+    if (editAgent.newPassword && editAgent.newPassword.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
+
     setSaving(true);
 
     try {
+      // Update agent record
       const { error } = await supabase
         .from("agents")
         .update({
@@ -196,13 +203,31 @@ export default function TeamPage() {
 
       if (error) throw error;
 
+      // Reset password if provided
+      if (editAgent.newPassword) {
+        const response = await fetch("/api/agents", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: selectedAgent.email,
+            password: editAgent.newPassword,
+          }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to reset password");
+        }
+        toast.success("Password updated successfully!");
+      }
+
       toast.success("Agent updated successfully!");
       setIsEditOpen(false);
       setSelectedAgent(null);
       loadAgents();
     } catch (error) {
       console.error("Failed to update agent:", error);
-      toast.error("Failed to update agent");
+      toast.error(error instanceof Error ? error.message : "Failed to update agent");
     } finally {
       setSaving(false);
     }
@@ -239,7 +264,7 @@ export default function TeamPage() {
 
   const openEditDialog = (agent: Agent) => {
     setSelectedAgent(agent);
-    setEditAgent({ name: agent.name, role: agent.role });
+    setEditAgent({ name: agent.name, role: agent.role, newPassword: "" });
     setIsEditOpen(true);
   };
 
@@ -625,6 +650,21 @@ export default function TeamPage() {
                   <SelectItem value="agent">Agent</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-password">Reset Password</Label>
+              <Input
+                id="edit-password"
+                type="password"
+                placeholder="Leave blank to keep current password"
+                value={editAgent.newPassword}
+                onChange={(e) =>
+                  setEditAgent({ ...editAgent, newPassword: e.target.value })
+                }
+              />
+              <p className="text-xs text-slate-500">
+                Enter a new password (min 6 characters) or leave blank to keep the current one.
+              </p>
             </div>
             <Button
               onClick={handleEditAgent}
