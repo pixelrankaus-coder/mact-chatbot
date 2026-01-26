@@ -98,14 +98,15 @@ const adminChangelog: ChangelogEntry[] = [
     version: "2.20.1",
     date: "2025-01-27",
     type: "fix",
-    title: "Fix Campaign Progress Stuck at 0/1",
+    title: "Multiple Outreach Bug Fixes",
     description:
-      "Fixed campaign progress bar being stuck at 0/1 (0%) even though emails were successfully sent.",
+      "Fixed campaign progress stuck at 0/1, Reply-To not using settings, and polling intervals not working.",
     details: [
-      "increment_campaign_sent RPC function was failing silently",
-      "Added fallback to direct sent_count update when RPC unavailable",
-      "Applies to both dry run and live email sends",
-      "Pause/Resume workaround no longer needed",
+      "Fix: increment_campaign_sent RPC fallback to direct update",
+      "Fix: Reply-To now loads from outreach_settings on new campaign page",
+      "Fix: Polling intervals reset bug - removed sendLogs from useEffect deps",
+      "New campaign page now fetches default sender settings on mount",
+      "Campaign creation API now reads defaults from settings table",
     ],
   },
   {
