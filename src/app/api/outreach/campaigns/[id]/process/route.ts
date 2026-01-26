@@ -22,7 +22,7 @@ export async function POST(
     // Check campaign status
     const { data: campaign, error: campaignError } = await supabase
       .from("outreach_campaigns")
-      .select("status")
+      .select("status, is_dry_run")
       .eq("id", campaignId)
       .single();
 
@@ -36,7 +36,7 @@ export async function POST(
     // Only process if campaign is in "sending" status
     if (campaign.status !== "sending") {
       return NextResponse.json({
-        success: false,
+        success: true,
         message: `Campaign is ${campaign.status}, not sending`,
         processed: 0,
         remaining: 0,
@@ -44,8 +44,9 @@ export async function POST(
       });
     }
 
-    // Process next batch
-    const batchResult = await processCampaignBatch(campaignId, 10);
+    // Process next batch - larger batch for dry runs since they're fast
+    const batchSize = campaign.is_dry_run ? 25 : 10;
+    const batchResult = await processCampaignBatch(campaignId, batchSize);
 
     return NextResponse.json({
       success: true,
