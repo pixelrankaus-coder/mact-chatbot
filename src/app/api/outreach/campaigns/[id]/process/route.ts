@@ -44,8 +44,8 @@ export async function POST(
       });
     }
 
-    // Process next batch - larger batch for dry runs since they're fast
-    const batchSize = campaign.is_dry_run ? 25 : 10;
+    // Process next batch - MUCH larger batch for dry runs since they're instant
+    const batchSize = campaign.is_dry_run ? 100 : 10;
     const batchResult = await processCampaignBatch(campaignId, batchSize);
 
     return NextResponse.json({

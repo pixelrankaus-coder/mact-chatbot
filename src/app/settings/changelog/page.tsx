@@ -95,6 +95,22 @@ const widgetChangelog: ChangelogEntry[] = [
 // Admin panel changelog
 const adminChangelog: ChangelogEntry[] = [
   {
+    version: "2.19.0",
+    date: "2025-01-25",
+    type: "improvement",
+    title: "Cin7 Sync Stores Product Line Items (TASK #058)",
+    description:
+      "Cin7 sync now fetches and stores full line item details for each order, enabling instant email personalization without on-demand API calls.",
+    details: [
+      "Enhanced syncCin7Orders() to fetch individual sale details",
+      "Line items (name, SKU, quantity, price) now stored locally in cin7_orders.line_items",
+      "Rate-limited API calls (5 concurrent, 500ms delay) to avoid Cin7 limits",
+      "Customer email now captured from sale details (was missing from list API)",
+      "Email preview {{last_product}} renders instantly from local data",
+      "No more on-demand Cin7 API calls during campaign preview",
+    ],
+  },
+  {
     version: "2.18.0",
     date: "2025-01-25",
     type: "feature",

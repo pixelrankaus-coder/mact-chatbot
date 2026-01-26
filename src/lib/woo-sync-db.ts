@@ -104,12 +104,19 @@ function transformOrderForDB(order: any) {
     }
   }
 
+  // WooCommerce API returns date_created in ISO format like "2024-05-15T10:30:00"
+  // Validate the date exists - if missing, the database default would kick in (wrong!)
+  const orderDate = order.date_created;
+  if (!orderDate) {
+    console.warn(`[WooSync] Order #${order.number || order.id} missing date_created!`);
+  }
+
   return {
     woo_id: order.id,
     order_number: String(order.number || order.id),
     status: order.status,
     status_label: WOO_STATUS_LABELS[order.status] || order.status,
-    order_date: order.date_created,
+    order_date: orderDate || null, // Explicitly null if missing, not undefined
     customer_name: `${order.billing?.first_name || ""} ${order.billing?.last_name || ""}`.trim(),
     customer_email: order.billing?.email || null,
     customer_id: order.customer_id || null,
@@ -251,9 +258,24 @@ export async function syncWooOrdersWithLogging(
       return { success: true, recordsSynced: 0, duration };
     }
 
+    // Debug: Log sample order dates from raw API response
+    if (allOrders.length > 0) {
+      const sampleOrders = allOrders.slice(0, 3);
+      await log("info", "Sample order dates from WooCommerce API:");
+      for (const o of sampleOrders) {
+        await log("info", `  Order #${o.number || o.id}: date_created = "${o.date_created}"`);
+      }
+    }
+
     // Transform orders
     await log("info", "Transforming order data...");
     const records = allOrders.map(transformOrderForDB);
+
+    // Verify dates are being set correctly
+    const ordersWithoutDate = records.filter(r => !r.order_date);
+    if (ordersWithoutDate.length > 0) {
+      await log("warn", `${ordersWithoutDate.length} orders have no order_date!`);
+    }
 
     // Batch upsert
     const batchSize = 500;

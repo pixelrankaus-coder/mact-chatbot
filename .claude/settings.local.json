@@ -41,7 +41,10 @@
       "Bash(powershell:*)",
       "Bash(tasklist:*)",
       "Bash(git restore:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(python3:*)",
+      "Bash(npx next build:*)",
+      "Bash(git reset:*)"
     ]
   }
 }

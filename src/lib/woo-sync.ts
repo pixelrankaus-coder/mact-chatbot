@@ -131,29 +131,46 @@ export async function syncWooOrders(): Promise<SyncResult> {
       return { success: true, recordsSynced: 0, duration };
     }
 
+    // Debug: Log sample dateCreated values
+    if (allOrders.length > 0) {
+      const sampleOrders = allOrders.slice(0, 3);
+      console.log("Sample order dates from API:");
+      sampleOrders.forEach((o, i) => {
+        console.log(`  Order ${i + 1} (#${o.number}): dateCreated = "${o.dateCreated}"`);
+      });
+    }
+
     // Transform to database format
-    const records = allOrders.map((order) => ({
-      woo_id: order.id,
-      order_number: order.number,
-      status: order.status,
-      status_label: WOO_STATUS_LABELS[order.status] || order.status,
-      order_date: order.dateCreated,
-      customer_name: order.customerName,
-      customer_email: order.customerEmail,
-      customer_id: null, // Would need separate lookup
-      total: parseFloat(order.total) || 0,
-      currency: order.currency || "AUD",
-      tracking_number: order.trackingInfo?.trackingNumber || null,
-      tracking_provider: order.trackingInfo?.provider || null,
-      tracking_url: order.trackingInfo?.trackingUrl || null,
-      shipping_total: parseFloat(order.shippingTotal) || 0,
-      payment_method: order.paymentMethod || null,
-      billing_address: order.billing,
-      shipping_address: order.shipping,
-      line_items: order.items,
-      raw_data: order,
-      updated_at: new Date().toISOString(),
-    }));
+    const records = allOrders.map((order) => {
+      // Validate order date - WooCommerce returns ISO format like "2024-05-15T10:30:00"
+      const orderDate = order.dateCreated;
+      if (!orderDate) {
+        console.warn(`Order #${order.number} has no dateCreated, raw_data may have date_created`);
+      }
+
+      return {
+        woo_id: order.id,
+        order_number: order.number,
+        status: order.status,
+        status_label: WOO_STATUS_LABELS[order.status] || order.status,
+        order_date: orderDate || null, // Explicitly set null if missing, don't rely on defaults
+        customer_name: order.customerName,
+        customer_email: order.customerEmail,
+        customer_id: null, // Would need separate lookup
+        total: parseFloat(order.total) || 0,
+        currency: order.currency || "AUD",
+        tracking_number: order.trackingInfo?.trackingNumber || null,
+        tracking_provider: order.trackingInfo?.provider || null,
+        tracking_url: order.trackingInfo?.trackingUrl || null,
+        shipping_total: parseFloat(order.shippingTotal) || 0,
+        payment_method: order.paymentMethod || null,
+        billing_address: order.billing,
+        shipping_address: order.shipping,
+        line_items: order.items,
+        raw_data: order,
+        updated_at: new Date().toISOString(),
+      };
+    });
 
     // Batch upsert (500 at a time to avoid payload limits)
     const batchSize = 500;

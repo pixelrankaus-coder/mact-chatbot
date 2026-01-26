@@ -514,42 +514,83 @@ export async function processCampaignBatch(
     recipients: pendingEmails.map(e => e.recipient_email),
   }, ctx);
 
-  // Send each email
   let processed = 0;
   let failed = 0;
 
-  for (let i = 0; i < pendingEmails.length; i++) {
-    const emailRecord = pendingEmails[i];
+  // FAST PATH for dry runs - batch all operations
+  const isDryRun = campaign.is_dry_run === true;
+  if (isDryRun) {
+    await logToDb("info", "dry_run_batch", `[DRY RUN] FAST batch processing ${pendingEmails.length} emails...`, null, ctx);
 
-    await logToDb("info", "batch_email", `[${i + 1}/${pendingEmails.length}] Sending to ${emailRecord.recipient_email}...`, null, ctx);
+    const emailIds = pendingEmails.map(e => e.id);
+    const now = new Date().toISOString();
 
-    // Re-check campaign status before each send
-    const { data: currentCampaign } = await supabase
+    // 1. Batch update ALL emails to "sent" in ONE query
+    const { error: updateError } = await supabase
+      .from("outreach_emails")
+      .update({
+        status: "sent",
+        sent_at: now,
+        resend_id: `dry-run-batch-${Date.now()}`,
+      })
+      .in("id", emailIds);
+
+    if (updateError) {
+      await logToDb("error", "dry_run_batch", `Failed to batch update emails: ${updateError.message}`, null, ctx);
+      return { processed: 0, remaining: pendingCount || 0, completed: false, failed: pendingEmails.length };
+    }
+
+    // 2. Insert ALL events in ONE batch
+    const events = emailIds.map(emailId => ({
+      email_id: emailId,
+      campaign_id: campaignId,
+      event_type: "sent",
+    }));
+
+    await supabase.from("outreach_events").insert(events);
+
+    // 3. Update campaign counter ONCE with total count
+    await supabase
       .from("outreach_campaigns")
-      .select("status")
-      .eq("id", campaignId)
-      .single();
+      .update({
+        sent_count: (campaign.sent_count || 0) + pendingEmails.length,
+      })
+      .eq("id", campaignId);
 
-    if (currentCampaign?.status !== "sending") {
-      await logToDb("warning", "batch_interrupt", `Campaign status changed to: ${currentCampaign?.status}`, null, ctx);
-      break;
-    }
+    processed = pendingEmails.length;
+    await logToDb("success", "dry_run_batch", `[DRY RUN] Batch processed ${processed} emails instantly`, {
+      emailIds,
+      processed,
+    }, ctx);
+  } else {
+    // Normal path - send each email individually
+    for (let i = 0; i < pendingEmails.length; i++) {
+      const emailRecord = pendingEmails[i];
 
-    const result = await sendSingleEmail(emailRecord.id);
+      await logToDb("info", "batch_email", `[${i + 1}/${pendingEmails.length}] Sending to ${emailRecord.recipient_email}...`, null, ctx);
 
-    if (result.success) {
-      processed++;
-    } else {
-      failed++;
-    }
+      // Re-check campaign status before each send
+      const { data: currentCampaign } = await supabase
+        .from("outreach_campaigns")
+        .select("status")
+        .eq("id", campaignId)
+        .single();
 
-    // Delay before next (except last in batch) - skip for dry runs
-    if (i < pendingEmails.length - 1 && campaign.send_delay_ms > 0) {
-      // Check if dry run - skip the delay
-      const isDryRun = campaign.is_dry_run === true;
-      if (isDryRun) {
-        await logToDb("info", "batch_delay", `[DRY RUN] Skipping delay`, null, ctx);
+      if (currentCampaign?.status !== "sending") {
+        await logToDb("warning", "batch_interrupt", `Campaign status changed to: ${currentCampaign?.status}`, null, ctx);
+        break;
+      }
+
+      const result = await sendSingleEmail(emailRecord.id);
+
+      if (result.success) {
+        processed++;
       } else {
+        failed++;
+      }
+
+      // Delay before next (except last in batch)
+      if (i < pendingEmails.length - 1 && campaign.send_delay_ms > 0) {
         await logToDb("info", "batch_delay", `Waiting ${campaign.send_delay_ms}ms before next email...`, null, ctx);
         await new Promise((resolve) => setTimeout(resolve, campaign.send_delay_ms));
       }

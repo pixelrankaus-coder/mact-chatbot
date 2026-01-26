@@ -8,8 +8,58 @@
  */
 
 import { createServiceClient } from "@/lib/supabase";
-import { listAllSales, listAllCustomers, Cin7SaleListItem, Cin7Customer } from "@/lib/cin7";
+import { listAllSales, listAllCustomers, getSale, Cin7SaleListItem, Cin7Customer, Cin7Sale } from "@/lib/cin7";
 import { CIN7_STATUS_LABELS } from "@/types/order";
+
+// Rate limiting helper - delays between API calls
+async function rateLimitedBatch<T, R>(
+  items: T[],
+  batchSize: number,
+  delayMs: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = [];
+
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    const batchResults = await Promise.all(batch.map(fn));
+    results.push(...batchResults);
+
+    // Delay between batches (except for last batch)
+    if (i + batchSize < items.length) {
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+
+  return results;
+}
+
+// Extract line items from full sale data
+function extractLineItems(sale: Cin7Sale | null): Array<{ name: string; sku?: string; quantity: number; price: number }> {
+  if (!sale) return [];
+
+  // Try Order.Lines first
+  if (sale.Order?.Lines && sale.Order.Lines.length > 0) {
+    return sale.Order.Lines.map(line => ({
+      name: line.Name || "Unknown Product",
+      sku: line.SKU,
+      quantity: line.Quantity,
+      price: line.Price,
+    }));
+  }
+
+  // Fallback to Invoices[0].Lines
+  if (sale.Invoices?.[0]?.Lines && sale.Invoices[0].Lines.length > 0) {
+    return sale.Invoices[0].Lines.map(line => ({
+      name: line.Name || "Unknown Product",
+      sku: line.SKU,
+      quantity: line.Quantity,
+      price: line.Price,
+    }));
+  }
+
+  return [];
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseAny = any;
@@ -60,25 +110,50 @@ export async function syncCin7Orders(): Promise<SyncResult> {
       throw new Error("No orders returned from Cin7 API");
     }
 
+    // Fetch individual sale details for line items (rate limited: 5 at a time, 500ms delay)
+    console.log(`Fetching line items for ${orders.length} orders (this may take a while)...`);
+    const saleDetails = await rateLimitedBatch(
+      orders,
+      5, // 5 concurrent requests
+      500, // 500ms delay between batches
+      async (order) => {
+        const sale = await getSale(order.SaleID);
+        return { saleId: order.SaleID, sale };
+      }
+    );
+
+    // Create a map of sale details for quick lookup
+    const saleDetailsMap = new Map<string, Cin7Sale | null>();
+    for (const { saleId, sale } of saleDetails) {
+      saleDetailsMap.set(saleId, sale);
+    }
+
+    console.log(`Fetched details for ${saleDetails.filter(d => d.sale).length} orders`);
+
     // Transform to database format
-    const records = orders.map((order: Cin7SaleListItem) => ({
-      cin7_id: order.SaleID,
-      order_number: order.OrderNumber,
-      status: order.Status,
-      status_label: CIN7_STATUS_LABELS[order.Status] || order.Status,
-      order_date: order.OrderDate,
-      customer_name: order.Customer,
-      customer_email: "", // Not available in list response
-      customer_id: order.CustomerID,
-      total: order.SaleInvoicesTotalAmount || order.InvoiceAmount || 0,
-      currency: order.BaseCurrency || "AUD",
-      tracking_number: order.CombinedTrackingNumbers || null,
-      shipping_status: order.CombinedShippingStatus || null,
-      invoice_number: order.InvoiceNumber || null,
-      line_items: [], // Would need individual sale fetch for line items
-      raw_data: order,
-      updated_at: new Date().toISOString(),
-    }));
+    const records = orders.map((order: Cin7SaleListItem) => {
+      const saleDetail = saleDetailsMap.get(order.SaleID);
+      const lineItems = extractLineItems(saleDetail);
+
+      return {
+        cin7_id: order.SaleID,
+        order_number: order.OrderNumber,
+        status: order.Status,
+        status_label: CIN7_STATUS_LABELS[order.Status] || order.Status,
+        order_date: order.OrderDate,
+        customer_name: order.Customer,
+        customer_email: saleDetail?.Email || "", // Now available from sale details
+        customer_id: order.CustomerID,
+        total: order.SaleInvoicesTotalAmount || order.InvoiceAmount || 0,
+        currency: order.BaseCurrency || "AUD",
+        tracking_number: order.CombinedTrackingNumbers || null,
+        shipping_status: order.CombinedShippingStatus || null,
+        invoice_number: order.InvoiceNumber || null,
+        line_items: lineItems, // Now populated with actual product data
+        raw_data: order,
+        updated_at: new Date().toISOString(),
+      };
+    });
 
     // Batch upsert (500 at a time to avoid payload limits)
     const batchSize = 500;
