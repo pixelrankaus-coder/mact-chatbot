@@ -36,10 +36,28 @@ export async function GET(
       );
     }
 
+    // Also count emails directly from outreach_emails table for accuracy
+    // (counters might be out of sync if RPC fails)
+    const { count: sentCount } = await supabase
+      .from("outreach_emails")
+      .select("*", { count: "exact", head: true })
+      .eq("campaign_id", id)
+      .eq("status", "sent");
+
+    const { count: pendingCount } = await supabase
+      .from("outreach_emails")
+      .select("*", { count: "exact", head: true })
+      .eq("campaign_id", id)
+      .eq("status", "pending");
+
+    // Use the higher of counter vs actual count (in case counters are behind)
+    const actualSent = Math.max(campaign.sent_count || 0, sentCount || 0);
+    const actualTotal = campaign.total_recipients || ((sentCount || 0) + (pendingCount || 0));
+
     // Calculate rates
     const stats = {
-      total_recipients: campaign.total_recipients,
-      sent: campaign.sent_count,
+      total_recipients: actualTotal,
+      sent: actualSent,
       delivered: campaign.delivered_count,
       delivery_rate:
         campaign.sent_count > 0
