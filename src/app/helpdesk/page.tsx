@@ -106,8 +106,8 @@ export default function HelpdeskPage() {
     const query = searchQuery.toLowerCase();
     return (
       ticket.subject?.toLowerCase().includes(query) ||
-      ticket.conversation?.customer_name?.toLowerCase().includes(query) ||
-      ticket.conversation?.customer_email?.toLowerCase().includes(query)
+      ticket.conversation?.visitor_name?.toLowerCase().includes(query) ||
+      ticket.conversation?.visitor_email?.toLowerCase().includes(query)
     );
   });
 
@@ -262,8 +262,8 @@ export default function HelpdeskPage() {
                 >
                   <div className="flex items-start justify-between gap-2 mb-1">
                     <span className="font-medium text-sm truncate">
-                      {ticket.conversation?.customer_name ||
-                        ticket.conversation?.customer_email ||
+                      {ticket.conversation?.visitor_name ||
+                        ticket.conversation?.visitor_email ||
                         "Unknown"}
                     </span>
                     <span className="text-xs text-slate-400 shrink-0">

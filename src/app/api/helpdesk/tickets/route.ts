@@ -30,8 +30,8 @@ export async function GET(request: NextRequest) {
         conversation:conversations(
           id,
           session_id,
-          customer_name,
-          customer_email
+          visitor_name,
+          visitor_email
         ),
         tags:helpdesk_ticket_tags(
           tag:helpdesk_tags(id, name, color)

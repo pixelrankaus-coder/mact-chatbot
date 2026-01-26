@@ -211,8 +211,8 @@ export function TicketDetail({
         <div className="flex items-center gap-3">
           <Badge className={statusColors[ticket.status]}>{ticket.status}</Badge>
           <span className="font-medium">
-            {ticket.conversation?.customer_name ||
-              ticket.conversation?.customer_email ||
+            {ticket.conversation?.visitor_name ||
+              ticket.conversation?.visitor_email ||
               "Unknown Customer"}
           </span>
         </div>

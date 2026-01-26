@@ -102,8 +102,8 @@ export interface HelpdeskTicketWithRelations extends HelpdeskTicket {
   conversation?: {
     id: string;
     session_id: string;
-    customer_name: string | null;
-    customer_email: string | null;
+    visitor_name: string | null;
+    visitor_email: string | null;
   };
   messages?: TicketMessage[];
   csat?: HelpdeskCsatResponse | null;
