@@ -90,9 +90,9 @@ export default function NewCampaignPage() {
 
   // Step 3: Preview
   const [campaignName, setCampaignName] = useState("");
-  const [fromName, setFromName] = useState("Chris Born");
-  const [fromEmail, setFromEmail] = useState("c.born@mact.au");
-  const [replyTo, setReplyTo] = useState("replies@mact.au");
+  const [fromName, setFromName] = useState("");
+  const [fromEmail, setFromEmail] = useState("");
+  const [replyTo, setReplyTo] = useState("");
   const [sendRate, setSendRate] = useState(50);
   const [allRecipients, setAllRecipients] = useState<PreviewRecipient[]>([]);
   const [totalRecipients, setTotalRecipients] = useState(0);
@@ -104,11 +104,31 @@ export default function NewCampaignPage() {
   const [scheduledTime, setScheduledTime] = useState("09:00");
   const [isDryRun, setIsDryRun] = useState(false);
 
-  // Fetch segments on mount
+  // Fetch segments, templates, and settings on mount
   useEffect(() => {
     fetchSegments();
     fetchTemplates();
+    fetchSettings();
   }, []);
+
+  const fetchSettings = async () => {
+    try {
+      const res = await fetch("/api/outreach/settings");
+      const data = await res.json();
+      if (data) {
+        setFromName(data.default_from_name || "Chris Born");
+        setFromEmail(data.default_from_email || "c.born@mact.au");
+        setReplyTo(data.default_reply_to || "c.born@reply.mact.au");
+        setSendRate(data.max_emails_per_hour || 50);
+      }
+    } catch (error) {
+      console.error("Failed to fetch settings:", error);
+      // Use fallback defaults
+      setFromName("Chris Born");
+      setFromEmail("c.born@mact.au");
+      setReplyTo("c.born@reply.mact.au");
+    }
+  };
 
   const fetchSegments = async () => {
     try {
