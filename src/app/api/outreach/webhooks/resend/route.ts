@@ -81,18 +81,20 @@ export async function POST(request: NextRequest) {
           })
           .eq("id", email.id);
 
-        // Increment open count
-        await supabase.rpc("increment", {
+        // Increment open count - try RPC first, fallback to direct update
+        const { error: rpcError } = await supabase.rpc("increment", {
           row_id: email.id,
           table_name: "outreach_emails",
           column_name: "open_count",
-        }).catch(() => {
-          // If rpc doesn't exist, update directly
-          supabase
-            .from("outreach_emails")
-            .update({ open_count: (email as { open_count?: number }).open_count ? (email as { open_count: number }).open_count + 1 : 1 })
-            .eq("id", email.id);
         });
+
+        if (rpcError) {
+          // If rpc doesn't exist, update directly
+          await supabase
+            .from("outreach_emails")
+            .update({ open_count: ((email as { open_count?: number }).open_count || 0) + 1 })
+            .eq("id", email.id);
+        }
 
         // Only increment campaign opened on first open
         if (isFirstOpen) {
