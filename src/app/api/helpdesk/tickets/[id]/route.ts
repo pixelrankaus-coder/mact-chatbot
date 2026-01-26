@@ -18,7 +18,7 @@ export async function GET(
     const { id } = await params;
     const supabase = getSupabase();
 
-    // Get ticket with conversation and tags
+    // Get ticket with conversation
     const { data: ticket, error } = await supabase
       .from("helpdesk_tickets")
       .select(
@@ -26,17 +26,12 @@ export async function GET(
         *,
         conversation:conversations(
           id,
-          session_id,
-          customer_name,
-          customer_email,
-          customer_id,
+          visitor_id,
+          visitor_name,
+          visitor_email,
           status,
           created_at
-        ),
-        tags:helpdesk_ticket_tags(
-          tag:helpdesk_tags(id, name, color)
-        ),
-        csat:helpdesk_csat_responses(id, rating, feedback, created_at)
+        )
       `
       )
       .eq("id", id)
@@ -56,11 +51,9 @@ export async function GET(
       .eq("conversation_id", ticket.conversation_id)
       .order("created_at", { ascending: true });
 
-    // Transform tags
+    // Add messages to ticket
     const transformedTicket = {
       ...ticket,
-      tags: ticket.tags?.map((t: { tag: unknown }) => t.tag).filter(Boolean) || [],
-      csat: ticket.csat?.[0] || null,
       messages: messages || [],
     };
 
