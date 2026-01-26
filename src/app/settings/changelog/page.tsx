@@ -95,6 +95,25 @@ const widgetChangelog: ChangelogEntry[] = [
 // Admin panel changelog
 const adminChangelog: ChangelogEntry[] = [
   {
+    version: "2.20.0",
+    date: "2025-01-27",
+    type: "feature",
+    title: "Outreach Settings Page + Campaign List UI Refresh (TASK #059)",
+    description:
+      "Full settings page for Outreach module with sender config, reply handling, and sending rate limits. Plus redesigned campaign list with Klaviyo-inspired layout.",
+    details: [
+      "New /outreach/settings page with tabbed UI (General + Signature)",
+      "Sender Settings: From Name, From Email, Default Reply-To",
+      "Reply Handling: Forward Replies toggle with destination email",
+      "Sending Settings: Emails Per Hour, Send Window Start/End",
+      "API auto-creates default settings if none exist (singleton pattern)",
+      "Campaign list redesigned with wider layout and filter row",
+      "Dry Run badge shown next to campaign status",
+      "Progress bar colors vary by status (green=completed, red=cancelled)",
+      "Verified email tracking webhooks are properly configured",
+    ],
+  },
+  {
     version: "2.19.0",
     date: "2025-01-25",
     type: "improvement",

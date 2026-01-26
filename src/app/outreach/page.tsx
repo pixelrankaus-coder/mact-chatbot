@@ -434,13 +434,23 @@ export default function OutreachPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge
-                          className={`${status.color} gap-1`}
-                          variant="secondary"
-                        >
-                          {status.icon}
-                          {status.label}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            className={`${status.color} gap-1`}
+                            variant="secondary"
+                          >
+                            {status.icon}
+                            {status.label}
+                          </Badge>
+                          {campaign.is_dry_run && (
+                            <Badge
+                              variant="outline"
+                              className="text-xs bg-purple-50 text-purple-600 border-purple-200"
+                            >
+                              Dry Run
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-3">
