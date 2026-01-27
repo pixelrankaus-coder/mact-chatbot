@@ -8,6 +8,16 @@ type SupabaseAny = any;
 // Segment filter type
 type Segment = "all" | "vip" | "active" | "dormant" | "new" | "marketable";
 
+// Default segment settings
+const DEFAULT_SEGMENT_SETTINGS = {
+  vip_min_orders: 5,
+  vip_min_spend: 5000,
+  dormant_months: 12,
+  active_min_orders: 2,
+  active_months: 6,
+  new_days: 30,
+};
+
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
   const search = searchParams.get("search") || "";
@@ -20,6 +30,18 @@ export async function GET(req: NextRequest) {
 
   try {
     const supabase = createServiceClient() as SupabaseAny;
+
+    // Fetch customer segment settings
+    let segmentSettings = DEFAULT_SEGMENT_SETTINGS;
+    const { data: settingsData } = await supabase
+      .from("customer_segment_settings")
+      .select("*")
+      .limit(1)
+      .single();
+
+    if (settingsData) {
+      segmentSettings = { ...DEFAULT_SEGMENT_SETTINGS, ...settingsData };
+    }
 
     // Fetch Cin7 customers from Supabase cache with order aggregates
     let cin7Customers: UnifiedCustomer[] = [];
@@ -174,7 +196,8 @@ export async function GET(req: NextRequest) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         wooCustomers = (wooData || []).map((c: any) => {
           const email = c.email?.toLowerCase();
-          const agg = email ? wooOrderAggregates[email] || { count: 0, total: 0, lastDate: null } : { count: c.orders_count || 0, total: c.total_spent || 0, lastDate: null };
+          const fallbackTotal = parseFloat(String(c.total_spent)) || 0;
+          const agg = email ? wooOrderAggregates[email] || { count: 0, total: 0, lastDate: null } : { count: c.orders_count || 0, total: fallbackTotal, lastDate: null };
           return {
             id: `woo-${c.woo_id}`,
             wooId: c.woo_id,
@@ -185,8 +208,8 @@ export async function GET(req: NextRequest) {
             status: "active" as const,
             sources: ["woocommerce"] as ("cin7" | "woocommerce")[],
             lastUpdated: c.updated_at || "",
-            totalOrders: agg.count || c.orders_count || 0,
-            totalSpent: agg.total || c.total_spent || 0,
+            totalOrders: agg.count || parseInt(String(c.orders_count)) || 0,
+            totalSpent: agg.total || fallbackTotal,
             lastOrderDate: agg.lastDate,
             wooData: {
               username: c.username,
@@ -204,11 +227,11 @@ export async function GET(req: NextRequest) {
     // Combine both lists
     let allCustomers = [...cin7Customers, ...wooCustomers];
 
-    // Apply segment filter
+    // Apply segment filter using configurable settings
     const now = new Date();
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    const sixMonthsAgo = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
-    const oneYearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+    const newDaysAgo = new Date(now.getTime() - segmentSettings.new_days * 24 * 60 * 60 * 1000);
+    const activeMonthsAgo = new Date(now.getTime() - segmentSettings.active_months * 30 * 24 * 60 * 60 * 1000);
+    const dormantMonthsAgo = new Date(now.getTime() - segmentSettings.dormant_months * 30 * 24 * 60 * 60 * 1000);
 
     if (segment !== "all") {
       allCustomers = allCustomers.filter((c) => {
@@ -218,17 +241,17 @@ export async function GET(req: NextRequest) {
 
         switch (segment) {
           case "vip":
-            // 5+ orders OR $5,000+ total spend
-            return orders >= 5 || spent >= 5000;
+            // Configurable: X+ orders OR $Y+ total spend
+            return orders >= segmentSettings.vip_min_orders || spent >= segmentSettings.vip_min_spend;
           case "active":
-            // 2+ orders in last 6 months
-            return orders >= 2 && lastOrder && lastOrder > sixMonthsAgo;
+            // Configurable: X+ orders in last Y months
+            return orders >= segmentSettings.active_min_orders && lastOrder && lastOrder > activeMonthsAgo;
           case "dormant":
-            // Has ordered before, nothing in 12 months
-            return orders > 0 && lastOrder && lastOrder < oneYearAgo;
+            // Configurable: Has ordered before, nothing in X months
+            return orders > 0 && lastOrder && lastOrder < dormantMonthsAgo;
           case "new":
-            // First order in last 30 days
-            return orders === 1 && lastOrder && lastOrder > thirtyDaysAgo;
+            // Configurable: First order in last X days
+            return orders === 1 && lastOrder && lastOrder > newDaysAgo;
           case "marketable":
             // Has email address
             return c.email && c.email.trim() !== "";
@@ -248,17 +271,17 @@ export async function GET(req: NextRequest) {
       marketable: 0,
     };
 
-    // Recount from combined list for accurate stats
+    // Recount from combined list for accurate stats using configurable settings
     const allForStats = [...cin7Customers, ...wooCustomers];
     allForStats.forEach((c) => {
       const lastOrder = c.lastOrderDate ? new Date(c.lastOrderDate) : null;
       const orders = c.totalOrders || 0;
       const spent = c.totalSpent || 0;
 
-      if (orders >= 5 || spent >= 5000) segmentCounts.vip++;
-      if (orders >= 2 && lastOrder && lastOrder > sixMonthsAgo) segmentCounts.active++;
-      if (orders > 0 && lastOrder && lastOrder < oneYearAgo) segmentCounts.dormant++;
-      if (orders === 1 && lastOrder && lastOrder > thirtyDaysAgo) segmentCounts.new++;
+      if (orders >= segmentSettings.vip_min_orders || spent >= segmentSettings.vip_min_spend) segmentCounts.vip++;
+      if (orders >= segmentSettings.active_min_orders && lastOrder && lastOrder > activeMonthsAgo) segmentCounts.active++;
+      if (orders > 0 && lastOrder && lastOrder < dormantMonthsAgo) segmentCounts.dormant++;
+      if (orders === 1 && lastOrder && lastOrder > newDaysAgo) segmentCounts.new++;
       if (c.email && c.email.trim() !== "") segmentCounts.marketable++;
     });
 
@@ -285,12 +308,13 @@ export async function GET(req: NextRequest) {
 
       switch (sortBy) {
         case "total_spent":
-          aVal = a.totalSpent || 0;
-          bVal = b.totalSpent || 0;
+          // Ensure numeric comparison - parseFloat handles strings safely
+          aVal = parseFloat(String(a.totalSpent)) || 0;
+          bVal = parseFloat(String(b.totalSpent)) || 0;
           break;
         case "total_orders":
-          aVal = a.totalOrders || 0;
-          bVal = b.totalOrders || 0;
+          aVal = parseInt(String(a.totalOrders)) || 0;
+          bVal = parseInt(String(b.totalOrders)) || 0;
           break;
         case "last_order_date":
           aVal = a.lastOrderDate || "";

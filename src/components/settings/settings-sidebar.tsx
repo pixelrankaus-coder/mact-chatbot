@@ -16,6 +16,7 @@ import {
   History,
   Cpu,
   ClipboardList,
+  UserCog,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ADMIN_VERSION, WIDGET_VERSION } from "@/lib/version";
@@ -39,6 +40,7 @@ const settingsNav: SettingsNavItem[] = [
   { id: "notifications", label: "Notifications", href: "/settings/notifications", icon: <Bell className="h-4 w-4" />, section: "PERSONAL" },
   { id: "operating-hours", label: "Operating hours", href: "/settings/operating-hours", icon: <Clock className="h-4 w-4" />, section: "PERSONAL" },
   { id: "team", label: "Team", href: "/settings/team", icon: <Users className="h-4 w-4" />, section: "GENERAL" },
+  { id: "customers", label: "Customer Segments", href: "/settings/customers", icon: <UserCog className="h-4 w-4" />, section: "GENERAL" },
   { id: "integrations", label: "Integrations", href: "/settings/integrations", icon: <Plug className="h-4 w-4" />, section: "GENERAL" },
   { id: "changelog", label: "Changelog", href: "/settings/changelog", icon: <History className="h-4 w-4" />, section: "GENERAL" },
 ];
