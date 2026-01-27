@@ -254,7 +254,7 @@ export default function LoginPage() {
         {/* Bottom Branding */}
         <div className="absolute bottom-10 left-0 right-0 text-center">
           <p className="text-slate-500 text-sm">
-            MACt Cement Specialist
+            GFRC Specialist
           </p>
           <p className="text-slate-600 text-xs mt-1">
             Admin Dashboard
