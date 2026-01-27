@@ -19,6 +19,21 @@ function getSupabase() {
   return createClient(supabaseUrl, supabaseKey);
 }
 
+// Extract plain text from HTML (basic strip)
+function htmlToText(html: string): string {
+  return html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "") // Remove style tags
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "") // Remove script tags
+    .replace(/<[^>]+>/g, " ") // Remove all HTML tags
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, " ") // Collapse whitespace
+    .trim();
+}
+
 // POST /api/outreach/webhooks/inbound - Handle inbound email replies
 export async function POST(request: NextRequest) {
   try {
@@ -85,14 +100,15 @@ export async function POST(request: NextRequest) {
         p_campaign_id: originalEmail.campaign_id,
       });
 
-      // Log event
+      // Log event - get body preview from text or extracted HTML
+      const bodyPreview = text || (html ? htmlToText(html) : "");
       await supabase.from("outreach_events").insert({
         email_id: originalEmail.id,
         campaign_id: originalEmail.campaign_id,
         event_type: "replied",
         metadata: {
           subject,
-          body_preview: text?.substring(0, 200),
+          body_preview: bodyPreview.substring(0, 200),
           from_email: fromEmail,
           from_name: fromName,
         },
@@ -118,6 +134,9 @@ export async function POST(request: NextRequest) {
           ? `Original campaign email to: ${originalEmail.recipient_name} (${originalEmail.recipient_email})`
           : "Could not match to any campaign";
 
+        // Get body content - prefer text, fall back to extracting from HTML
+        const bodyContent = text || (html ? htmlToText(html) : "(No content)");
+
         await getResend().emails.send({
           from: "MACt Outreach <noreply@mact.au>",
           to: settings.forward_replies_to,
@@ -128,8 +147,17 @@ ${campaignInfo}
 
 ---
 
-${text || "(No text content)"}
+${bodyContent}
           `.trim(),
+          // Also include HTML if available for full formatting
+          ...(html && {
+            html: `
+<p><strong>Reply from:</strong> ${from}</p>
+<p><em>${campaignInfo}</em></p>
+<hr/>
+${html}
+            `.trim(),
+          }),
         });
 
         // Mark as forwarded
