@@ -275,12 +275,16 @@ export default function OutreachSettingsPage() {
 
     // If signature editor is available, export the design
     if (emailEditorRef.current?.editor) {
-      emailEditorRef.current.editor.exportHtml(async (data) => {
-        const { design, html } = data;
-        await saveSettings({
-          ...settings,
-          signature_json: design,
-          signature_html: html,
+      // Wrap the callback-based exportHtml in a promise
+      await new Promise<void>((resolve) => {
+        emailEditorRef.current!.editor!.exportHtml(async (data) => {
+          const { design, html } = data;
+          await saveSettings({
+            ...settings,
+            signature_json: design,
+            signature_html: html,
+          });
+          resolve();
         });
       });
     } else {
