@@ -39,8 +39,23 @@ export async function POST(request: NextRequest) {
   try {
     const payload = await request.json();
 
-    // Resend inbound email structure
-    const { from, to, subject, text, html } = payload.data || payload;
+    // Debug: Log the full payload structure to understand what Resend sends
+    console.log("[Inbound Webhook] Full payload:", JSON.stringify(payload, null, 2));
+
+    // Resend inbound email structure - check multiple possible locations
+    const emailData = payload.data || payload;
+    const { from, to, subject, text, html } = emailData;
+
+    console.log("[Inbound Webhook] Extracted fields:", {
+      from,
+      to,
+      subject,
+      hasText: !!text,
+      textLength: text?.length,
+      hasHtml: !!html,
+      htmlLength: html?.length,
+      htmlPreview: html?.substring(0, 500),
+    });
 
     const supabase = getSupabase();
 
