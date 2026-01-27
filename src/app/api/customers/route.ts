@@ -48,24 +48,45 @@ export async function GET(req: NextRequest) {
     let cin7Total = 0;
 
     if (source !== "woocommerce") {
-      // Get all Cin7 customers (no pagination at DB level - we do it in-memory for proper sorting)
-      let query = supabase
-        .from("cin7_customers")
-        .select("*", { count: "exact" });
+      // Fetch ALL Cin7 customers with pagination to get around Supabase's 1000 row default limit
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let cin7Data: any[] = [];
+      let customersPage = 0;
+      const customersPageSize = 1000;
+      let hasMoreCustomers = true;
 
-      // Apply search filter
-      if (search) {
-        query = query.or(
-          `name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`
-        );
+      while (hasMoreCustomers) {
+        let query = supabase
+          .from("cin7_customers")
+          .select("*", { count: "exact" })
+          .range(customersPage * customersPageSize, (customersPage + 1) * customersPageSize - 1);
+
+        // Apply search filter
+        if (search) {
+          query = query.or(
+            `name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`
+          );
+        }
+
+        const { data: customersChunk, count, error } = await query;
+
+        if (error) {
+          console.error("Supabase cin7_customers query error:", error);
+          hasMoreCustomers = false;
+        } else if (customersChunk && customersChunk.length > 0) {
+          cin7Data = cin7Data.concat(customersChunk);
+          // Use count from first page to set total
+          if (customersPage === 0) {
+            cin7Total = count || 0;
+          }
+          customersPage++;
+          hasMoreCustomers = customersChunk.length === customersPageSize;
+        } else {
+          hasMoreCustomers = false;
+        }
       }
 
-      const { data: cin7Data, count, error } = await query;
-
-      if (error) {
-        console.error("Supabase cin7_customers query error:", error);
-      } else {
-        cin7Total = count || 0;
+      if (cin7Data.length > 0) {
 
         // Fetch ALL orders for Cin7 customers to calculate aggregates
         // Use pagination to get around Supabase's 1000 row default limit
@@ -137,24 +158,45 @@ export async function GET(req: NextRequest) {
     let wooTotal = 0;
 
     if (source !== "cin7") {
-      // Get all WooCommerce customers
-      let wooQuery = supabase
-        .from("woo_customers")
-        .select("*", { count: "exact" });
+      // Fetch ALL WooCommerce customers with pagination to get around Supabase's 1000 row default limit
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let wooData: any[] = [];
+      let wooCustomersPage = 0;
+      const wooCustomersPageSize = 1000;
+      let hasMoreWooCustomers = true;
 
-      // Apply search filter
-      if (search) {
-        wooQuery = wooQuery.or(
-          `first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`
-        );
+      while (hasMoreWooCustomers) {
+        let wooQuery = supabase
+          .from("woo_customers")
+          .select("*", { count: "exact" })
+          .range(wooCustomersPage * wooCustomersPageSize, (wooCustomersPage + 1) * wooCustomersPageSize - 1);
+
+        // Apply search filter
+        if (search) {
+          wooQuery = wooQuery.or(
+            `first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`
+          );
+        }
+
+        const { data: wooCustomersChunk, count: wooCount, error: wooError } = await wooQuery;
+
+        if (wooError) {
+          console.error("Supabase woo_customers query error:", wooError);
+          hasMoreWooCustomers = false;
+        } else if (wooCustomersChunk && wooCustomersChunk.length > 0) {
+          wooData = wooData.concat(wooCustomersChunk);
+          // Use count from first page to set total
+          if (wooCustomersPage === 0) {
+            wooTotal = wooCount || 0;
+          }
+          wooCustomersPage++;
+          hasMoreWooCustomers = wooCustomersChunk.length === wooCustomersPageSize;
+        } else {
+          hasMoreWooCustomers = false;
+        }
       }
 
-      const { data: wooData, count: wooCount, error: wooError } = await wooQuery;
-
-      if (wooError) {
-        console.error("Supabase woo_customers query error:", wooError);
-      } else {
-        wooTotal = wooCount || 0;
+      if (wooData.length > 0) {
 
         // Fetch ALL orders for WooCommerce customers to calculate aggregates
         // Use pagination to get around Supabase's 1000 row default limit
