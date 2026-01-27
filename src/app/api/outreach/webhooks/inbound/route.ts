@@ -59,9 +59,9 @@ export async function POST(request: NextRequest) {
 
     if (email_id) {
       try {
-        const resend = getResend();
-        // Fetch the full email content from Resend's received emails API
-        const emailResponse = await fetch(`https://api.resend.com/emails/${email_id}`, {
+        // Fetch the full email content from Resend's RECEIVING emails API
+        // Note: endpoint is /emails/receiving/{id} NOT /emails/{id}
+        const emailResponse = await fetch(`https://api.resend.com/emails/receiving/${email_id}`, {
           headers: {
             Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
           },
