@@ -5,12 +5,12 @@ import { createClient } from "@/utils/supabase/server";
  * Auth Callback Route
  *
  * Handles OAuth callbacks and email confirmation links.
- * Exchanges the auth code for a session.
+ * Exchanges the auth code for a session and verifies agent authorization.
  */
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/inbox";
+  const redirectTo = searchParams.get("redirect") || searchParams.get("next") || "/inbox";
   const error = searchParams.get("error");
   const errorDescription = searchParams.get("error_description");
 
@@ -23,18 +23,51 @@ export async function GET(request: Request) {
 
   if (code) {
     const supabase = await createClient();
-    const { error: exchangeError } =
+    const { data: sessionData, error: exchangeError } =
       await supabase.auth.exchangeCodeForSession(code);
 
-    if (!exchangeError) {
-      // Successfully exchanged code for session
-      return NextResponse.redirect(`${origin}${next}`);
+    if (exchangeError) {
+      const loginUrl = new URL("/login", origin);
+      loginUrl.searchParams.set("error", exchangeError.message);
+      return NextResponse.redirect(loginUrl);
     }
 
-    // Exchange failed
-    const loginUrl = new URL("/login", origin);
-    loginUrl.searchParams.set("error", exchangeError.message);
-    return NextResponse.redirect(loginUrl);
+    // Get the user's email from the session
+    const userEmail = sessionData.user?.email;
+
+    if (!userEmail) {
+      await supabase.auth.signOut();
+      const loginUrl = new URL("/login", origin);
+      loginUrl.searchParams.set("error", "Could not retrieve email from OAuth provider");
+      return NextResponse.redirect(loginUrl);
+    }
+
+    // Check if user has an agent record (required for this app)
+    const { data: agent, error: agentError } = await supabase
+      .from("agents")
+      .select("id")
+      .eq("email", userEmail.toLowerCase())
+      .single();
+
+    if (agentError || !agent) {
+      // User authenticated but no agent record - sign them out
+      await supabase.auth.signOut();
+      const loginUrl = new URL("/login", origin);
+      loginUrl.searchParams.set("error", "You are not authorized as an agent. Please contact an administrator.");
+      return NextResponse.redirect(loginUrl);
+    }
+
+    // Set agent online status
+    await supabase
+      .from("agents")
+      .update({
+        is_online: true,
+        last_seen_at: new Date().toISOString(),
+      })
+      .eq("id", agent.id);
+
+    // Successfully authenticated and authorized
+    return NextResponse.redirect(`${origin}${redirectTo}`);
   }
 
   // No code provided - redirect to login

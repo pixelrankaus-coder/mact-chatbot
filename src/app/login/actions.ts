@@ -62,6 +62,54 @@ export async function login(formData: FormData) {
 }
 
 /**
+ * Server Action: Login with Google
+ *
+ * Initiates OAuth flow with Google provider.
+ */
+export async function loginWithGoogle(redirectTo?: string) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/auth/callback${redirectTo ? `?redirect=${encodeURIComponent(redirectTo)}` : ""}`,
+    },
+  });
+
+  if (error) {
+    redirect(`/login?error=${encodeURIComponent(error.message)}`);
+  }
+
+  if (data.url) {
+    redirect(data.url);
+  }
+}
+
+/**
+ * Server Action: Login with GitHub
+ *
+ * Initiates OAuth flow with GitHub provider.
+ */
+export async function loginWithGithub(redirectTo?: string) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "github",
+    options: {
+      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/auth/callback${redirectTo ? `?redirect=${encodeURIComponent(redirectTo)}` : ""}`,
+    },
+  });
+
+  if (error) {
+    redirect(`/login?error=${encodeURIComponent(error.message)}`);
+  }
+
+  if (data.url) {
+    redirect(data.url);
+  }
+}
+
+/**
  * Server Action: Logout
  *
  * Signs out the user and updates their online status.
