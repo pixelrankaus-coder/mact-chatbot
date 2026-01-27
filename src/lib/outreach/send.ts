@@ -457,12 +457,16 @@ export async function processCampaignBatch(
     status: campaign.status,
     totalRecipients: campaign.total_recipients,
     sentCount: campaign.sent_count,
+    isDryRun: campaign.is_dry_run,
+    sendDelayMs: campaign.send_delay_ms,
   }, ctx);
 
   if (campaign.status !== "sending") {
     await logToDb("warning", "batch_check", `Campaign not in sending status (${campaign.status})`, null, ctx);
     return { processed: 0, remaining: 0, completed: campaign.status === "completed", failed: 0 };
   }
+
+  await logToDb("info", "batch_proceed", "Campaign status is 'sending', proceeding to fetch pending emails...", null, ctx);
 
   // Get pending emails
   const { data: pendingEmails, error: pendingError } = await supabase
@@ -474,9 +478,17 @@ export async function processCampaignBatch(
     .limit(batchSize);
 
   if (pendingError) {
-    await logToDb("error", "batch_fetch", `Failed to fetch pending emails: ${pendingError.message}`, null, ctx);
+    await logToDb("error", "batch_fetch", `Failed to fetch pending emails: ${pendingError.message}`, {
+      code: pendingError.code,
+      details: pendingError.details,
+    }, ctx);
     return { processed: 0, remaining: 0, completed: false, failed: 0 };
   }
+
+  await logToDb("info", "batch_fetch", `Found ${pendingEmails?.length || 0} pending emails`, {
+    emailIds: pendingEmails?.map(e => e.id.substring(0, 8)),
+    recipients: pendingEmails?.map(e => e.recipient_email),
+  }, ctx);
 
   // Also check total email counts for status display
   const { count: totalCount } = await supabase
@@ -537,14 +549,20 @@ export async function processCampaignBatch(
   const isDryRun = campaign.is_dry_run === true;
   if (!isDryRun && campaign.send_delay_ms > 0) {
     // Check when the last email was sent
-    const { data: lastSentEmail } = await supabase
+    // Use .maybeSingle() to handle case where no emails have been sent yet (returns null instead of error)
+    const { data: lastSentEmail, error: lastSentError } = await supabase
       .from("outreach_emails")
       .select("sent_at")
       .eq("campaign_id", campaignId)
       .eq("status", "sent")
       .order("sent_at", { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
+
+    // Log if there was an error (for debugging), but continue processing
+    if (lastSentError) {
+      await logToDb("warning", "rate_limit_check", `Error checking last sent email: ${lastSentError.message}`, null, ctx);
+    }
 
     if (lastSentEmail?.sent_at) {
       const lastSentTime = new Date(lastSentEmail.sent_at).getTime();
