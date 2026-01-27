@@ -39,12 +39,51 @@ export async function POST(request: NextRequest) {
   try {
     const payload = await request.json();
 
-    // Debug: Log the full payload structure to understand what Resend sends
+    // Debug: Log the full payload structure
     console.log("[Inbound Webhook] Full payload:", JSON.stringify(payload, null, 2));
 
-    // Resend inbound email structure - check multiple possible locations
+    // Resend webhook only includes metadata - body must be fetched separately
     const emailData = payload.data || payload;
-    const { from, to, subject, text, html } = emailData;
+    const { email_id, from, to, subject } = emailData;
+
+    console.log("[Inbound Webhook] Webhook metadata:", {
+      email_id,
+      from,
+      to,
+      subject,
+    });
+
+    // Fetch full email content from Resend API using email_id
+    let text: string | undefined;
+    let html: string | undefined;
+
+    if (email_id) {
+      try {
+        const resend = getResend();
+        // Fetch the full email content from Resend's received emails API
+        const emailResponse = await fetch(`https://api.resend.com/emails/${email_id}`, {
+          headers: {
+            Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+          },
+        });
+
+        if (emailResponse.ok) {
+          const fullEmail = await emailResponse.json();
+          text = fullEmail.text;
+          html = fullEmail.html;
+          console.log("[Inbound Webhook] Fetched email body:", {
+            hasText: !!text,
+            textLength: text?.length,
+            hasHtml: !!html,
+            htmlLength: html?.length,
+          });
+        } else {
+          console.error("[Inbound Webhook] Failed to fetch email:", emailResponse.status);
+        }
+      } catch (fetchErr) {
+        console.error("[Inbound Webhook] Error fetching email body:", fetchErr);
+      }
+    }
 
     console.log("[Inbound Webhook] Extracted fields:", {
       from,
