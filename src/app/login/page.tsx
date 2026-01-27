@@ -201,9 +201,13 @@ export default function LoginPage() {
       <div className="flex flex-col gap-4 p-6 md:p-10">
         <div className="flex justify-center gap-2 md:justify-start">
           <Link href="/" className="flex items-center gap-2 font-medium">
-            <div className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-md">
-              <span className="font-bold text-sm">M</span>
-            </div>
+            <Image
+              src="/mact-logo.png"
+              alt="MACt Logo"
+              width={36}
+              height={36}
+              className="rounded-md"
+            />
             <span className="text-lg font-semibold">MACt</span>
           </Link>
         </div>
@@ -226,22 +230,16 @@ export default function LoginPage() {
               <div className="absolute w-48 h-48 border border-slate-700 rounded-full" />
               <div className="absolute w-32 h-32 border border-slate-600 rounded-full" />
             </div>
-            {/* Center Icon */}
+            {/* Center Logo */}
             <div className="relative z-10 flex items-center justify-center w-64 h-64">
               <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6">
-                <svg
-                  className="w-12 h-12 text-slate-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1.5}
-                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                  />
-                </svg>
+                <Image
+                  src="/mact-logo.png"
+                  alt="MACt Logo"
+                  width={80}
+                  height={80}
+                  className="rounded-lg"
+                />
               </div>
             </div>
             {/* Decorative Lines */}
