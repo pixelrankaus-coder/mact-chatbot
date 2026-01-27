@@ -100,12 +100,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Get settings for forwarding
-    const { data: settings } = await supabase
+    const { data: settings, error: settingsError } = await supabase
       .from("outreach_settings")
       .select("forward_replies, forward_replies_to")
       .single();
 
-    // Forward to Chris
+    console.log("[Inbound Webhook] Forwarding settings:", {
+      forward_replies: settings?.forward_replies,
+      forward_replies_to: settings?.forward_replies_to,
+      error: settingsError?.message,
+    });
+
+    // Forward reply to configured email
     if (settings?.forward_replies && settings?.forward_replies_to) {
       try {
         const campaignInfo = originalEmail
