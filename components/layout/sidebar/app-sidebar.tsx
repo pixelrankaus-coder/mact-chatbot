@@ -2,11 +2,9 @@
 
 import * as React from "react";
 import { useEffect } from "react";
-import { ChevronsUpDown, ShoppingBagIcon, UserCircle2Icon } from "lucide-react";
-import { PlusIcon } from "@radix-ui/react-icons";
+import { ChevronsUpDown, ShoppingBagIcon, UserCircle2Icon, PlusIcon } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useIsTablet } from "@/hooks/use-mobile";
-import Link from "next/link";
 
 import {
   Sidebar,
@@ -30,7 +28,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -55,7 +52,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton className="hover:text-foreground h-10 group-data-[collapsible=icon]:px-0! hover:bg-[var(--primary)]/5">
                   <Logo />
-                  <span className="text-foreground font-semibold">Shadcn UI Kit</span>
+                  <span className="text-foreground font-semibold">MACt Admin</span>
                   <ChevronsUpDown className="ml-auto group-data-[collapsible=icon]:hidden" />
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
@@ -100,21 +97,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </ScrollArea>
       </SidebarContent>
       <SidebarFooter>
-        <Card className="gap-4 overflow-hidden py-4 group-data-[collapsible=icon]:hidden">
-          <CardHeader className="px-3">
-            <CardTitle>Download</CardTitle>
-            <CardDescription>
-              Unlock lifetime access to all dashboards, templates and components.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="px-3">
-            <Button className="w-full" asChild>
-              <Link href="https://shadcnuikit.com/pricing" target="_blank">
-                Get Shadcn UI Kit
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
         <NavUser />
       </SidebarFooter>
     </Sidebar>
