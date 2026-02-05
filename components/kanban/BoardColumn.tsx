@@ -4,10 +4,8 @@ import { CSS } from "@dnd-kit/utilities";
 import { useMemo } from "react";
 import { Task, TaskCard } from "./TaskCard";
 import { cva } from "class-variance-authority";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { GripVertical, Plus, MoreHorizontal } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 export interface Column {
@@ -57,11 +55,11 @@ export function BoardColumn({ column, tasks, isOverlay }: BoardColumnProps) {
   };
 
   const variants = cva(
-    "h-[600px] w-[320px] max-w-full bg-slate-50 flex flex-col flex-shrink-0 rounded-xl",
+    "w-[340px] min-w-[340px] bg-slate-50/80 flex flex-col rounded-xl border border-slate-200/50",
     {
       variants: {
         dragging: {
-          default: "border-2 border-transparent",
+          default: "",
           over: "ring-2 ring-primary opacity-30",
           overlay: "ring-2 ring-primary shadow-lg",
         },
@@ -70,30 +68,31 @@ export function BoardColumn({ column, tasks, isOverlay }: BoardColumnProps) {
   );
 
   return (
-    <Card
+    <div
       ref={setNodeRef}
       style={style}
       className={variants({
         dragging: isOverlay ? "overlay" : isDragging ? "over" : undefined,
       })}
     >
-      <CardHeader className="p-3 flex flex-row items-center justify-between space-y-0">
+      {/* Column Header */}
+      <div className="flex items-center justify-between p-4 pb-2">
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
+            size="icon"
+            className="h-6 w-6 cursor-grab text-slate-400 hover:text-slate-600"
             {...attributes}
             {...listeners}
-            className="p-1 text-slate-400 h-auto cursor-grab hover:text-slate-600"
           >
-            <span className="sr-only">{`Move column: ${column.title}`}</span>
             <GripVertical className="h-4 w-4" />
           </Button>
-          <span className="font-semibold text-slate-700">{column.title}</span>
-          <Badge variant="secondary" className="rounded-full h-5 px-2 text-xs">
+          <h3 className="font-semibold text-slate-700">{column.title}</h3>
+          <Badge variant="secondary" className="rounded-md h-5 px-1.5 text-xs font-medium bg-slate-200/80 text-slate-600">
             {tasks.length}
           </Badge>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
           <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-slate-600">
             <Plus className="h-4 w-4" />
           </Button>
@@ -101,24 +100,26 @@ export function BoardColumn({ column, tasks, isOverlay }: BoardColumnProps) {
             <MoreHorizontal className="h-4 w-4" />
           </Button>
         </div>
-      </CardHeader>
-      <ScrollArea className="flex-1">
-        <CardContent className="flex flex-col gap-3 p-3 pt-0">
+      </div>
+
+      {/* Tasks */}
+      <div className="flex-1 overflow-y-auto p-2 pt-0">
+        <div className="flex flex-col gap-3">
           <SortableContext items={tasksIds}>
             {tasks.map((task) => (
               <TaskCard key={task.id} task={task} />
             ))}
           </SortableContext>
-        </CardContent>
-      </ScrollArea>
-    </Card>
+        </div>
+      </div>
+    </div>
   );
 }
 
 export function BoardContainer({ children }: { children: React.ReactNode }) {
   const dndContext = useDndContext();
 
-  const variations = cva("px-4 pb-4 flex overflow-x-auto", {
+  const variations = cva("flex gap-4 h-full", {
     variants: {
       dragging: {
         default: "snap-x snap-mandatory",
@@ -133,7 +134,7 @@ export function BoardContainer({ children }: { children: React.ReactNode }) {
         dragging: dndContext.active ? "active" : "default",
       })}
     >
-      <div className="flex gap-4">{children}</div>
+      {children}
     </div>
   );
 }
