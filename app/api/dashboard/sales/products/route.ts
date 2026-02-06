@@ -137,16 +137,16 @@ export async function GET(req: NextRequest) {
       .slice(0, limit)
       .map((p) => p.sku);
 
-    // Fetch product images from cin7_products table
+    // Fetch product images from woo_products table (synced from WooCommerce)
     const { data: productImages } = await supabase
-      .from("cin7_products")
-      .select("sku, image_url, thumbnail_url")
+      .from("woo_products")
+      .select("sku, image_url, thumbnail_url, woo_id")
       .in("sku", topSkus);
 
     // Create image lookup map
-    const imageMap: Record<string, { image_url?: string; thumbnail_url?: string }> = {};
-    (productImages || []).forEach((p: { sku: string; image_url?: string; thumbnail_url?: string }) => {
-      imageMap[p.sku] = { image_url: p.image_url, thumbnail_url: p.thumbnail_url };
+    const imageMap: Record<string, { image_url?: string; thumbnail_url?: string; woo_id?: number }> = {};
+    (productImages || []).forEach((p: { sku: string; image_url?: string; thumbnail_url?: string; woo_id?: number }) => {
+      imageMap[p.sku] = { image_url: p.image_url, thumbnail_url: p.thumbnail_url, woo_id: p.woo_id };
     });
 
     // Sort by quantity sold and take top N, include trend data and images
@@ -171,6 +171,7 @@ export async function GET(req: NextRequest) {
           trend: quantityChange,
           imageUrl: images.image_url || null,
           thumbnailUrl: images.thumbnail_url || null,
+          wooId: images.woo_id || null,
         };
       });
 

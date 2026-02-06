@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Package, RefreshCw, TrendingUp, TrendingDown, Minus, Beaker, Wrench, Box } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Select,
@@ -32,6 +33,7 @@ interface Product {
   trend: number;
   imageUrl?: string | null;
   thumbnailUrl?: string | null;
+  wooId?: number | null;
 }
 
 // Category icons for fallback when no image
@@ -240,9 +242,10 @@ export function BestSellingProducts() {
           const categoryColor = CATEGORY_COLORS[product.category] || CATEGORY_COLORS.other;
 
           return (
-          <div
+          <Link
             key={product.sku}
-            className="flex items-center justify-between rounded-md border px-4 py-3 hover:bg-muted transition-colors"
+            href="/products"
+            className="flex items-center justify-between rounded-md border px-4 py-3 hover:bg-muted transition-colors cursor-pointer"
           >
             <div className="flex items-center gap-4">
               {product.imageUrl || product.thumbnailUrl ? (
@@ -289,7 +292,7 @@ export function BestSellingProducts() {
                 )}
               </div>
             </div>
-          </div>
+          </Link>
         );
         })}
         {data.summary && (
