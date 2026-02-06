@@ -30,6 +30,7 @@ import {
   KanbanIcon,
   ListTodoIcon,
   DollarSignIcon,
+  PackageIcon,
   type LucideIcon
 } from "lucide-react";
 import Link from "next/link";
@@ -113,6 +114,11 @@ export const navItems: NavGroup[] = [
         title: "Sales Dashboard",
         href: "/sales",
         icon: DollarSignIcon
+      },
+      {
+        title: "Products",
+        href: "/products",
+        icon: PackageIcon
       },
       {
         title: "CRM",
