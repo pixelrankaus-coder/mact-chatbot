@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { Suspense, useState, useEffect, useRef, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,7 +41,6 @@ import {
   MessageSquare,
   User,
   AlertCircle,
-  X,
   UserCircle,
   Clock,
   MousePointer,
@@ -50,6 +49,8 @@ import {
 import { toast } from "sonner";
 import { useAIAgentSettings } from "@/hooks/use-settings";
 import { supabase } from "@/lib/supabase";
+import { AgentTabs, useAgentTab } from "./components/agent-tabs";
+import { SkillsTab } from "./components/skills-tab";
 
 interface UploadedDocument {
   id: string;
@@ -73,9 +74,10 @@ const sampleQuestions = [
   "Do you ship to California?",
 ];
 
-export default function AIAgentPage() {
+function AIAgentPageContent() {
   const { value: settings, loading, updateSetting } = useAIAgentSettings();
   const [saving, setSaving] = useState(false);
+  const currentTab = useAgentTab("training");
 
   // Local state for form fields
   const [agentEnabled, setAgentEnabled] = useState(true);
@@ -486,6 +488,856 @@ export default function AIAgentPage() {
     );
   }
 
+  // Render Training Tab Content
+  const renderTrainingTab = () => (
+    <div className="grid gap-6 lg:grid-cols-2">
+      {/* LEFT: Knowledge Base */}
+      <div className="space-y-6">
+        {/* Train Your AI Card */}
+        <Card className="border-0 shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Sparkles className="h-5 w-5 text-purple-600" />
+              Train Your AI
+              <Tooltip>
+                <TooltipTrigger>
+                  <HelpCircle className="h-4 w-4 text-slate-400" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  Upload documents to train your AI with company-specific knowledge. The AI will use this information to answer customer questions accurately.
+                </TooltipContent>
+              </Tooltip>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-slate-600">
+              Upload your product catalogs, FAQs, pricing sheets, and other documents to train your AI assistant with accurate company information.
+            </p>
+
+            {/* File Upload Area */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept=".pdf,.docx,.doc,.txt,.xlsx,.xls"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+            <div
+              onDragEnter={handleDrag}
+              onDragLeave={handleDrag}
+              onDragOver={handleDrag}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              className={`cursor-pointer rounded-lg border-2 border-dashed p-8 text-center transition-colors ${
+                dragActive
+                  ? "border-blue-500 bg-blue-50"
+                  : "border-slate-200 bg-slate-50 hover:border-blue-400 hover:bg-blue-50"
+              }`}
+            >
+              {uploading ? (
+                <>
+                  <Loader2 className="mx-auto h-10 w-10 animate-spin text-blue-500" />
+                  <p className="mt-3 font-medium text-blue-600">
+                    Uploading...
+                  </p>
+                </>
+              ) : (
+                <>
+                  <Upload className={`mx-auto h-10 w-10 ${dragActive ? "text-blue-500" : "text-slate-400"}`} />
+                  <p className="mt-3 font-medium text-slate-700">
+                    {dragActive ? "Drop files here" : "Drag and drop files here"}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    or click to browse
+                  </p>
+                  <p className="mt-2 text-xs text-slate-400">
+                    Supports PDF, DOCX, TXT, XLSX (Max 10MB each)
+                  </p>
+                  <Button
+                    variant="outline"
+                    className="mt-4"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      fileInputRef.current?.click();
+                    }}
+                  >
+                    <Upload className="mr-2 h-4 w-4" />
+                    Select Files
+                  </Button>
+                </>
+              )}
+            </div>
+
+            {/* Add from URL */}
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Globe className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Input
+                  placeholder="Add from URL (e.g., https://yoursite.com/faq)"
+                  className="pl-9"
+                  value={urlInput}
+                  onChange={(e) => setUrlInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !scraping) {
+                      handleScrapeUrl();
+                    }
+                  }}
+                  disabled={scraping}
+                />
+              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="gap-2"
+                    onClick={handleScrapeUrl}
+                    disabled={scraping || !urlInput.trim()}
+                  >
+                    {scraping ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Scraping...
+                      </>
+                    ) : (
+                      <>
+                        <Link className="h-4 w-4" />
+                        Scrape
+                      </>
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Extract content from a webpage to train your AI
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Uploaded Documents */}
+        <Card className="border-0 shadow-sm">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <FileText className="h-5 w-5 text-blue-600" />
+                Uploaded Documents
+              </CardTitle>
+              <Badge variant="outline">{documents.length} files</Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {loadingDocs ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+              </div>
+            ) : documents.length === 0 ? (
+              <div className="rounded-lg bg-slate-50 py-8 text-center">
+                <FileText className="mx-auto h-10 w-10 text-slate-300" />
+                <p className="mt-2 text-sm text-slate-500">No documents uploaded yet</p>
+                <p className="text-xs text-slate-400">Upload files above to train your AI</p>
+              </div>
+            ) : (
+              <ScrollArea className="h-[280px]">
+                <div className="space-y-3">
+                  {documents.map((doc) => (
+                    <div
+                      key={doc.id}
+                      className="flex items-center justify-between rounded-lg border bg-white p-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        {getFileIcon(doc.file_type)}
+                        <div>
+                          <p className="text-sm font-medium text-slate-900">
+                            {doc.filename}
+                          </p>
+                          <div className="flex items-center gap-2 text-xs text-slate-500">
+                            <span>{doc.file_type?.toUpperCase()}</span>
+                            <span>•</span>
+                            <span>{formatFileSize(doc.file_size)}</span>
+                            <span>•</span>
+                            <span>{formatDate(doc.created_at)}</span>
+                          </div>
+                          {doc.status === "processing" && (
+                            <div className="mt-2 w-32">
+                              <Progress value={67} className="h-1" />
+                              <p className="mt-1 text-xs text-slate-500">
+                                Processing...
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {doc.status === "ready" && (
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <CheckCircle2 className="h-4 w-4 text-green-500" />
+                            </TooltipTrigger>
+                            <TooltipContent>Ready for AI training</TooltipContent>
+                          </Tooltip>
+                        )}
+                        {doc.status === "processing" && (
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                            </TooltipTrigger>
+                            <TooltipContent>Processing document...</TooltipContent>
+                          </Tooltip>
+                        )}
+                        {doc.status === "error" && (
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <AlertCircle className="h-4 w-4 text-red-500" />
+                            </TooltipTrigger>
+                            <TooltipContent>Failed to process document</TooltipContent>
+                          </Tooltip>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-slate-400 hover:text-red-500"
+                          onClick={() => handleDeleteDocument(doc.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* RIGHT: Quick Stats */}
+      <div className="space-y-6">
+        <Card className="border-0 shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Bot className="h-5 w-5 text-purple-600" />
+              Training Status
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between rounded-lg bg-green-50 p-4">
+                <div>
+                  <p className="font-medium text-green-700">Documents Ready</p>
+                  <p className="text-sm text-green-600">
+                    {documents.filter((d) => d.status === "ready").length} documents trained
+                  </p>
+                </div>
+                <CheckCircle2 className="h-8 w-8 text-green-500" />
+              </div>
+              <div className="flex items-center justify-between rounded-lg bg-blue-50 p-4">
+                <div>
+                  <p className="font-medium text-blue-700">Processing</p>
+                  <p className="text-sm text-blue-600">
+                    {documents.filter((d) => d.status === "processing").length} documents
+                  </p>
+                </div>
+                <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+              </div>
+              {documents.filter((d) => d.status === "error").length > 0 && (
+                <div className="flex items-center justify-between rounded-lg bg-red-50 p-4">
+                  <div>
+                    <p className="font-medium text-red-700">Errors</p>
+                    <p className="text-sm text-red-600">
+                      {documents.filter((d) => d.status === "error").length} documents
+                    </p>
+                  </div>
+                  <AlertCircle className="h-8 w-8 text-red-500" />
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 bg-purple-50 shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 text-sm font-medium text-purple-700">
+              <Sparkles className="h-4 w-4" />
+              Pro Tip
+            </div>
+            <p className="mt-1 text-sm text-purple-600">
+              Upload more documents to improve your AI&apos;s accuracy. The more context you provide, the better it can answer customer questions. Try uploading your FAQ pages, product specifications, and company policies.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+
+  // Render Settings Tab Content
+  const renderSettingsTab = () => (
+    <div className="max-w-2xl">
+      <Card className="border-0 shadow-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Bot className="h-5 w-5 text-purple-600" />
+            AI Settings
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* AI Name */}
+          <div>
+            <div className="mb-2 flex items-center gap-2">
+              <label className="text-sm font-medium text-slate-700">
+                AI Name
+              </label>
+              <Tooltip>
+                <TooltipTrigger>
+                  <HelpCircle className="h-4 w-4 text-slate-400" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  The name your AI assistant will use to introduce itself
+                </TooltipContent>
+              </Tooltip>
+            </div>
+            <Input
+              value={aiName}
+              onChange={(e) => setAiName(e.target.value)}
+              placeholder="Enter AI assistant name"
+            />
+          </div>
+
+          {/* Welcome Message */}
+          <div>
+            <div className="mb-2 flex items-center gap-2">
+              <label className="text-sm font-medium text-slate-700">
+                Welcome Message
+              </label>
+              <Tooltip>
+                <TooltipTrigger>
+                  <HelpCircle className="h-4 w-4 text-slate-400" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  The first message visitors see when they open the chat widget
+                </TooltipContent>
+              </Tooltip>
+            </div>
+            <Textarea
+              value={welcomeMessage}
+              onChange={(e) => setWelcomeMessage(e.target.value)}
+              rows={3}
+              placeholder="Enter welcome message..."
+            />
+          </div>
+
+          {/* AI Personality */}
+          <div>
+            <div className="mb-2 flex items-center gap-2">
+              <label className="text-sm font-medium text-slate-700">
+                AI Personality
+              </label>
+              <Tooltip>
+                <TooltipTrigger>
+                  <HelpCircle className="h-4 w-4 text-slate-400" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  Sets the tone and style of your AI responses
+                </TooltipContent>
+              </Tooltip>
+            </div>
+            <Select value={personality} onValueChange={(value) => setPersonality(value as "professional" | "friendly" | "casual")}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select personality" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="professional">
+                  <div className="flex items-center gap-2">
+                    <span>Professional</span>
+                    <span className="text-xs text-slate-500">- Formal and business-like</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="friendly">
+                  <div className="flex items-center gap-2">
+                    <span>Friendly</span>
+                    <span className="text-xs text-slate-500">- Warm and approachable</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="casual">
+                  <div className="flex items-center gap-2">
+                    <span>Casual</span>
+                    <span className="text-xs text-slate-500">- Relaxed and conversational</span>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Response Length */}
+          <div>
+            <div className="mb-2 flex items-center gap-2">
+              <label className="text-sm font-medium text-slate-700">
+                Response Length
+              </label>
+              <Tooltip>
+                <TooltipTrigger>
+                  <HelpCircle className="h-4 w-4 text-slate-400" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  Controls how detailed the AI responses will be
+                </TooltipContent>
+              </Tooltip>
+            </div>
+            <div className="space-y-3">
+              <Slider
+                value={responseLength}
+                onValueChange={setResponseLength}
+                max={100}
+                step={1}
+                className="w-full"
+              />
+              <div className="flex justify-between text-xs text-slate-500">
+                <span>Concise</span>
+                <span>Balanced</span>
+                <span>Detailed</span>
+              </div>
+            </div>
+          </div>
+
+          {/* When AI Can't Answer */}
+          <div>
+            <div className="mb-2 flex items-center gap-2">
+              <label className="text-sm font-medium text-slate-700">
+                When AI Can&apos;t Answer
+              </label>
+              <Tooltip>
+                <TooltipTrigger>
+                  <HelpCircle className="h-4 w-4 text-slate-400" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  What happens when the AI doesn&apos;t know how to respond
+                </TooltipContent>
+              </Tooltip>
+            </div>
+            <Select value={fallbackAction} onValueChange={setFallbackAction}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select action" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="clarify">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4" />
+                    <span>Ask for clarification</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="transfer">
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    <span>Transfer to human agent</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="email">
+                  <div className="flex items-center gap-2">
+                    <Send className="h-4 w-4" />
+                    <span>Collect email for follow-up</span>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Button
+            onClick={handleSave}
+            disabled={saving}
+            className="w-full bg-blue-600 hover:bg-blue-700"
+          >
+            {saving ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Save Settings"
+            )}
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+
+  // Render Behavior Tab Content
+  const renderBehaviorTab = () => (
+    <div className="max-w-2xl space-y-6">
+      {/* Pre-Chat Form Settings */}
+      <Card className="border-0 shadow-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <UserCircle className="h-5 w-5 text-green-600" />
+            Pre-Chat Form
+            <Tooltip>
+              <TooltipTrigger>
+                <HelpCircle className="h-4 w-4 text-slate-400" />
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                Collect visitor information before the chat begins
+              </TooltipContent>
+            </Tooltip>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-slate-700">Enable Pre-Chat Form</p>
+              <p className="text-xs text-slate-500">Collect visitor info before chat starts</p>
+            </div>
+            <Switch
+              checked={preChatEnabled}
+              onCheckedChange={setPreChatEnabled}
+            />
+          </div>
+
+          {preChatEnabled && (
+            <div className="space-y-3 border-t pt-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-700">Name field</span>
+                <Select
+                  value={preChatFields.name}
+                  onValueChange={(v) => setPreChatFields({ ...preChatFields, name: v as "required" | "optional" | "hidden" })}
+                >
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="required">Required</SelectItem>
+                    <SelectItem value="optional">Optional</SelectItem>
+                    <SelectItem value="hidden">Hidden</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-700">Email field</span>
+                <Select
+                  value={preChatFields.email}
+                  onValueChange={(v) => setPreChatFields({ ...preChatFields, email: v as "required" | "optional" | "hidden" })}
+                >
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="required">Required</SelectItem>
+                    <SelectItem value="optional">Optional</SelectItem>
+                    <SelectItem value="hidden">Hidden</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-700">Phone field</span>
+                <Select
+                  value={preChatFields.phone}
+                  onValueChange={(v) => setPreChatFields({ ...preChatFields, phone: v as "required" | "optional" | "hidden" })}
+                >
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="required">Required</SelectItem>
+                    <SelectItem value="optional">Optional</SelectItem>
+                    <SelectItem value="hidden">Hidden</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          <Button
+            onClick={handleSave}
+            disabled={saving}
+            variant="outline"
+            className="w-full"
+          >
+            {saving ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Save Pre-Chat Settings"
+            )}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Chat Triggers */}
+      <Card className="border-0 shadow-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <MousePointer className="h-5 w-5 text-orange-600" />
+            Chat Triggers
+            <Tooltip>
+              <TooltipTrigger>
+                <HelpCircle className="h-4 w-4 text-slate-400" />
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                Proactively open the chat based on visitor behavior to increase engagement
+              </TooltipContent>
+            </Tooltip>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-slate-700">Enable Triggers</p>
+              <p className="text-xs text-slate-500">Auto-open chat based on visitor behavior</p>
+            </div>
+            <Switch
+              checked={triggersEnabled}
+              onCheckedChange={setTriggersEnabled}
+            />
+          </div>
+
+          {triggersEnabled && (
+            <div className="space-y-4 border-t pt-4">
+              {/* Time Delay Trigger */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-slate-400" />
+                  <span className="text-sm text-slate-700">Open after</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={timeDelayEnabled}
+                    onCheckedChange={setTimeDelayEnabled}
+                  />
+                  <Input
+                    type="number"
+                    min="1"
+                    max="300"
+                    value={timeDelaySeconds}
+                    onChange={(e) => setTimeDelaySeconds(e.target.value)}
+                    className="w-20"
+                    disabled={!timeDelayEnabled}
+                  />
+                  <span className="text-sm text-slate-500">seconds</span>
+                </div>
+              </div>
+
+              {/* Scroll Depth Trigger */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ArrowUpFromLine className="h-4 w-4 text-slate-400" />
+                  <span className="text-sm text-slate-700">Open at scroll</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={scrollDepthEnabled}
+                    onCheckedChange={setScrollDepthEnabled}
+                  />
+                  <Input
+                    type="number"
+                    min="1"
+                    max="100"
+                    value={scrollDepthPercent}
+                    onChange={(e) => setScrollDepthPercent(e.target.value)}
+                    className="w-20"
+                    disabled={!scrollDepthEnabled}
+                  />
+                  <span className="text-sm text-slate-500">%</span>
+                </div>
+              </div>
+
+              {/* Exit Intent Trigger */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <MousePointer className="h-4 w-4 text-slate-400" />
+                  <div>
+                    <span className="text-sm text-slate-700">Exit intent</span>
+                    <p className="text-xs text-slate-500">When mouse leaves viewport</p>
+                  </div>
+                </div>
+                <Switch
+                  checked={exitIntentEnabled}
+                  onCheckedChange={setExitIntentEnabled}
+                />
+              </div>
+
+              {/* Once Per Session */}
+              <div className="flex items-center justify-between border-t pt-4">
+                <div>
+                  <span className="text-sm text-slate-700">Once per session</span>
+                  <p className="text-xs text-slate-500">Don&apos;t trigger again after refresh</p>
+                </div>
+                <Switch
+                  checked={oncePerSession}
+                  onCheckedChange={setOncePerSession}
+                />
+              </div>
+            </div>
+          )}
+
+          <Button
+            onClick={handleSave}
+            disabled={saving}
+            variant="outline"
+            className="w-full"
+          >
+            {saving ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Save Trigger Settings"
+            )}
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+
+  // Render Test Tab Content
+  const renderTestTab = () => (
+    <Card className="border-0 shadow-sm">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <MessageSquare className="h-5 w-5 text-green-600" />
+            Test Your AI
+            <Tooltip>
+              <TooltipTrigger>
+                <HelpCircle className="h-4 w-4 text-slate-400" />
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                Preview how your AI responds to questions based on your settings and uploaded documents
+              </TooltipContent>
+            </Tooltip>
+          </CardTitle>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              setTestMessages([
+                {
+                  id: 1,
+                  sender: "bot",
+                  content: welcomeMessage,
+                },
+              ])
+            }
+          >
+            Reset Chat
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-6 lg:grid-cols-3">
+          {/* Chat Interface */}
+          <div className="lg:col-span-2">
+            <div className="rounded-lg border bg-slate-50">
+              {/* Chat Messages */}
+              <ScrollArea className="h-[400px] p-4">
+                <div className="space-y-4">
+                  {testMessages.map((msg) => (
+                    <div
+                      key={msg.id}
+                      className={`flex items-start gap-3 ${
+                        msg.sender === "user" ? "flex-row-reverse" : ""
+                      }`}
+                    >
+                      <div
+                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+                          msg.sender === "user"
+                            ? "bg-blue-100 text-blue-600"
+                            : "bg-purple-100 text-purple-600"
+                        }`}
+                      >
+                        {msg.sender === "user" ? (
+                          <User className="h-4 w-4" />
+                        ) : (
+                          <Bot className="h-4 w-4" />
+                        )}
+                      </div>
+                      <div
+                        className={`max-w-md rounded-lg p-3 ${
+                          msg.sender === "user"
+                            ? "bg-blue-600 text-white"
+                            : "bg-white text-slate-900 shadow-sm"
+                        }`}
+                      >
+                        <p className="text-sm">{msg.content}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {isTyping && (
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-purple-100 text-purple-600">
+                        <Bot className="h-4 w-4" />
+                      </div>
+                      <div className="rounded-lg bg-white p-3 shadow-sm">
+                        <div className="flex gap-1">
+                          <span className="h-2 w-2 animate-bounce rounded-full bg-slate-400" style={{ animationDelay: "0ms" }} />
+                          <span className="h-2 w-2 animate-bounce rounded-full bg-slate-400" style={{ animationDelay: "150ms" }} />
+                          <span className="h-2 w-2 animate-bounce rounded-full bg-slate-400" style={{ animationDelay: "300ms" }} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+
+              {/* Input */}
+              <div className="border-t bg-white p-4">
+                <div className="flex items-center gap-2">
+                  <Input
+                    placeholder="Type a test message..."
+                    value={testInput}
+                    onChange={(e) => setTestInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleSendTestMessage();
+                    }}
+                    className="flex-1"
+                  />
+                  <Button
+                    onClick={handleSendTestMessage}
+                    className="bg-blue-600 hover:bg-blue-700"
+                    disabled={isTyping}
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Sample Questions */}
+          <div>
+            <h4 className="mb-3 text-sm font-medium text-slate-700">
+              Sample Questions
+            </h4>
+            <p className="mb-4 text-xs text-slate-500">
+              Click a question to test how your AI responds based on uploaded content
+            </p>
+            <div className="space-y-2">
+              {sampleQuestions.map((question, index) => (
+                <button
+                  key={index}
+                  onClick={() => handleSampleQuestion(question)}
+                  className="w-full rounded-lg border bg-white p-3 text-left text-sm text-slate-700 transition-colors hover:border-blue-300 hover:bg-blue-50"
+                >
+                  {question}
+                </button>
+              ))}
+            </div>
+            <Separator className="my-4" />
+            <div className="rounded-lg bg-purple-50 p-3">
+              <div className="flex items-center gap-2 text-sm font-medium text-purple-700">
+                <Sparkles className="h-4 w-4" />
+                Pro Tip
+              </div>
+              <p className="mt-1 text-xs text-purple-600">
+                Upload more documents to improve your AI&apos;s accuracy. The more context you provide, the better it can answer customer questions.
+              </p>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
   return (
     <TooltipProvider>
       <div className="flex h-full flex-col">
@@ -520,790 +1372,34 @@ export default function AIAgentPage() {
           </div>
         </div>
 
+        {/* Tabs */}
+        <div className="border-b bg-white px-6 py-2">
+          <Suspense fallback={<div className="h-10" />}>
+            <AgentTabs />
+          </Suspense>
+        </div>
+
         {/* Main Content */}
         <div className="flex-1 overflow-auto bg-slate-50 p-6">
-          <div className="grid gap-6 lg:grid-cols-2">
-            {/* LEFT: Knowledge Base */}
-            <div className="space-y-6">
-              {/* Train Your AI Card */}
-              <Card className="border-0 shadow-sm">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <Sparkles className="h-5 w-5 text-purple-600" />
-                    Train Your AI
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <HelpCircle className="h-4 w-4 text-slate-400" />
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-xs">
-                        Upload documents to train your AI with company-specific knowledge. The AI will use this information to answer customer questions accurately.
-                      </TooltipContent>
-                    </Tooltip>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <p className="text-sm text-slate-600">
-                    Upload your product catalogs, FAQs, pricing sheets, and other documents to train your AI assistant with accurate company information.
-                  </p>
-
-                  {/* File Upload Area */}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    accept=".pdf,.docx,.doc,.txt,.xlsx,.xls"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
-                  <div
-                    onDragEnter={handleDrag}
-                    onDragLeave={handleDrag}
-                    onDragOver={handleDrag}
-                    onDrop={handleDrop}
-                    onClick={() => fileInputRef.current?.click()}
-                    className={`cursor-pointer rounded-lg border-2 border-dashed p-8 text-center transition-colors ${
-                      dragActive
-                        ? "border-blue-500 bg-blue-50"
-                        : "border-slate-200 bg-slate-50 hover:border-blue-400 hover:bg-blue-50"
-                    }`}
-                  >
-                    {uploading ? (
-                      <>
-                        <Loader2 className="mx-auto h-10 w-10 animate-spin text-blue-500" />
-                        <p className="mt-3 font-medium text-blue-600">
-                          Uploading...
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        <Upload className={`mx-auto h-10 w-10 ${dragActive ? "text-blue-500" : "text-slate-400"}`} />
-                        <p className="mt-3 font-medium text-slate-700">
-                          {dragActive ? "Drop files here" : "Drag and drop files here"}
-                        </p>
-                        <p className="mt-1 text-sm text-slate-500">
-                          or click to browse
-                        </p>
-                        <p className="mt-2 text-xs text-slate-400">
-                          Supports PDF, DOCX, TXT, XLSX (Max 10MB each)
-                        </p>
-                        <Button
-                          variant="outline"
-                          className="mt-4"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            fileInputRef.current?.click();
-                          }}
-                        >
-                          <Upload className="mr-2 h-4 w-4" />
-                          Select Files
-                        </Button>
-                      </>
-                    )}
-                  </div>
-
-                  {/* Add from URL */}
-                  <div className="flex items-center gap-2">
-                    <div className="relative flex-1">
-                      <Globe className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                      <Input
-                        placeholder="Add from URL (e.g., https://yoursite.com/faq)"
-                        className="pl-9"
-                        value={urlInput}
-                        onChange={(e) => setUrlInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && !scraping) {
-                            handleScrapeUrl();
-                          }
-                        }}
-                        disabled={scraping}
-                      />
-                    </div>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="gap-2"
-                          onClick={handleScrapeUrl}
-                          disabled={scraping || !urlInput.trim()}
-                        >
-                          {scraping ? (
-                            <>
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                              Scraping...
-                            </>
-                          ) : (
-                            <>
-                              <Link className="h-4 w-4" />
-                              Scrape
-                            </>
-                          )}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        Extract content from a webpage to train your AI
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Uploaded Documents */}
-              <Card className="border-0 shadow-sm">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <FileText className="h-5 w-5 text-blue-600" />
-                      Uploaded Documents
-                    </CardTitle>
-                    <Badge variant="outline">{documents.length} files</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {loadingDocs ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
-                    </div>
-                  ) : documents.length === 0 ? (
-                    <div className="rounded-lg bg-slate-50 py-8 text-center">
-                      <FileText className="mx-auto h-10 w-10 text-slate-300" />
-                      <p className="mt-2 text-sm text-slate-500">No documents uploaded yet</p>
-                      <p className="text-xs text-slate-400">Upload files above to train your AI</p>
-                    </div>
-                  ) : (
-                    <ScrollArea className="h-[280px]">
-                      <div className="space-y-3">
-                        {documents.map((doc) => (
-                          <div
-                            key={doc.id}
-                            className="flex items-center justify-between rounded-lg border bg-white p-3"
-                          >
-                            <div className="flex items-center gap-3">
-                              {getFileIcon(doc.file_type)}
-                              <div>
-                                <p className="text-sm font-medium text-slate-900">
-                                  {doc.filename}
-                                </p>
-                                <div className="flex items-center gap-2 text-xs text-slate-500">
-                                  <span>{doc.file_type?.toUpperCase()}</span>
-                                  <span>•</span>
-                                  <span>{formatFileSize(doc.file_size)}</span>
-                                  <span>•</span>
-                                  <span>{formatDate(doc.created_at)}</span>
-                                </div>
-                                {doc.status === "processing" && (
-                                  <div className="mt-2 w-32">
-                                    <Progress value={67} className="h-1" />
-                                    <p className="mt-1 text-xs text-slate-500">
-                                      Processing...
-                                    </p>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {doc.status === "ready" && (
-                                <Tooltip>
-                                  <TooltipTrigger>
-                                    <CheckCircle2 className="h-4 w-4 text-green-500" />
-                                  </TooltipTrigger>
-                                  <TooltipContent>Ready for AI training</TooltipContent>
-                                </Tooltip>
-                              )}
-                              {doc.status === "processing" && (
-                                <Tooltip>
-                                  <TooltipTrigger>
-                                    <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
-                                  </TooltipTrigger>
-                                  <TooltipContent>Processing document...</TooltipContent>
-                                </Tooltip>
-                              )}
-                              {doc.status === "error" && (
-                                <Tooltip>
-                                  <TooltipTrigger>
-                                    <AlertCircle className="h-4 w-4 text-red-500" />
-                                  </TooltipTrigger>
-                                  <TooltipContent>Failed to process document</TooltipContent>
-                                </Tooltip>
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-slate-400 hover:text-red-500"
-                                onClick={() => handleDeleteDocument(doc.id)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </ScrollArea>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* RIGHT: AI Settings */}
-            <div className="space-y-6">
-              <Card className="border-0 shadow-sm">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <Bot className="h-5 w-5 text-purple-600" />
-                    AI Settings
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  {/* AI Name */}
-                  <div>
-                    <div className="mb-2 flex items-center gap-2">
-                      <label className="text-sm font-medium text-slate-700">
-                        AI Name
-                      </label>
-                      <Tooltip>
-                        <TooltipTrigger>
-                          <HelpCircle className="h-4 w-4 text-slate-400" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          The name your AI assistant will use to introduce itself
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    <Input
-                      value={aiName}
-                      onChange={(e) => setAiName(e.target.value)}
-                      placeholder="Enter AI assistant name"
-                    />
-                  </div>
-
-                  {/* Welcome Message */}
-                  <div>
-                    <div className="mb-2 flex items-center gap-2">
-                      <label className="text-sm font-medium text-slate-700">
-                        Welcome Message
-                      </label>
-                      <Tooltip>
-                        <TooltipTrigger>
-                          <HelpCircle className="h-4 w-4 text-slate-400" />
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-xs">
-                          The first message visitors see when they open the chat widget
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    <Textarea
-                      value={welcomeMessage}
-                      onChange={(e) => setWelcomeMessage(e.target.value)}
-                      rows={3}
-                      placeholder="Enter welcome message..."
-                    />
-                  </div>
-
-                  {/* AI Personality */}
-                  <div>
-                    <div className="mb-2 flex items-center gap-2">
-                      <label className="text-sm font-medium text-slate-700">
-                        AI Personality
-                      </label>
-                      <Tooltip>
-                        <TooltipTrigger>
-                          <HelpCircle className="h-4 w-4 text-slate-400" />
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-xs">
-                          Sets the tone and style of your AI responses
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    <Select value={personality} onValueChange={(value) => setPersonality(value as "professional" | "friendly" | "casual")}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select personality" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="professional">
-                          <div className="flex items-center gap-2">
-                            <span>Professional</span>
-                            <span className="text-xs text-slate-500">- Formal and business-like</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="friendly">
-                          <div className="flex items-center gap-2">
-                            <span>Friendly</span>
-                            <span className="text-xs text-slate-500">- Warm and approachable</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="casual">
-                          <div className="flex items-center gap-2">
-                            <span>Casual</span>
-                            <span className="text-xs text-slate-500">- Relaxed and conversational</span>
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Response Length */}
-                  <div>
-                    <div className="mb-2 flex items-center gap-2">
-                      <label className="text-sm font-medium text-slate-700">
-                        Response Length
-                      </label>
-                      <Tooltip>
-                        <TooltipTrigger>
-                          <HelpCircle className="h-4 w-4 text-slate-400" />
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-xs">
-                          Controls how detailed the AI responses will be
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    <div className="space-y-3">
-                      <Slider
-                        value={responseLength}
-                        onValueChange={setResponseLength}
-                        max={100}
-                        step={1}
-                        className="w-full"
-                      />
-                      <div className="flex justify-between text-xs text-slate-500">
-                        <span>Concise</span>
-                        <span>Balanced</span>
-                        <span>Detailed</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* When AI Can't Answer */}
-                  <div>
-                    <div className="mb-2 flex items-center gap-2">
-                      <label className="text-sm font-medium text-slate-700">
-                        When AI Can&apos;t Answer
-                      </label>
-                      <Tooltip>
-                        <TooltipTrigger>
-                          <HelpCircle className="h-4 w-4 text-slate-400" />
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-xs">
-                          What happens when the AI doesn&apos;t know how to respond
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    <Select value={fallbackAction} onValueChange={setFallbackAction}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select action" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="clarify">
-                          <div className="flex items-center gap-2">
-                            <MessageSquare className="h-4 w-4" />
-                            <span>Ask for clarification</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="transfer">
-                          <div className="flex items-center gap-2">
-                            <User className="h-4 w-4" />
-                            <span>Transfer to human agent</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="email">
-                          <div className="flex items-center gap-2">
-                            <Send className="h-4 w-4" />
-                            <span>Collect email for follow-up</span>
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <Button
-                    onClick={handleSave}
-                    disabled={saving}
-                    className="w-full bg-blue-600 hover:bg-blue-700"
-                  >
-                    {saving ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      "Save Settings"
-                    )}
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* Pre-Chat Form Settings */}
-              <Card className="border-0 shadow-sm">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <UserCircle className="h-5 w-5 text-green-600" />
-                    Pre-Chat Form
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <HelpCircle className="h-4 w-4 text-slate-400" />
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-xs">
-                        Collect visitor information before the chat begins
-                      </TooltipContent>
-                    </Tooltip>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-slate-700">Enable Pre-Chat Form</p>
-                      <p className="text-xs text-slate-500">Collect visitor info before chat starts</p>
-                    </div>
-                    <Switch
-                      checked={preChatEnabled}
-                      onCheckedChange={setPreChatEnabled}
-                    />
-                  </div>
-
-                  {preChatEnabled && (
-                    <div className="space-y-3 border-t pt-4">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-slate-700">Name field</span>
-                        <Select
-                          value={preChatFields.name}
-                          onValueChange={(v) => setPreChatFields({ ...preChatFields, name: v as "required" | "optional" | "hidden" })}
-                        >
-                          <SelectTrigger className="w-32">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="required">Required</SelectItem>
-                            <SelectItem value="optional">Optional</SelectItem>
-                            <SelectItem value="hidden">Hidden</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-slate-700">Email field</span>
-                        <Select
-                          value={preChatFields.email}
-                          onValueChange={(v) => setPreChatFields({ ...preChatFields, email: v as "required" | "optional" | "hidden" })}
-                        >
-                          <SelectTrigger className="w-32">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="required">Required</SelectItem>
-                            <SelectItem value="optional">Optional</SelectItem>
-                            <SelectItem value="hidden">Hidden</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-slate-700">Phone field</span>
-                        <Select
-                          value={preChatFields.phone}
-                          onValueChange={(v) => setPreChatFields({ ...preChatFields, phone: v as "required" | "optional" | "hidden" })}
-                        >
-                          <SelectTrigger className="w-32">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="required">Required</SelectItem>
-                            <SelectItem value="optional">Optional</SelectItem>
-                            <SelectItem value="hidden">Hidden</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  )}
-
-                  <Button
-                    onClick={handleSave}
-                    disabled={saving}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    {saving ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      "Save Pre-Chat Settings"
-                    )}
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* Chat Triggers */}
-              <Card className="border-0 shadow-sm">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <MousePointer className="h-5 w-5 text-orange-600" />
-                    Chat Triggers
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <HelpCircle className="h-4 w-4 text-slate-400" />
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-xs">
-                        Proactively open the chat based on visitor behavior to increase engagement
-                      </TooltipContent>
-                    </Tooltip>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-slate-700">Enable Triggers</p>
-                      <p className="text-xs text-slate-500">Auto-open chat based on visitor behavior</p>
-                    </div>
-                    <Switch
-                      checked={triggersEnabled}
-                      onCheckedChange={setTriggersEnabled}
-                    />
-                  </div>
-
-                  {triggersEnabled && (
-                    <div className="space-y-4 border-t pt-4">
-                      {/* Time Delay Trigger */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-slate-400" />
-                          <span className="text-sm text-slate-700">Open after</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            checked={timeDelayEnabled}
-                            onCheckedChange={setTimeDelayEnabled}
-                          />
-                          <Input
-                            type="number"
-                            min="1"
-                            max="300"
-                            value={timeDelaySeconds}
-                            onChange={(e) => setTimeDelaySeconds(e.target.value)}
-                            className="w-20"
-                            disabled={!timeDelayEnabled}
-                          />
-                          <span className="text-sm text-slate-500">seconds</span>
-                        </div>
-                      </div>
-
-                      {/* Scroll Depth Trigger */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <ArrowUpFromLine className="h-4 w-4 text-slate-400" />
-                          <span className="text-sm text-slate-700">Open at scroll</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            checked={scrollDepthEnabled}
-                            onCheckedChange={setScrollDepthEnabled}
-                          />
-                          <Input
-                            type="number"
-                            min="1"
-                            max="100"
-                            value={scrollDepthPercent}
-                            onChange={(e) => setScrollDepthPercent(e.target.value)}
-                            className="w-20"
-                            disabled={!scrollDepthEnabled}
-                          />
-                          <span className="text-sm text-slate-500">%</span>
-                        </div>
-                      </div>
-
-                      {/* Exit Intent Trigger */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <MousePointer className="h-4 w-4 text-slate-400" />
-                          <div>
-                            <span className="text-sm text-slate-700">Exit intent</span>
-                            <p className="text-xs text-slate-500">When mouse leaves viewport</p>
-                          </div>
-                        </div>
-                        <Switch
-                          checked={exitIntentEnabled}
-                          onCheckedChange={setExitIntentEnabled}
-                        />
-                      </div>
-
-                      {/* Once Per Session */}
-                      <div className="flex items-center justify-between border-t pt-4">
-                        <div>
-                          <span className="text-sm text-slate-700">Once per session</span>
-                          <p className="text-xs text-slate-500">Don&apos;t trigger again after refresh</p>
-                        </div>
-                        <Switch
-                          checked={oncePerSession}
-                          onCheckedChange={setOncePerSession}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  <Button
-                    onClick={handleSave}
-                    disabled={saving}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    {saving ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      "Save Trigger Settings"
-                    )}
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-
-          {/* BOTTOM: Test Your AI */}
-          <Card className="mt-6 border-0 shadow-sm">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <MessageSquare className="h-5 w-5 text-green-600" />
-                  Test Your AI
-                  <Tooltip>
-                    <TooltipTrigger>
-                      <HelpCircle className="h-4 w-4 text-slate-400" />
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs">
-                      Preview how your AI responds to questions based on your settings and uploaded documents
-                    </TooltipContent>
-                  </Tooltip>
-                </CardTitle>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    setTestMessages([
-                      {
-                        id: 1,
-                        sender: "bot",
-                        content: welcomeMessage,
-                      },
-                    ])
-                  }
-                >
-                  Reset Chat
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-6 lg:grid-cols-3">
-                {/* Chat Interface */}
-                <div className="lg:col-span-2">
-                  <div className="rounded-lg border bg-slate-50">
-                    {/* Chat Messages */}
-                    <ScrollArea className="h-[300px] p-4">
-                      <div className="space-y-4">
-                        {testMessages.map((msg) => (
-                          <div
-                            key={msg.id}
-                            className={`flex items-start gap-3 ${
-                              msg.sender === "user" ? "flex-row-reverse" : ""
-                            }`}
-                          >
-                            <div
-                              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-                                msg.sender === "user"
-                                  ? "bg-blue-100 text-blue-600"
-                                  : "bg-purple-100 text-purple-600"
-                              }`}
-                            >
-                              {msg.sender === "user" ? (
-                                <User className="h-4 w-4" />
-                              ) : (
-                                <Bot className="h-4 w-4" />
-                              )}
-                            </div>
-                            <div
-                              className={`max-w-md rounded-lg p-3 ${
-                                msg.sender === "user"
-                                  ? "bg-blue-600 text-white"
-                                  : "bg-white text-slate-900 shadow-sm"
-                              }`}
-                            >
-                              <p className="text-sm">{msg.content}</p>
-                            </div>
-                          </div>
-                        ))}
-                        {isTyping && (
-                          <div className="flex items-start gap-3">
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-purple-100 text-purple-600">
-                              <Bot className="h-4 w-4" />
-                            </div>
-                            <div className="rounded-lg bg-white p-3 shadow-sm">
-                              <div className="flex gap-1">
-                                <span className="h-2 w-2 animate-bounce rounded-full bg-slate-400" style={{ animationDelay: "0ms" }} />
-                                <span className="h-2 w-2 animate-bounce rounded-full bg-slate-400" style={{ animationDelay: "150ms" }} />
-                                <span className="h-2 w-2 animate-bounce rounded-full bg-slate-400" style={{ animationDelay: "300ms" }} />
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </ScrollArea>
-
-                    {/* Input */}
-                    <div className="border-t bg-white p-4">
-                      <div className="flex items-center gap-2">
-                        <Input
-                          placeholder="Type a test message..."
-                          value={testInput}
-                          onChange={(e) => setTestInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") handleSendTestMessage();
-                          }}
-                          className="flex-1"
-                        />
-                        <Button
-                          onClick={handleSendTestMessage}
-                          className="bg-blue-600 hover:bg-blue-700"
-                          disabled={isTyping}
-                        >
-                          <Send className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Sample Questions */}
-                <div>
-                  <h4 className="mb-3 text-sm font-medium text-slate-700">
-                    Sample Questions
-                  </h4>
-                  <p className="mb-4 text-xs text-slate-500">
-                    Click a question to test how your AI responds based on uploaded content
-                  </p>
-                  <div className="space-y-2">
-                    {sampleQuestions.map((question, index) => (
-                      <button
-                        key={index}
-                        onClick={() => handleSampleQuestion(question)}
-                        className="w-full rounded-lg border bg-white p-3 text-left text-sm text-slate-700 transition-colors hover:border-blue-300 hover:bg-blue-50"
-                      >
-                        {question}
-                      </button>
-                    ))}
-                  </div>
-                  <Separator className="my-4" />
-                  <div className="rounded-lg bg-purple-50 p-3">
-                    <div className="flex items-center gap-2 text-sm font-medium text-purple-700">
-                      <Sparkles className="h-4 w-4" />
-                      Pro Tip
-                    </div>
-                    <p className="mt-1 text-xs text-purple-600">
-                      Upload more documents to improve your AI&apos;s accuracy. The more context you provide, the better it can answer customer questions.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          {currentTab === "training" && renderTrainingTab()}
+          {currentTab === "skills" && <SkillsTab />}
+          {currentTab === "settings" && renderSettingsTab()}
+          {currentTab === "behavior" && renderBehaviorTab()}
+          {currentTab === "test" && renderTestTab()}
         </div>
       </div>
     </TooltipProvider>
+  );
+}
+
+export default function AIAgentPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    }>
+      <AIAgentPageContent />
+    </Suspense>
   );
 }
