@@ -98,7 +98,7 @@ export function BestSellingProducts() {
   const [data, setData] = useState<ProductsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [period, setPeriod] = useState("90d");
+  const [period, setPeriod] = useState("30d");
   const [category, setCategory] = useState("all");
 
   const fetchProducts = useCallback(async () => {
