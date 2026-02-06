@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { generateAIResponse, type AISettings } from "@/lib/ai";
 import type { Database } from "@/types/database";
+import type { SkillContext } from "@/src/lib/skills";
 
 // Initialize Supabase with service role key for server-side operations
 const supabase = createClient<Database>(
@@ -57,11 +58,37 @@ export async function POST(request: NextRequest) {
 
     // Use provided conversation history or fetch from database
     let conversationHistory: Array<{ role: "user" | "assistant"; content: string }> = [];
+    let skillContext: SkillContext = {};
 
     if (providedHistory && providedHistory.length > 0) {
       // Use provided history (for test chat)
       conversationHistory = providedHistory;
+      // Use visitor info from request for test chat
+      if (body.visitorInfo) {
+        skillContext = {
+          visitorEmail: body.visitorInfo.email,
+          visitorName: body.visitorInfo.name,
+        };
+      }
     } else if (conversationId) {
+      // Fetch conversation details including visitor info
+      const { data: conversationData } = await supabase
+        .from("conversations")
+        .select("id, visitor_id, visitors(id, name, email)")
+        .eq("id", conversationId)
+        .single();
+
+      // Build skill context from conversation data
+      if (conversationData) {
+        const visitor = conversationData.visitors as { id: string; name?: string; email?: string } | null;
+        skillContext = {
+          conversationId,
+          visitorId: conversationData.visitor_id || undefined,
+          visitorEmail: visitor?.email,
+          visitorName: visitor?.name,
+        };
+      }
+
       // Fetch recent conversation history (last 10 messages)
       const { data: messagesData } = await supabase
         .from("messages")
@@ -95,11 +122,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate AI response using the abstraction
+    // Skills are enabled by default for OpenAI provider
     const aiResponse = await generateAIResponse(
       conversationHistory,
       message,
       aiSettings,
-      knowledgeContent
+      knowledgeContent,
+      undefined, // llmSettings - use defaults
+      skillContext
     );
 
     // Save AI response to messages table (only if we have a conversationId)
@@ -140,6 +170,7 @@ export async function POST(request: NextRequest) {
       response: aiResponse.content,
       model: aiResponse.model,
       usage: aiResponse.usage,
+      skillExecutions: aiResponse.skillExecutions,
     });
   } catch (error) {
     console.error("Chat API error:", error);

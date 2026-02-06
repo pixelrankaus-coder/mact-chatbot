@@ -1,4 +1,5 @@
-import { chat, type LLMConfig, type LLMProvider, PRICING } from "./llm";
+import { chat, type LLMConfig, type LLMProvider, type SkillExecution, PRICING } from "./llm";
+import type { SkillContext } from "@/src/lib/skills";
 
 // Types for AI provider abstraction
 export interface AIMessage {
@@ -22,6 +23,7 @@ export interface AIResponse {
     totalTokens: number;
   };
   cost?: number;
+  skillExecutions?: SkillExecution[];
 }
 
 // Re-export LLMProvider type
@@ -178,6 +180,7 @@ export interface LLMSettings {
   model: string;
   temperature?: number;
   maxTokens?: number;
+  enableSkills?: boolean;
 }
 
 // Main function to generate AI response
@@ -186,14 +189,20 @@ export async function generateAIResponse(
   newMessage: string,
   settings: AISettings,
   knowledgeContent?: string,
-  llmSettings?: LLMSettings
+  llmSettings?: LLMSettings,
+  skillContext?: SkillContext
 ): Promise<AIResponse> {
   // Default LLM settings if not provided
+  // Enable skills by default for OpenAI provider
+  const enableSkills = llmSettings?.enableSkills ?? (llmSettings?.provider || "openai") === "openai";
+
   const config: LLMConfig = {
     provider: llmSettings?.provider || "openai",
     model: llmSettings?.model || "gpt-4o-mini",
     temperature: llmSettings?.temperature ?? 0.7,
     maxTokens: llmSettings?.maxTokens ?? 1000,
+    enableSkills,
+    skillContext,
   };
 
   // Build system prompt
@@ -216,6 +225,7 @@ export async function generateAIResponse(
       model: `${config.provider}/${response.model}`,
       usage: response.usage,
       cost: response.cost,
+      skillExecutions: response.skillExecutions,
     };
   } catch (error) {
     console.error(`LLM error (${config.provider}/${config.model}):`, error);

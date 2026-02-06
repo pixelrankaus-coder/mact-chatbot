@@ -22,7 +22,7 @@ async function helpdeskHandler(
   params: Record<string, unknown>,
   context: SkillContext
 ): Promise<SkillResult> {
-  const { subject, description, priority = "normal", category } = params as CreateTicketParams;
+  const { subject, description, priority = "normal", category } = params as unknown as CreateTicketParams;
 
   if (!subject || !description) {
     return {

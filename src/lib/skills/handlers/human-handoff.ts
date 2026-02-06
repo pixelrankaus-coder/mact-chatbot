@@ -21,7 +21,7 @@ async function humanHandoffHandler(
   params: Record<string, unknown>,
   context: SkillContext
 ): Promise<SkillResult> {
-  const { reason, urgency = "medium", summary } = params as HandoffParams;
+  const { reason, urgency = "medium", summary } = params as unknown as HandoffParams;
 
   if (!context.conversationId) {
     return {

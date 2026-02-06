@@ -21,7 +21,7 @@ async function orderLookupHandler(
   params: Record<string, unknown>,
   context: SkillContext
 ): Promise<SkillResult> {
-  const { order_number, email, phone } = params as OrderLookupParams;
+  const { order_number, email, phone } = params as unknown as OrderLookupParams;
 
   if (!order_number && !email && !phone) {
     return {

@@ -1,5 +1,13 @@
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
+import {
+  getSkillsAsFunctions,
+  executeSkill,
+  type SkillContext,
+} from "@/src/lib/skills";
+
+// Import handlers to register them
+import "@/src/lib/skills/handlers";
 
 export type LLMProvider = "openai" | "anthropic" | "deepseek";
 
@@ -8,11 +16,24 @@ export interface LLMConfig {
   model: string;
   temperature?: number;
   maxTokens?: number;
+  enableSkills?: boolean;
+  skillContext?: SkillContext;
 }
 
 export interface LLMMessage {
   role: "user" | "assistant" | "system";
   content: string;
+}
+
+export interface SkillExecution {
+  skill: string;
+  params: Record<string, unknown>;
+  result: {
+    success: boolean;
+    data?: unknown;
+    message?: string;
+    error?: string;
+  };
 }
 
 export interface LLMResponse {
@@ -24,6 +45,7 @@ export interface LLMResponse {
     totalTokens: number;
   };
   cost: number;
+  skillExecutions?: SkillExecution[];
 }
 
 // Pricing per 1M tokens (input / output)
@@ -116,36 +138,135 @@ async function chatOpenAI(
 ): Promise<LLMResponse> {
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-  const response = await openai.chat.completions.create({
+  // Get enabled skills as tools if skills are enabled
+  let tools: OpenAI.Chat.Completions.ChatCompletionTool[] | undefined;
+  if (config.enableSkills) {
+    const skillTools = await getSkillsAsFunctions();
+    tools = skillTools.length > 0 ? skillTools : undefined;
+  }
+
+  // Build initial messages
+  const chatMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+    { role: "system", content: systemPrompt },
+    ...messages.map((m) => ({
+      role: m.role as "user" | "assistant" | "system",
+      content: m.content,
+    })),
+  ];
+
+  // Track total usage and skill executions
+  let totalPromptTokens = 0;
+  let totalCompletionTokens = 0;
+  const skillExecutions: SkillExecution[] = [];
+
+  // Initial API call
+  let response = await openai.chat.completions.create({
     model: config.model,
     temperature: config.temperature ?? 0.7,
     max_tokens: config.maxTokens ?? 1000,
-    messages: [
-      { role: "system", content: systemPrompt },
-      ...messages.map((m) => ({
-        role: m.role as "user" | "assistant" | "system",
-        content: m.content,
-      })),
-    ],
+    messages: chatMessages,
+    tools,
+    tool_choice: tools ? "auto" : undefined,
   });
 
-  const usage = response.usage!;
+  totalPromptTokens += response.usage?.prompt_tokens || 0;
+  totalCompletionTokens += response.usage?.completion_tokens || 0;
+
+  let assistantMessage = response.choices[0].message;
+
+  // Handle tool calls (skills) - loop until no more tool calls
+  const MAX_TOOL_ITERATIONS = 5; // Prevent infinite loops
+  let iterations = 0;
+
+  while (
+    assistantMessage.tool_calls &&
+    assistantMessage.tool_calls.length > 0 &&
+    iterations < MAX_TOOL_ITERATIONS
+  ) {
+    iterations++;
+
+    // Add assistant message with tool calls to conversation
+    chatMessages.push(assistantMessage);
+
+    // Execute each skill and collect results
+    // Filter for function tool calls (type: 'function') and handle them
+    const functionToolCalls = assistantMessage.tool_calls.filter(
+      (tc): tc is OpenAI.Chat.Completions.ChatCompletionMessageToolCall & { type: "function" } =>
+        tc.type === "function"
+    );
+
+    const toolResults: OpenAI.Chat.Completions.ChatCompletionToolMessageParam[] =
+      await Promise.all(
+        functionToolCalls.map(async (toolCall) => {
+          const fnCall = toolCall as OpenAI.Chat.Completions.ChatCompletionMessageToolCall & {
+            function: { name: string; arguments: string };
+          };
+          const skillSlug = fnCall.function.name;
+          let params: Record<string, unknown> = {};
+
+          try {
+            params = JSON.parse(fnCall.function.arguments || "{}");
+          } catch {
+            console.error(`Failed to parse arguments for skill ${skillSlug}`);
+          }
+
+          // Execute the skill
+          const result = await executeSkill(
+            skillSlug,
+            params,
+            config.skillContext || {}
+          );
+
+          // Track execution
+          skillExecutions.push({
+            skill: skillSlug,
+            params,
+            result,
+          });
+
+          return {
+            role: "tool" as const,
+            tool_call_id: toolCall.id,
+            content: JSON.stringify(result),
+          };
+        })
+      );
+
+    // Add tool results to conversation
+    chatMessages.push(...toolResults);
+
+    // Make follow-up call to get response with tool results
+    response = await openai.chat.completions.create({
+      model: config.model,
+      temperature: config.temperature ?? 0.7,
+      max_tokens: config.maxTokens ?? 1000,
+      messages: chatMessages,
+      tools,
+      tool_choice: tools ? "auto" : undefined,
+    });
+
+    totalPromptTokens += response.usage?.prompt_tokens || 0;
+    totalCompletionTokens += response.usage?.completion_tokens || 0;
+    assistantMessage = response.choices[0].message;
+  }
+
   const cost = calculateCost(
     "openai",
     config.model,
-    usage.prompt_tokens,
-    usage.completion_tokens
+    totalPromptTokens,
+    totalCompletionTokens
   );
 
   return {
-    content: response.choices[0].message.content || "",
+    content: assistantMessage.content || "",
     model: response.model,
     usage: {
-      promptTokens: usage.prompt_tokens,
-      completionTokens: usage.completion_tokens,
-      totalTokens: usage.total_tokens,
+      promptTokens: totalPromptTokens,
+      completionTokens: totalCompletionTokens,
+      totalTokens: totalPromptTokens + totalCompletionTokens,
     },
     cost,
+    skillExecutions: skillExecutions.length > 0 ? skillExecutions : undefined,
   };
 }
 
