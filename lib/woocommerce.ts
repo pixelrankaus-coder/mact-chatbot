@@ -541,3 +541,146 @@ export async function getWooOrder(orderId: number): Promise<WooOrder | null> {
     return null;
   }
 }
+
+// ============ PRODUCTS ============
+
+export interface WooProduct {
+  id: number;
+  name: string;
+  slug: string;
+  sku: string;
+  price: string;
+  regular_price: string;
+  sale_price: string;
+  description: string;
+  short_description: string;
+  categories: Array<{ id: number; name: string; slug: string }>;
+  images: Array<{ id: number; src: string; alt: string }>;
+  stock_quantity: number | null;
+  stock_status: "instock" | "outofstock" | "onbackorder";
+  manage_stock: boolean;
+  status: "publish" | "draft" | "pending" | "private";
+  date_created: string;
+  date_modified: string;
+  total_sales: number;
+  average_rating: string;
+  rating_count: number;
+}
+
+/**
+ * Get list of WooCommerce products with optional search and pagination
+ */
+export async function getWooProducts(params: {
+  search?: string;
+  category?: number;
+  page?: number;
+  per_page?: number;
+  status?: string;
+  stock_status?: string;
+  orderby?: string;
+  order?: "asc" | "desc";
+}): Promise<{ products: WooProduct[]; total: number; totalPages: number }> {
+  if (!process.env.WOOCOMMERCE_CONSUMER_KEY || !process.env.WOOCOMMERCE_CONSUMER_SECRET) {
+    return { products: [], total: 0, totalPages: 0 };
+  }
+
+  try {
+    const queryParams: Record<string, string | number> = {
+      page: params.page || 1,
+      per_page: params.per_page || 100,
+      orderby: params.orderby || "title",
+      order: params.order || "asc",
+    };
+
+    if (params.search) queryParams.search = params.search;
+    if (params.category) queryParams.category = params.category;
+    if (params.status) queryParams.status = params.status;
+    if (params.stock_status) queryParams.stock_status = params.stock_status;
+
+    const response = await api.get("products", queryParams);
+
+    return {
+      products: response.data || [],
+      total: parseInt(response.headers?.["x-wp-total"] || "0", 10),
+      totalPages: parseInt(response.headers?.["x-wp-totalpages"] || "0", 10),
+    };
+  } catch (error) {
+    console.error("WooCommerce getProducts error:", error);
+    return { products: [], total: 0, totalPages: 0 };
+  }
+}
+
+/**
+ * Get a single WooCommerce product by ID
+ */
+export async function getWooProduct(productId: number): Promise<WooProduct | null> {
+  if (!process.env.WOOCOMMERCE_CONSUMER_KEY || !process.env.WOOCOMMERCE_CONSUMER_SECRET) {
+    return null;
+  }
+
+  try {
+    const response = await api.get(`products/${productId}`);
+    return response.data;
+  } catch (error) {
+    console.error("WooCommerce getProduct error:", error);
+    return null;
+  }
+}
+
+/**
+ * Get all WooCommerce products (handles pagination automatically)
+ */
+export async function getAllWooProducts(): Promise<WooProduct[]> {
+  if (!process.env.WOOCOMMERCE_CONSUMER_KEY || !process.env.WOOCOMMERCE_CONSUMER_SECRET) {
+    return [];
+  }
+
+  const allProducts: WooProduct[] = [];
+  let page = 1;
+  const perPage = 100;
+
+  try {
+    while (true) {
+      const response = await api.get("products", {
+        page,
+        per_page: perPage,
+        status: "publish",
+      });
+
+      const products = response.data || [];
+      allProducts.push(...products);
+
+      const totalPages = parseInt(response.headers?.["x-wp-totalpages"] || "1", 10);
+      if (page >= totalPages || products.length === 0) {
+        break;
+      }
+      page++;
+    }
+
+    return allProducts;
+  } catch (error) {
+    console.error("WooCommerce getAllProducts error:", error);
+    return allProducts;
+  }
+}
+
+/**
+ * Get WooCommerce product categories
+ */
+export async function getWooProductCategories(): Promise<Array<{ id: number; name: string; slug: string; count: number }>> {
+  if (!process.env.WOOCOMMERCE_CONSUMER_KEY || !process.env.WOOCOMMERCE_CONSUMER_SECRET) {
+    return [];
+  }
+
+  try {
+    const response = await api.get("products/categories", {
+      per_page: 100,
+      orderby: "name",
+      order: "asc",
+    });
+    return response.data || [];
+  } catch (error) {
+    console.error("WooCommerce getCategories error:", error);
+    return [];
+  }
+}
