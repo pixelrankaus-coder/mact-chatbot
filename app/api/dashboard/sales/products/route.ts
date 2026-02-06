@@ -1,49 +1,46 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase";
 
-interface LineItem {
-  Name?: string;
-  name?: string;
-  SKU?: string;
-  sku?: string;
-  Quantity?: number;
-  quantity?: number;
-  Total?: number;
-  total?: number;
-  Price?: number;
-  price?: number;
-}
-
 /**
  * GET /api/dashboard/sales/products
- * Returns top selling products for the dashboard
+ * Returns top selling products from cin7_order_items table
  */
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
   const limit = parseInt(searchParams.get("limit") || "6", 10);
-  const period = searchParams.get("period") || "30d";
+  const period = searchParams.get("period") || "90d";
 
   try {
     const supabase = createServiceClient();
 
     // Calculate date range
     const now = new Date();
-    const daysBack = parseInt(period.replace("d", ""), 10) || 30;
+    const daysBack = parseInt(period.replace("d", ""), 10) || 90;
     const startDate = new Date(now);
     startDate.setDate(startDate.getDate() - daysBack);
 
-    // Fetch orders with line items
-    const { data: orders, error } = await supabase
-      .from("cin7_orders")
-      .select("line_items, total")
+    // Fetch aggregated product sales from cin7_order_items
+    const { data: items, error } = await supabase
+      .from("cin7_order_items")
+      .select("sku, product_name, quantity, total_price")
       .gte("order_date", startDate.toISOString().split("T")[0]);
 
     if (error) {
-      console.error("Error fetching orders for products:", error);
+      console.error("Error fetching product items:", error);
+      // If table doesn't exist yet, return empty
+      if (error.code === "42P01") {
+        return NextResponse.json({
+          products: [],
+          summary: { totalProducts: 0, totalUnitsSold: 0, totalRevenue: 0 },
+          period,
+          needsSync: true,
+          message: "Run product sync first: POST /api/dashboard/sales/products/sync",
+        });
+      }
       throw error;
     }
 
-    // Aggregate product sales
+    // Aggregate by SKU
     const productSales: Record<string, {
       name: string;
       sku: string;
@@ -51,30 +48,20 @@ export async function GET(req: NextRequest) {
       revenue: number;
     }> = {};
 
-    (orders || []).forEach((order) => {
-      const lineItems = order.line_items as LineItem[] | null;
-      if (!Array.isArray(lineItems)) return;
+    (items || []).forEach((item) => {
+      const key = item.sku || item.product_name;
 
-      lineItems.forEach((item) => {
-        const name = item.Name || item.name || "Unknown Product";
-        const sku = item.SKU || item.sku || "N/A";
-        const quantity = item.Quantity || item.quantity || 1;
-        const total = item.Total || item.total || item.Price || item.price || 0;
+      if (!productSales[key]) {
+        productSales[key] = {
+          name: item.product_name,
+          sku: item.sku,
+          quantity: 0,
+          revenue: 0,
+        };
+      }
 
-        const key = sku !== "N/A" ? sku : name;
-
-        if (!productSales[key]) {
-          productSales[key] = {
-            name,
-            sku,
-            quantity: 0,
-            revenue: 0,
-          };
-        }
-
-        productSales[key].quantity += quantity;
-        productSales[key].revenue += parseFloat(String(total)) || 0;
-      });
+      productSales[key].quantity += item.quantity || 0;
+      productSales[key].revenue += parseFloat(String(item.total_price)) || 0;
     });
 
     // Sort by quantity sold and take top N
@@ -89,7 +76,7 @@ export async function GET(req: NextRequest) {
         revenue: Math.round(product.revenue * 100) / 100,
       }));
 
-    // Calculate total units and revenue for context
+    // Calculate totals
     const totalUnits = Object.values(productSales).reduce(
       (sum, p) => sum + p.quantity,
       0
@@ -107,6 +94,7 @@ export async function GET(req: NextRequest) {
         totalRevenue: Math.round(totalRevenue * 100) / 100,
       },
       period,
+      needsSync: items?.length === 0,
     });
   } catch (error) {
     console.error("Top products error:", error);

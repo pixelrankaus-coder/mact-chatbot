@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
 import {
   Card,
   CardAction,
@@ -6,104 +9,165 @@ import {
   CardHeader,
   CardTitle
 } from "@/components/ui/card";
-import { ExportButton } from "@/components/CardActionMenus";
-import Image from "next/image";
-import Link from "next/link";
-import { ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ChevronRight, Package, RefreshCw } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
+interface Product {
+  rank: number;
+  name: string;
+  sku: string;
+  unitsSold: number;
+  revenue: number;
+}
+
+interface ProductsData {
+  products: Product[];
+  summary: {
+    totalProducts: number;
+    totalUnitsSold: number;
+    totalRevenue: number;
+  };
+  needsSync?: boolean;
+  message?: string;
+}
+
 export function BestSellingProducts() {
-  const products = [
-    {
-      id: 1,
-      image: `/images/products/01.jpeg`,
-      name: "Sports Shoes",
-      price: 316,
-      sold: 316,
-      sales: 10
-    },
-    {
-      id: 2,
-      image: `/images/products/02.jpeg`,
-      name: "Black T-Shirt",
-      price: 274,
-      sold: 274,
-      sales: 20
-    },
-    {
-      id: 3,
-      image: `/images/products/03.jpeg`,
-      name: "Jeans",
-      price: 195,
-      sold: 195,
-      sales: 15
-    },
-    {
-      id: 4,
-      image: `/images/products/04.jpeg`,
-      name: "Red Sneakers",
-      price: 402,
-      sold: 402,
-      sales: 40
-    },
-    {
-      id: 5,
-      image: `/images/products/05.jpeg`,
-      name: "Red Scarf",
-      price: 280,
-      sold: 280,
-      sales: 37
-    },
-    {
-      id: 6,
-      image: `/images/products/06.jpeg`,
-      name: "Kitchen Accessory",
-      price: 150,
-      sold: 150,
-      sales: 18
+  const [data, setData] = useState<ProductsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+
+  const fetchProducts = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await fetch("/api/dashboard/sales/products?limit=6&period=90d");
+      if (!response.ok) throw new Error("Failed to fetch products");
+      const result = await response.json();
+      setData(result);
+    } catch (err) {
+      console.error("Error fetching products:", err);
+    } finally {
+      setLoading(false);
     }
-  ];
+  }, []);
+
+  const syncProducts = async () => {
+    try {
+      setSyncing(true);
+      const response = await fetch("/api/dashboard/sales/products/sync?days=90&limit=100", {
+        method: "POST",
+      });
+      if (!response.ok) throw new Error("Sync failed");
+      const result = await response.json();
+      console.log("Sync result:", result);
+      // Refresh products after sync
+      await fetchProducts();
+    } catch (err) {
+      console.error("Error syncing products:", err);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
+
+  if (loading) {
+    return (
+      <Card className="h-full">
+        <CardHeader>
+          <CardTitle>Best Selling Products</CardTitle>
+          <CardDescription>Top-Selling Products at a Glance</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="flex items-center justify-between rounded-md border px-4 py-3">
+              <div className="flex items-center gap-4">
+                <Skeleton className="h-10 w-10 rounded-md" />
+                <Skeleton className="h-4 w-32" />
+              </div>
+              <Skeleton className="h-4 w-20" />
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Show sync prompt if no data
+  if (data?.needsSync || !data?.products?.length) {
+    return (
+      <Card className="h-full">
+        <CardHeader>
+          <CardTitle>Best Selling Products</CardTitle>
+          <CardDescription>Top-Selling MACt Products</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col items-center justify-center py-8 text-center">
+          <Package className="h-12 w-12 text-muted-foreground mb-4" />
+          <p className="text-muted-foreground mb-4">
+            Product data needs to be synced from Cin7
+          </p>
+          <Button onClick={syncProducts} disabled={syncing}>
+            {syncing ? (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                Syncing...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Sync Products
+              </>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="h-full">
       <CardHeader>
-        <CardTitle>Best Selling Product</CardTitle>
-        <CardDescription>Top-Selling Products at a Glance</CardDescription>
+        <CardTitle>Best Selling Products</CardTitle>
+        <CardDescription>Top MACt products (last 90 days)</CardDescription>
         <CardAction>
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button size="icon" variant="outline">
-                  <ChevronRight />
+                <Button size="icon" variant="outline" onClick={syncProducts} disabled={syncing}>
+                  {syncing ? (
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>View All</TooltipContent>
+              <TooltipContent>{syncing ? "Syncing..." : "Refresh"}</TooltipContent>
             </Tooltip>
           </TooltipProvider>
         </CardAction>
       </CardHeader>
       <CardContent className="space-y-4">
-        {products.map((product) => (
-          <Link
-            href="/dashboard/pages/products/1"
-            key={product.name}
-            className="hover:bg-muted flex items-center justify-between rounded-md border px-4 py-3">
+        {data.products.map((product) => (
+          <div
+            key={product.sku}
+            className="flex items-center justify-between rounded-md border px-4 py-3 hover:bg-muted transition-colors"
+          >
             <div className="flex items-center gap-4">
-              <Image
-                src={product.image}
-                width={40}
-                height={40}
-                className="rounded-md!"
-                alt="..."
-                unoptimized
-              />
+              <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary font-medium">
+                {product.rank}
+              </div>
               <div>
-                <div className="font-medium">{product.name}</div>
+                <div className="font-medium text-sm line-clamp-1">{product.name}</div>
+                <div className="text-xs text-muted-foreground">{product.sku}</div>
               </div>
             </div>
-            <div className="text-sm text-green-600">{product.sold} items sold</div>
-          </Link>
+            <div className="text-sm text-green-600 whitespace-nowrap">
+              {product.unitsSold} items sold
+            </div>
+          </div>
         ))}
       </CardContent>
     </Card>
