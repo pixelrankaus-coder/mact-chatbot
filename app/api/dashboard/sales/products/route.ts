@@ -131,22 +131,47 @@ export async function GET(req: NextRequest) {
       prevProductSales[key].revenue += parseFloat(String(item.total_price)) || 0;
     });
 
-    // Get top SKUs for image lookup
-    const topSkus = Object.values(productSales)
+    // Get top products for image lookup
+    const topProductsData = Object.values(productSales)
       .sort((a, b) => b.quantity - a.quantity)
-      .slice(0, limit)
-      .map((p) => p.sku);
+      .slice(0, limit);
 
-    // Fetch product images from woo_products table (synced from WooCommerce)
-    const { data: productImages } = await supabase
+    const topSkus = topProductsData.map((p) => p.sku);
+    const topNames = topProductsData.map((p) => p.name);
+
+    // Fetch all woo_products to match by SKU or name
+    const { data: wooProducts } = await supabase
       .from("woo_products")
-      .select("sku, image_url, thumbnail_url, woo_id")
-      .in("sku", topSkus);
+      .select("sku, name, image_url, thumbnail_url, woo_id");
 
-    // Create image lookup map
+    // Create image lookup map - match by SKU first, then by name
     const imageMap: Record<string, { image_url?: string; thumbnail_url?: string; woo_id?: number }> = {};
-    (productImages || []).forEach((p: { sku: string; image_url?: string; thumbnail_url?: string; woo_id?: number }) => {
-      imageMap[p.sku] = { image_url: p.image_url, thumbnail_url: p.thumbnail_url, woo_id: p.woo_id };
+
+    topProductsData.forEach((product) => {
+      // Try exact SKU match first
+      let match = (wooProducts || []).find((w: { sku: string }) =>
+        w.sku && product.sku && w.sku.toLowerCase() === product.sku.toLowerCase()
+      );
+
+      // If no SKU match, try partial name match
+      if (!match && product.name) {
+        const productNameLower = product.name.toLowerCase();
+        match = (wooProducts || []).find((w: { name: string }) => {
+          if (!w.name) return false;
+          const wooNameLower = w.name.toLowerCase();
+          // Check if names are similar (one contains the other or starts the same)
+          return wooNameLower.includes(productNameLower.slice(0, 20)) ||
+                 productNameLower.includes(wooNameLower.slice(0, 20));
+        });
+      }
+
+      if (match) {
+        imageMap[product.sku] = {
+          image_url: match.image_url,
+          thumbnail_url: match.thumbnail_url,
+          woo_id: match.woo_id
+        };
+      }
     });
 
     // Sort by quantity sold and take top N, include trend data and images
