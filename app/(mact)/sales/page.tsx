@@ -8,7 +8,8 @@ import {
   ExpenseCard,
   BestSellingProducts,
   TableOrderStatus,
-  RevenueChart
+  RevenueChart,
+  MetricsProvider
 } from "./components";
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
@@ -42,12 +43,14 @@ export default function Page() {
           <RevenueChart />
         </div>
         <div className="md:col-span-4">
-          <div className="col-span-2 grid grid-cols-1 gap-4 md:grid-cols-2">
-            <BalanceCard />
-            <IncomeCard />
-            <ExpenseCard />
-            <TaxCard />
-          </div>
+          <MetricsProvider>
+            <div className="col-span-2 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <BalanceCard />
+              <IncomeCard />
+              <ExpenseCard />
+              <TaxCard />
+            </div>
+          </MetricsProvider>
         </div>
       </div>
       <div className="gap-4 space-y-4 lg:space-y-0 xl:grid xl:grid-cols-3">

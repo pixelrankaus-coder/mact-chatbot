@@ -13,7 +13,7 @@ import {
   getSortedRowModel,
   useReactTable
 } from "@tanstack/react-table";
-import { ArrowDownIcon, ArrowUpIcon, ChevronDown, ChevronDownIcon } from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, ChevronDown } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -41,154 +41,25 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ExportButton } from "@/components/CardActionMenus";
+import { useRecentOrders, useOrderStatus, type RecentOrder } from "@/hooks/use-dashboard-data";
 
 type Order = {
   id: string;
+  orderNumber: string;
   customerName: string;
   items: number;
   amount: number;
-  paymentMethod: string;
-  status: "new-order" | "in-progress" | "completed" | "return" | "on-hold";
+  status: string;
+  statusLabel: string;
 };
-
-const data: Order[] = [
-  {
-    id: "1083",
-    customerName: "Marvin Dekidis",
-    items: 2,
-    amount: 34.5,
-    paymentMethod: "E-Wallet",
-    status: "new-order"
-  },
-  {
-    id: "1082",
-    customerName: "Carter Lipshitz",
-    items: 6,
-    amount: 60.5,
-    paymentMethod: "Bank Transfer",
-    status: "in-progress"
-  },
-  {
-    id: "1081",
-    customerName: "Addison Philips",
-    items: 3,
-    amount: 47.5,
-    paymentMethod: "E-Wallet",
-    status: "new-order"
-  },
-  {
-    id: "1079",
-    customerName: "Craig Siphron",
-    items: 15,
-    amount: 89.8,
-    paymentMethod: "Bank Transfer",
-    status: "on-hold"
-  },
-  {
-    id: "1078",
-    customerName: "Emma Johnson",
-    items: 4,
-    amount: 120.75,
-    paymentMethod: "Credit Card",
-    status: "completed"
-  },
-  {
-    id: "1077",
-    customerName: "Michael Smith",
-    items: 8,
-    amount: 210.5,
-    paymentMethod: "PayPal",
-    status: "completed"
-  },
-  {
-    id: "1076",
-    customerName: "Sarah Williams",
-    items: 1,
-    amount: 25.99,
-    paymentMethod: "E-Wallet",
-    status: "in-progress"
-  },
-  {
-    id: "1075",
-    customerName: "James Brown",
-    items: 3,
-    amount: 78.45,
-    paymentMethod: "Bank Transfer",
-    status: "return"
-  },
-  {
-    id: "1074",
-    customerName: "David Miller",
-    items: 5,
-    amount: 145.2,
-    paymentMethod: "Credit Card",
-    status: "new-order"
-  },
-  {
-    id: "1073",
-    customerName: "Jennifer Davis",
-    items: 2,
-    amount: 67.8,
-    paymentMethod: "PayPal",
-    status: "in-progress"
-  },
-  {
-    id: "1072",
-    customerName: "Robert Wilson",
-    items: 7,
-    amount: 198.35,
-    paymentMethod: "Bank Transfer",
-    status: "completed"
-  },
-  {
-    id: "1071",
-    customerName: "Lisa Anderson",
-    items: 4,
-    amount: 112.9,
-    paymentMethod: "E-Wallet",
-    status: "on-hold"
-  },
-  {
-    id: "1070",
-    customerName: "Thomas Taylor",
-    items: 9,
-    amount: 245.75,
-    paymentMethod: "Credit Card",
-    status: "new-order"
-  },
-  {
-    id: "1069",
-    customerName: "Patricia Moore",
-    items: 3,
-    amount: 87.6,
-    paymentMethod: "Bank Transfer",
-    status: "return"
-  },
-  {
-    id: "1068",
-    customerName: "Christopher White",
-    items: 6,
-    amount: 156.4,
-    paymentMethod: "PayPal",
-    status: "completed"
-  },
-  {
-    id: "1067",
-    customerName: "Elizabeth Harris",
-    items: 2,
-    amount: 54.25,
-    paymentMethod: "E-Wallet",
-    status: "in-progress"
-  }
-];
 
 const columns: ColumnDef<Order>[] = [
   {
-    accessorKey: "id",
-    header: "ID",
-    size: 80
+    accessorKey: "orderNumber",
+    header: "Order #",
+    size: 100
   },
   {
     accessorKey: "customerName",
@@ -196,37 +67,46 @@ const columns: ColumnDef<Order>[] = [
   },
   {
     accessorKey: "items",
-    header: "Qty Items",
-    cell: ({ row }) => `${row.getValue("items")} Items`
+    header: "Items",
+    cell: ({ row }) => {
+      const items = row.getValue("items") as number;
+      return items > 0 ? `${items} Items` : "-";
+    }
   },
   {
     accessorKey: "amount",
     header: "Amount",
-    cell: ({ row }) => `$${row.getValue("amount")}`
+    cell: ({ row }) => {
+      const amount = row.getValue("amount") as number;
+      return `$${amount.toLocaleString("en-AU", { minimumFractionDigits: 2 })}`;
+    }
   },
   {
-    accessorKey: "paymentMethod",
-    header: "Payment Method"
-  },
-  {
-    accessorKey: "status",
+    accessorKey: "statusLabel",
     header: "Status",
     cell: ({ row }) => {
-      const status = row.original.status;
+      const status = row.original.status?.toLowerCase() || "";
+      const label = row.original.statusLabel || status;
 
-      const statusMap = {
+      const statusMap: Record<string, "success" | "info" | "warning" | "destructive" | "default"> = {
         completed: "success",
-        "new-order": "info",
-        "in-progress": "warning",
-        "on-hold": "warning",
-        return: "destructive"
-      } as const;
+        shipped: "success",
+        invoiced: "success",
+        ordering: "info",
+        draft: "info",
+        approved: "warning",
+        picking: "warning",
+        packed: "warning",
+        backordered: "warning",
+        cancelled: "destructive",
+        void: "destructive"
+      };
 
       const statusClass = statusMap[status] ?? "default";
 
       return (
         <Badge variant={statusClass} className="capitalize">
-          {status.replace("-", " ")}
+          {label}
         </Badge>
       );
     }
@@ -234,13 +114,29 @@ const columns: ColumnDef<Order>[] = [
 ];
 
 export function TableOrderStatus() {
+  const { orders, loading: ordersLoading } = useRecentOrders(20);
+  const { summary, loading: statusLoading } = useOrderStatus();
+
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState({});
 
+  // Transform API data to table format
+  const tableData: Order[] = React.useMemo(() => {
+    return orders.map((order: RecentOrder) => ({
+      id: order.id,
+      orderNumber: order.orderNumber,
+      customerName: order.customer,
+      items: order.items,
+      amount: order.amount,
+      status: order.status,
+      statusLabel: order.statusLabel
+    }));
+  }, [orders]);
+
   const table = useReactTable({
-    data,
+    data: tableData,
     columns,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
@@ -263,83 +159,112 @@ export function TableOrderStatus() {
     }
   });
 
+  // Get status counts from summary
+  const getStatusData = (id: string) => {
+    const item = summary.find((s) => s.id === id);
+    return {
+      count: item?.count ?? 0,
+      change: item?.change ?? 0,
+      percentage: item?.percentage ?? 0
+    };
+  };
+
+  const newOrders = getStatusData("new");
+  const inProgress = getStatusData("in_progress");
+  const completed = getStatusData("completed");
+  const cancelled = getStatusData("cancelled");
+
   return (
     <Card className="h-full">
       <CardHeader>
         <CardTitle>Track Order Status</CardTitle>
-        <CardDescription>Analyze growth and changes in visitor patterns</CardDescription>
+        <CardDescription>Recent orders from Cin7 (last 30 days)</CardDescription>
         <CardAction>
           <ExportButton />
         </CardAction>
       </CardHeader>
       <CardContent>
         <div className="mb-8 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <div className="space-y-2">
-            <div className="font-display text-2xl lg:text-3xl">43</div>
-            <div className="flex gap-2">
-              <div className="text-muted-foreground text-sm">New Order</div>
-              <div className="flex items-center gap-0.5 text-xs text-green-500">
-                <ArrowUpIcon className="size-3" />
-                0.5%
+          {statusLoading ? (
+            <>
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="space-y-2">
+                  <Skeleton className="h-8 w-16" />
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-2 w-full" />
+                </div>
+              ))}
+            </>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <div className="font-display text-2xl lg:text-3xl">{newOrders.count}</div>
+                <div className="flex gap-2">
+                  <div className="text-muted-foreground text-sm">New Order</div>
+                  <div className={`flex items-center gap-0.5 text-xs ${newOrders.change >= 0 ? "text-green-500" : "text-red-500"}`}>
+                    {newOrders.change >= 0 ? <ArrowUpIcon className="size-3" /> : <ArrowDownIcon className="size-3" />}
+                    {Math.abs(newOrders.change).toFixed(1)}%
+                  </div>
+                </div>
+                <Progress
+                  value={newOrders.percentage}
+                  className="h-2 bg-blue-100 dark:bg-blue-950"
+                  indicatorColor="bg-blue-400"
+                />
               </div>
-            </div>
-            <Progress
-              value={43}
-              className="h-2 bg-blue-100 dark:bg-blue-950"
-              indicatorColor="bg-blue-400"
-            />
-          </div>
-          <div className="space-y-2">
-            <div className="font-display text-2xl lg:text-3xl">12</div>
-            <div className="flex gap-2">
-              <div className="text-muted-foreground text-sm">On Progress</div>
-              <div className="flex items-center gap-0.5 text-xs text-red-500">
-                <ArrowDownIcon className="size-3" />
-                0.3%
+              <div className="space-y-2">
+                <div className="font-display text-2xl lg:text-3xl">{inProgress.count}</div>
+                <div className="flex gap-2">
+                  <div className="text-muted-foreground text-sm">In Progress</div>
+                  <div className={`flex items-center gap-0.5 text-xs ${inProgress.change >= 0 ? "text-green-500" : "text-red-500"}`}>
+                    {inProgress.change >= 0 ? <ArrowUpIcon className="size-3" /> : <ArrowDownIcon className="size-3" />}
+                    {Math.abs(inProgress.change).toFixed(1)}%
+                  </div>
+                </div>
+                <Progress
+                  value={inProgress.percentage}
+                  className="h-2 bg-teal-100 dark:bg-teal-950"
+                  indicatorColor="bg-teal-400"
+                />
               </div>
-            </div>
-            <Progress
-              value={25}
-              className="h-2 bg-teal-100 dark:bg-teal-950"
-              indicatorColor="bg-teal-400"
-            />
-          </div>
-          <div className="space-y-2">
-            <div className="font-display text-2xl lg:text-3xl">40</div>
-            <div className="flex gap-2">
-              <div className="text-muted-foreground text-sm">Completed</div>
-              <div className="flex items-center gap-0.5 text-xs text-green-500">
-                <ArrowUpIcon className="size-3" />
-                0.5%
+              <div className="space-y-2">
+                <div className="font-display text-2xl lg:text-3xl">{completed.count}</div>
+                <div className="flex gap-2">
+                  <div className="text-muted-foreground text-sm">Completed</div>
+                  <div className={`flex items-center gap-0.5 text-xs ${completed.change >= 0 ? "text-green-500" : "text-red-500"}`}>
+                    {completed.change >= 0 ? <ArrowUpIcon className="size-3" /> : <ArrowDownIcon className="size-3" />}
+                    {Math.abs(completed.change).toFixed(1)}%
+                  </div>
+                </div>
+                <Progress
+                  value={completed.percentage}
+                  className="h-2 bg-green-100 dark:bg-green-950"
+                  indicatorColor="bg-green-400"
+                />
               </div>
-            </div>
-            <Progress
-              value={40}
-              className="h-2 bg-green-100 dark:bg-green-950"
-              indicatorColor="bg-green-400"
-            />
-          </div>
-          <div className="space-y-2">
-            <div className="font-display text-2xl lg:text-3xl">2</div>
-            <div className="flex gap-2">
-              <div className="text-muted-foreground text-sm">Return</div>
-              <div className="flex items-center gap-0.5 text-xs text-red-500">
-                <ArrowDownIcon className="size-3" />
-                0.5%
+              <div className="space-y-2">
+                <div className="font-display text-2xl lg:text-3xl">{cancelled.count}</div>
+                <div className="flex gap-2">
+                  <div className="text-muted-foreground text-sm">Cancelled</div>
+                  <div className={`flex items-center gap-0.5 text-xs ${cancelled.change <= 0 ? "text-green-500" : "text-red-500"}`}>
+                    {cancelled.change <= 0 ? <ArrowDownIcon className="size-3" /> : <ArrowUpIcon className="size-3" />}
+                    {Math.abs(cancelled.change).toFixed(1)}%
+                  </div>
+                </div>
+                <Progress
+                  value={cancelled.percentage}
+                  className="h-2 bg-orange-100 dark:bg-orange-950"
+                  indicatorColor="bg-orange-400"
+                />
               </div>
-            </div>
-            <Progress
-              value={48}
-              className="h-2 bg-orange-100 dark:bg-orange-950"
-              indicatorColor="bg-orange-400"
-            />
-          </div>
+            </>
+          )}
         </div>
 
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <Input
-              placeholder="Filter orders..."
+              placeholder="Filter by customer..."
               value={(table.getColumn("customerName")?.getFilterValue() as string) ?? ""}
               onChange={(event) =>
                 table.getColumn("customerName")?.setFilterValue(event.target.value)
@@ -388,7 +313,17 @@ export function TableOrderStatus() {
                 ))}
               </TableHeader>
               <TableBody>
-                {table.getRowModel().rows?.length ? (
+                {ordersLoading ? (
+                  Array.from({ length: 6 }).map((_, i) => (
+                    <TableRow key={i}>
+                      {columns.map((_, j) => (
+                        <TableCell key={j}>
+                          <Skeleton className="h-4 w-full" />
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                ) : table.getRowModel().rows?.length ? (
                   table.getRowModel().rows.map((row) => (
                     <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
                       {row.getVisibleCells().map((cell) => (
@@ -401,7 +336,7 @@ export function TableOrderStatus() {
                 ) : (
                   <TableRow>
                     <TableCell colSpan={columns.length} className="h-24 text-center">
-                      No results.
+                      No orders found.
                     </TableCell>
                   </TableRow>
                 )}
@@ -410,8 +345,7 @@ export function TableOrderStatus() {
           </div>
           <div className="flex items-center justify-end space-x-2">
             <div className="text-muted-foreground flex-1 text-sm">
-              {table.getFilteredSelectedRowModel().rows.length} of{" "}
-              {table.getFilteredRowModel().rows.length} row(s) selected.
+              Showing {table.getRowModel().rows.length} of {tableData.length} orders
             </div>
             <div className="space-x-2">
               <Button

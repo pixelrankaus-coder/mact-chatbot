@@ -1,18 +1,47 @@
-import * as React from "react";
+"use client";
 
-import { ArrowDownIcon } from "lucide-react";
+import { ArrowUpIcon, ArrowDownIcon } from "lucide-react";
 import { Card, CardDescription, CardHeader } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useMetrics } from "./metrics-provider";
 
 export function ExpenseCard() {
+  const { data, loading, formatCurrency } = useMetrics();
+
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader className="space-y-1">
+          <CardDescription>Total Expense</CardDescription>
+          <Skeleton className="h-8 w-32" />
+          <Skeleton className="h-4 w-48" />
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  const value = data?.expenses?.value ?? 0;
+  // Expenses going down is positive
+  const change = data?.revenue?.change ?? 0;
+  const isPositive = change >= 0;
+
   return (
     <Card>
       <CardHeader className="space-y-1">
-        <CardDescription>Total Expense</CardDescription>
-        <div className="font-display text-2xl lg:text-3xl">$15,010</div>
+        <CardDescription>Est. Expenses</CardDescription>
+        <div className="font-display text-2xl lg:text-3xl">
+          {formatCurrency(value)}
+        </div>
         <div className="flex items-center text-xs">
-          <ArrowDownIcon className="mr-1 size-3 text-red-500" />
-          <span className="font-medium text-red-500">6.0%</span>
-          <span className="text-muted-foreground ml-1">Compare from last month</span>
+          {isPositive ? (
+            <ArrowUpIcon className="mr-1 size-3 text-amber-500" />
+          ) : (
+            <ArrowDownIcon className="mr-1 size-3 text-green-500" />
+          )}
+          <span className={`font-medium ${isPositive ? "text-amber-500" : "text-green-500"}`}>
+            {Math.abs(change).toFixed(1)}%
+          </span>
+          <span className="text-muted-foreground ml-1">vs last 30 days</span>
         </div>
       </CardHeader>
     </Card>

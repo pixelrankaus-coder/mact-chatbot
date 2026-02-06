@@ -5,3 +5,4 @@ export * from "./income-card";
 export * from "./table-order-status";
 export * from "./revenue-chart";
 export * from "./tax-card";
+export * from "./metrics-provider";
