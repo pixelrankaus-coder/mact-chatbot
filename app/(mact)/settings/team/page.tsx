@@ -117,16 +117,16 @@ export default function TeamPage() {
 
   const loadAgents = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("agents")
-      .select("*")
-      .order("created_at", { ascending: true });
-
-    if (error) {
+    try {
+      const response = await fetch("/api/agents");
+      if (!response.ok) {
+        throw new Error("Failed to fetch agents");
+      }
+      const data = await response.json();
+      setAgents(data || []);
+    } catch (error) {
       console.error("Failed to load agents:", error);
       toast.error("Failed to load team members");
-    } else {
-      setAgents(data || []);
     }
     setLoading(false);
   };
