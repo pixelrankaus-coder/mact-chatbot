@@ -6,21 +6,83 @@ import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import ProductList from "@/app/(mact)/products/product-list";
+import { createServiceClient } from "@/lib/supabase";
 
 export const metadata: Metadata = {
   title: "Products",
   description: "Product list page with filtering and sorting."
 };
 
+interface ProductRow {
+  id: string;
+  woo_id: number;
+  name: string;
+  sku: string;
+  price: string;
+  category: string;
+  image_url: string | null;
+  stock_quantity: number | null;
+  stock_status: string;
+  status: string;
+  rating: string;
+  total_sales: number;
+}
+
 async function getProducts() {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-  const res = await fetch(`${baseUrl}/api/products`, {
-    cache: "no-store"
-  });
-  if (!res.ok) {
-    return { products: [], stats: { totalSales: 0, numberOfSales: 0, totalProducts: 0 } };
+  try {
+    const supabase = createServiceClient();
+
+    const { data: products, error, count } = await supabase
+      .from("woo_products")
+      .select("*", { count: "exact" })
+      .order("name", { ascending: true })
+      .limit(100);
+
+    if (error) {
+      console.error("Error fetching products:", error);
+      return { products: [], stats: { totalSales: 0, numberOfSales: 0, totalProducts: 0, outOfStock: 0 } };
+    }
+
+    // Transform products
+    const transformedProducts = ((products || []) as ProductRow[]).map((p, index) => {
+      let displayStatus: "active" | "out-of-stock" | "closed-for-sale" = "active";
+      if (p.stock_status === "outofstock") {
+        displayStatus = "out-of-stock";
+      } else if (p.status !== "publish") {
+        displayStatus = "closed-for-sale";
+      }
+
+      return {
+        id: index + 1,
+        name: p.name,
+        image: p.image_url || null,
+        description: "",
+        category: p.category || "Other",
+        sku: p.sku || "",
+        stock: p.stock_quantity !== null ? String(p.stock_quantity) : "N/A",
+        price: p.price ? `$${parseFloat(p.price).toFixed(2)}` : "$0.00",
+        rating: p.rating || "0",
+        status: displayStatus,
+      };
+    });
+
+    const totalProducts = count || 0;
+    const outOfStock = (products || []).filter((p: ProductRow) => p.stock_status === "outofstock").length;
+    const totalSales = (products || []).reduce((sum: number, p: ProductRow) => sum + (p.total_sales || 0), 0);
+
+    return {
+      products: transformedProducts,
+      stats: {
+        totalSales: totalSales * 100,
+        numberOfSales: totalSales,
+        totalProducts,
+        outOfStock,
+      },
+    };
+  } catch (error) {
+    console.error("Products fetch error:", error);
+    return { products: [], stats: { totalSales: 0, numberOfSales: 0, totalProducts: 0, outOfStock: 0 } };
   }
-  return res.json();
 }
 
 export default async function Page() {
