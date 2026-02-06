@@ -131,7 +131,25 @@ export async function GET(req: NextRequest) {
       prevProductSales[key].revenue += parseFloat(String(item.total_price)) || 0;
     });
 
-    // Sort by quantity sold and take top N, include trend data
+    // Get top SKUs for image lookup
+    const topSkus = Object.values(productSales)
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, limit)
+      .map((p) => p.sku);
+
+    // Fetch product images from cin7_products table
+    const { data: productImages } = await supabase
+      .from("cin7_products")
+      .select("sku, image_url, thumbnail_url")
+      .in("sku", topSkus);
+
+    // Create image lookup map
+    const imageMap: Record<string, { image_url?: string; thumbnail_url?: string }> = {};
+    (productImages || []).forEach((p: { sku: string; image_url?: string; thumbnail_url?: string }) => {
+      imageMap[p.sku] = { image_url: p.image_url, thumbnail_url: p.thumbnail_url };
+    });
+
+    // Sort by quantity sold and take top N, include trend data and images
     const topProducts = Object.values(productSales)
       .sort((a, b) => b.quantity - a.quantity)
       .slice(0, limit)
@@ -141,6 +159,8 @@ export async function GET(req: NextRequest) {
           ? Math.round(((product.quantity - prev.quantity) / prev.quantity) * 100)
           : product.quantity > 0 ? 100 : 0;
 
+        const images = imageMap[product.sku] || {};
+
         return {
           rank: index + 1,
           name: product.name,
@@ -149,6 +169,8 @@ export async function GET(req: NextRequest) {
           unitsSold: product.quantity,
           revenue: Math.round(product.revenue * 100) / 100,
           trend: quantityChange,
+          imageUrl: images.image_url || null,
+          thumbnailUrl: images.thumbnail_url || null,
         };
       });
 

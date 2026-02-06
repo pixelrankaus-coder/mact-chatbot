@@ -11,7 +11,8 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Package, RefreshCw, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Package, RefreshCw, TrendingUp, TrendingDown, Minus, Beaker, Wrench, Box } from "lucide-react";
+import Image from "next/image";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Select,
@@ -29,7 +30,29 @@ interface Product {
   unitsSold: number;
   revenue: number;
   trend: number;
+  imageUrl?: string | null;
+  thumbnailUrl?: string | null;
 }
+
+// Category icons for fallback when no image
+const CATEGORY_ICONS: Record<string, React.ElementType> = {
+  "gfrc-premix": Box,
+  "additives": Beaker,
+  "fiberglass": Package,
+  "tools": Wrench,
+  "equipment": Wrench,
+  "other": Package,
+};
+
+// Category colors for fallback backgrounds
+const CATEGORY_COLORS: Record<string, string> = {
+  "gfrc-premix": "bg-blue-100 text-blue-600",
+  "additives": "bg-purple-100 text-purple-600",
+  "fiberglass": "bg-amber-100 text-amber-600",
+  "tools": "bg-green-100 text-green-600",
+  "equipment": "bg-slate-100 text-slate-600",
+  "other": "bg-gray-100 text-gray-600",
+};
 
 interface ProductsData {
   products: Product[];
@@ -212,15 +235,31 @@ export function BestSellingProducts() {
         </CardAction>
       </CardHeader>
       <CardContent className="space-y-3">
-        {data.products.map((product) => (
+        {data.products.map((product) => {
+          const CategoryIcon = CATEGORY_ICONS[product.category] || Package;
+          const categoryColor = CATEGORY_COLORS[product.category] || CATEGORY_COLORS.other;
+
+          return (
           <div
             key={product.sku}
             className="flex items-center justify-between rounded-md border px-4 py-3 hover:bg-muted transition-colors"
           >
             <div className="flex items-center gap-4">
-              <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary font-medium">
-                {product.rank}
-              </div>
+              {product.imageUrl || product.thumbnailUrl ? (
+                <div className="relative h-10 w-10 rounded-md overflow-hidden bg-muted">
+                  <Image
+                    src={product.thumbnailUrl || product.imageUrl || ""}
+                    alt={product.name}
+                    fill
+                    className="object-cover"
+                    sizes="40px"
+                  />
+                </div>
+              ) : (
+                <div className={`flex h-10 w-10 items-center justify-center rounded-md ${categoryColor}`}>
+                  <CategoryIcon className="h-5 w-5" />
+                </div>
+              )}
               <div className="min-w-0 flex-1">
                 <div className="font-medium text-sm line-clamp-1">{product.name}</div>
                 <div className="text-xs text-muted-foreground">{product.sku}</div>
@@ -251,7 +290,8 @@ export function BestSellingProducts() {
               </div>
             </div>
           </div>
-        ))}
+        );
+        })}
         {data.summary && (
           <div className="pt-2 mt-2 border-t text-xs text-muted-foreground flex justify-between">
             <span>{data.summary.totalProducts} products</span>
