@@ -15,6 +15,14 @@ const nextConfig: NextConfig = {
       {
         protocol: "https",
         hostname: "bundui-images.netlify.app"
+      },
+      {
+        protocol: "https",
+        hostname: "pix1.dev"
+      },
+      {
+        protocol: "https",
+        hostname: "mact.au"
       }
     ]
   },
