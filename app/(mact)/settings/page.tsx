@@ -17,6 +17,7 @@ import {
   UserCog,
   ChevronRight,
   Settings,
+  Server,
 } from "lucide-react";
 import { ADMIN_VERSION, WIDGET_VERSION } from "@/lib/version";
 
@@ -151,6 +152,14 @@ const settingsSections: SettingsSection[] = [
         href: "/settings/changelog",
         icon: <History className="h-5 w-5" />,
         iconBg: "bg-slate-100 text-slate-600",
+      },
+      {
+        id: "infrastructure",
+        label: "Infrastructure",
+        description: "Live health checks and service architecture",
+        href: "/settings/infrastructure",
+        icon: <Server className="h-5 w-5" />,
+        iconBg: "bg-teal-100 text-teal-600",
       },
     ],
   },
