@@ -44,3 +44,9 @@ next-env.d.ts
 
 .cursorrules
 .cursor
+.claude
+
+# reference / temp
+_ui-kit-reference/
+supabase/.temp/
+nul
