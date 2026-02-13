@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from "react";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/utils/supabase/client";
 import { User } from "@supabase/supabase-js";
 
 export interface Agent {
@@ -37,6 +37,7 @@ export function AgentProvider({ children }: AgentProviderProps) {
   const [agent, setAgent] = useState<Agent | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const supabase = createClient();
 
   const loadAgent = useCallback(async () => {
     try {
@@ -64,7 +65,7 @@ export function AgentProvider({ children }: AgentProviderProps) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [supabase]);
 
   useEffect(() => {
     loadAgent();
@@ -77,7 +78,7 @@ export function AgentProvider({ children }: AgentProviderProps) {
     });
 
     return () => subscription.unsubscribe();
-  }, [loadAgent]);
+  }, [loadAgent, supabase]);
 
   // Update last_seen periodically when online
   useEffect(() => {
@@ -91,7 +92,7 @@ export function AgentProvider({ children }: AgentProviderProps) {
     }, 60000); // Every minute
 
     return () => clearInterval(interval);
-  }, [agent?.id, agent?.is_online]);
+  }, [agent?.id, agent?.is_online, supabase]);
 
   const setOnlineStatus = useCallback(async (online: boolean) => {
     if (!agent) return;
@@ -110,7 +111,7 @@ export function AgentProvider({ children }: AgentProviderProps) {
     }
 
     setAgent({ ...agent, is_online: online, last_seen_at: new Date().toISOString() });
-  }, [agent]);
+  }, [agent, supabase]);
 
   const updateAgent = useCallback(async (updates: Partial<Agent>) => {
     if (!agent) return;
@@ -126,7 +127,7 @@ export function AgentProvider({ children }: AgentProviderProps) {
     }
 
     setAgent({ ...agent, ...updates, updated_at: new Date().toISOString() });
-  }, [agent]);
+  }, [agent, supabase]);
 
   const logout = useCallback(async () => {
     if (agent) {
@@ -139,7 +140,7 @@ export function AgentProvider({ children }: AgentProviderProps) {
     await supabase.auth.signOut();
     setAgent(null);
     setUser(null);
-  }, [agent]);
+  }, [agent, supabase]);
 
   const refreshAgent = useCallback(async () => {
     await loadAgent();
