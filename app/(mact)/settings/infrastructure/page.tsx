@@ -54,16 +54,16 @@ const STATUS_CONFIG = {
   unconfigured: { icon: CircleDashed, color: "text-slate-400", bg: "bg-slate-400", label: "Not Configured", dot: "bg-slate-300" },
 };
 
-const SERVICE_META: Record<string, { description: string; stack?: string; icon: React.ElementType; color: string }> = {
-  "Supabase": { description: "PostgreSQL database, auth & realtime", stack: "PostgreSQL", icon: Database, color: "bg-emerald-100 text-emerald-700" },
-  "OpenAI": { description: "Primary LLM provider", stack: "GPT-4o", icon: Brain, color: "bg-violet-100 text-violet-700" },
-  "Anthropic": { description: "Alternative LLM provider", stack: "Claude 3.5", icon: Brain, color: "bg-orange-100 text-orange-700" },
-  "DeepSeek": { description: "Cost-effective LLM provider", stack: "DeepSeek Chat", icon: Brain, color: "bg-blue-100 text-blue-700" },
-  "WooCommerce": { description: "E-commerce platform", stack: "REST API v3", icon: Plug, color: "bg-purple-100 text-purple-700" },
-  "Cin7": { description: "Inventory & order management", stack: "REST API v2", icon: Plug, color: "bg-cyan-100 text-cyan-700" },
-  "Klaviyo": { description: "Email marketing & CDP", stack: "API 2024-10", icon: Mail, color: "bg-green-100 text-green-700" },
-  "Resend": { description: "Transactional email delivery", icon: Mail, color: "bg-rose-100 text-rose-700" },
-  "Google Ads": { description: "PPC campaign management", stack: "Ads API v23", icon: TrendingUp, color: "bg-yellow-100 text-yellow-700" },
+const SERVICE_META: Record<string, { description: string; stack?: string; icon: React.ElementType; color: string; logo?: string }> = {
+  "Supabase": { description: "PostgreSQL database, auth & realtime", stack: "PostgreSQL", icon: Database, color: "bg-emerald-100 text-emerald-700", logo: "/images/providers/supabase.svg" },
+  "OpenAI": { description: "Primary LLM provider", stack: "GPT-4o", icon: Brain, color: "bg-violet-100 text-violet-700", logo: "/images/providers/openai.svg" },
+  "Anthropic": { description: "Alternative LLM provider", stack: "Claude 3.5", icon: Brain, color: "bg-orange-100 text-orange-700", logo: "/images/providers/anthropic.svg" },
+  "DeepSeek": { description: "Cost-effective LLM provider", stack: "DeepSeek Chat", icon: Brain, color: "bg-blue-100 text-blue-700", logo: "/images/providers/deepseek.svg" },
+  "WooCommerce": { description: "E-commerce platform", stack: "REST API v3", icon: Plug, color: "bg-purple-100 text-purple-700", logo: "/images/providers/woocommerce.svg" },
+  "Cin7": { description: "Inventory & order management", stack: "REST API v2", icon: Plug, color: "bg-cyan-100 text-cyan-700", logo: "/images/providers/cin7.svg" },
+  "Klaviyo": { description: "Email marketing & CDP", stack: "API 2024-10", icon: Mail, color: "bg-green-100 text-green-700", logo: "/images/providers/klaviyo.svg" },
+  "Resend": { description: "Transactional email delivery", icon: Mail, color: "bg-rose-100 text-rose-700", logo: "/images/providers/resend.svg" },
+  "Google Ads": { description: "PPC campaign management", stack: "Ads API v23", icon: TrendingUp, color: "bg-yellow-100 text-yellow-700", logo: "/images/providers/google-ads.svg" },
 };
 
 function ServiceCard({ service }: { service: ServiceHealth }) {
@@ -75,9 +75,15 @@ function ServiceCard({ service }: { service: ServiceHealth }) {
   return (
     <div className="rounded-xl border bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between mb-3">
-        <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${meta.color}`}>
-          <Icon className="h-5 w-5" />
-        </div>
+        {meta.logo ? (
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-50 p-1.5">
+            <img src={meta.logo} alt={service.name} className="h-full w-full object-contain" />
+          </div>
+        ) : (
+          <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${meta.color}`}>
+            <Icon className="h-5 w-5" />
+          </div>
+        )}
         <div className="flex items-center gap-2">
           {service.responseTime !== null && (
             <span className="text-xs text-slate-400 font-mono">{service.responseTime}ms</span>

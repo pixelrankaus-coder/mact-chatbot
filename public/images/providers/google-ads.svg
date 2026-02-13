@@ -1,0 +1,8 @@
+<svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Yellow bar -->
+  <rect x="10" y="22" width="30" height="76" rx="15" fill="#FBBC04" transform="rotate(-25 25 60)"/>
+  <!-- Blue bar -->
+  <rect x="50" y="22" width="30" height="76" rx="15" fill="#4285F4" transform="rotate(-25 65 60)"/>
+  <!-- Green circle -->
+  <circle cx="30" cy="88" r="16" fill="#34A853"/>
+</svg>
