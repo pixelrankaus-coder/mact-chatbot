@@ -15,7 +15,7 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/utils/supabase/client";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Loader2, Cpu, Sparkles, Zap, DollarSign, Key, Eye, EyeOff, Play, CheckCircle, XCircle } from "lucide-react";
@@ -29,6 +29,7 @@ interface LLMSettings {
 }
 
 export default function AIProviderPage() {
+  const supabase = createClient();
   const [settings, setSettings] = useState<LLMSettings>({
     provider: "openai",
     model: "gpt-4o-mini",
