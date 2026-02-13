@@ -49,17 +49,31 @@ export interface LLMResponse {
   skillExecutions?: SkillExecution[];
 }
 
-// Pricing per 1M tokens (input / output)
+// Pricing per 1M tokens (input / output) — updated Feb 2026
 export const PRICING: Record<string, Record<string, { input: number; output: number }>> = {
   openai: {
+    // GPT-4.1 series (Apr 2025+)
+    "gpt-4.1-nano": { input: 0.10, output: 0.40 },
+    "gpt-4.1-mini": { input: 0.40, output: 1.60 },
+    "gpt-4.1": { input: 2.00, output: 8.00 },
+    // GPT-4o series
     "gpt-4o-mini": { input: 0.15, output: 0.60 },
     "gpt-4o-mini-2024-07-18": { input: 0.15, output: 0.60 },
     "gpt-4o": { input: 2.50, output: 10.00 },
+    // Reasoning models
+    "o3-mini": { input: 1.10, output: 4.40 },
+    "o4-mini": { input: 1.10, output: 4.40 },
+    "o3": { input: 2.00, output: 8.00 },
+    // Legacy
     "gpt-4-turbo": { input: 10.00, output: 30.00 },
   },
   anthropic: {
-    "claude-3-5-haiku-latest": { input: 0.25, output: 1.25 },
-    "claude-3-5-haiku-20241022": { input: 0.25, output: 1.25 },
+    // Claude 4.5+ series (current)
+    "claude-sonnet-4-5-20250929": { input: 3.00, output: 15.00 },
+    "claude-haiku-4-5-20251001": { input: 1.00, output: 5.00 },
+    // Claude 3.5 series (legacy)
+    "claude-3-5-haiku-latest": { input: 0.80, output: 4.00 },
+    "claude-3-5-haiku-20241022": { input: 0.80, output: 4.00 },
     "claude-3-5-sonnet-latest": { input: 3.00, output: 15.00 },
     "claude-3-5-sonnet-20241022": { input: 3.00, output: 15.00 },
   },
@@ -75,16 +89,21 @@ export const PROVIDERS = {
     name: "OpenAI",
     description: "GPT models from OpenAI",
     models: [
-      { id: "gpt-4o-mini", name: "GPT-4o Mini", description: "Fast and affordable" },
-      { id: "gpt-4o", name: "GPT-4o", description: "Most capable" },
+      { id: "gpt-4.1-nano", name: "GPT-4.1 Nano", description: "Ultra-fast, cheapest option" },
+      { id: "gpt-4.1-mini", name: "GPT-4.1 Mini", description: "Fast and affordable" },
+      { id: "gpt-4.1", name: "GPT-4.1", description: "Best all-round model" },
+      { id: "gpt-4o-mini", name: "GPT-4o Mini", description: "Legacy, fast and affordable" },
+      { id: "gpt-4o", name: "GPT-4o", description: "Legacy, most capable" },
     ],
   },
   anthropic: {
     name: "Anthropic (Claude)",
     description: "Claude models from Anthropic",
     models: [
-      { id: "claude-3-5-haiku-latest", name: "Claude 3.5 Haiku", description: "Fast and affordable" },
-      { id: "claude-3-5-sonnet-latest", name: "Claude 3.5 Sonnet", description: "Most capable" },
+      { id: "claude-haiku-4-5-20251001", name: "Claude 4.5 Haiku", description: "Fast and affordable" },
+      { id: "claude-sonnet-4-5-20250929", name: "Claude 4.5 Sonnet", description: "Most capable" },
+      { id: "claude-3-5-haiku-latest", name: "Claude 3.5 Haiku", description: "Legacy, fast" },
+      { id: "claude-3-5-sonnet-latest", name: "Claude 3.5 Sonnet", description: "Legacy, capable" },
     ],
   },
   deepseek: {

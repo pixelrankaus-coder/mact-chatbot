@@ -13,9 +13,15 @@ import {
   ChartTooltip,
   ChartTooltipContent
 } from "@/components/ui/chart";
-import { Bar, BarChart, XAxis } from "recharts";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Bar, BarChart, CartesianGrid, XAxis } from "recharts";
 
-export function ConversationsChart() {
+interface ConversationsChartProps {
+  data?: Array<{ date: string; human: number; ai: number }>;
+  loading?: boolean;
+}
+
+export function ConversationsChart({ data, loading }: ConversationsChartProps) {
   const chartConfig = {
     human: {
       label: "Human",
@@ -27,57 +33,70 @@ export function ConversationsChart() {
     }
   } satisfies ChartConfig;
 
-  const chartData = [
-    { day: "Mon", human: 45, ai: 120 },
-    { day: "Tue", human: 52, ai: 135 },
-    { day: "Wed", human: 38, ai: 98 },
-    { day: "Thu", human: 65, ai: 145 },
-    { day: "Fri", human: 48, ai: 110 },
-    { day: "Sat", human: 25, ai: 75 },
-    { day: "Sun", human: 18, ai: 55 }
-  ];
+  const totalHuman = data?.reduce((s, d) => s + d.human, 0) ?? 0;
+  const totalAi = data?.reduce((s, d) => s + d.ai, 0) ?? 0;
 
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <div>
           <CardTitle>Conversations</CardTitle>
-          <CardDescription>Human vs AI handled conversations this week</CardDescription>
+          <CardDescription>Human vs AI handled conversations</CardDescription>
         </div>
         <div className="flex gap-6 rounded-lg border px-4 py-2">
           <div className="flex flex-col gap-0.5 text-left">
             <span className="text-muted-foreground text-xs uppercase">Human</span>
-            <span className="font-semibold text-lg">291</span>
+            <span className="font-semibold text-lg">{loading ? "-" : totalHuman}</span>
           </div>
           <div className="flex flex-col gap-0.5 text-left">
             <span className="text-muted-foreground text-xs uppercase">AI</span>
-            <span className="font-semibold text-lg">738</span>
+            <span className="font-semibold text-lg">{loading ? "-" : totalAi}</span>
           </div>
         </div>
       </CardHeader>
       <CardContent className="pb-4">
-        <div>
+        {loading ? (
+          <Skeleton className="h-[200px] w-full" />
+        ) : data && data.length > 0 ? (
           <ChartContainer className="h-[200px] w-full" config={chartConfig}>
             <BarChart
               accessibilityLayer
-              data={chartData}
-              margin={{
-                left: -6,
-                right: -6
-              }}>
+              data={data}
+              margin={{ left: -6, right: -6 }}>
+              <CartesianGrid vertical={false} />
               <XAxis
-                dataKey="day"
+                dataKey="date"
                 tickLine={false}
                 tickMargin={10}
                 axisLine={false}
-                tickFormatter={(value) => value}
+                tickFormatter={(value) => {
+                  const date = new Date(value);
+                  return date.toLocaleDateString("en-AU", { month: "short", day: "numeric" });
+                }}
               />
-              <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="dashed" />} />
-              <Bar dataKey="human" fill="var(--color-human)" radius={8} />
-              <Bar dataKey="ai" fill="var(--color-ai)" radius={8} />
+              <ChartTooltip
+                content={
+                  <ChartTooltipContent
+                    indicator="dashed"
+                    labelFormatter={(value) => {
+                      return new Date(value).toLocaleDateString("en-AU", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric"
+                      });
+                    }}
+                  />
+                }
+              />
+              <Bar dataKey="human" fill="var(--color-human)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="ai" fill="var(--color-ai)" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ChartContainer>
-        </div>
+        ) : (
+          <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">
+            No conversations in this period
+          </div>
+        )}
       </CardContent>
     </Card>
   );

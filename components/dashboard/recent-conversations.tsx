@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { formatDistanceToNow } from "date-fns";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -14,56 +15,22 @@ import {
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowRightIcon } from "lucide-react";
 
-export type Conversation = {
-  id: number;
-  customer: {
-    name: string;
-    email: string;
-  };
-  lastMessage: string;
-  time: string;
-  status: "active" | "pending" | "resolved";
-};
+interface RecentConversation {
+  id: string;
+  status: string;
+  created_at: string;
+  customer_name: string;
+  customer_email: string;
+  last_message: string;
+}
 
-const conversations: Conversation[] = [
-  {
-    id: 1,
-    customer: { name: "John Smith", email: "john@example.com" },
-    lastMessage: "Looking for GFRC panels pricing...",
-    time: "2m ago",
-    status: "active"
-  },
-  {
-    id: 2,
-    customer: { name: "Sarah Johnson", email: "sarah@example.com" },
-    lastMessage: "Do you ship to California?",
-    time: "15m ago",
-    status: "resolved"
-  },
-  {
-    id: 3,
-    customer: { name: "Mike Wilson", email: "mike@example.com" },
-    lastMessage: "Need custom sizes for my project",
-    time: "1h ago",
-    status: "pending"
-  },
-  {
-    id: 4,
-    customer: { name: "Emily Davis", email: "emily@example.com" },
-    lastMessage: "What is the lead time for orders?",
-    time: "2h ago",
-    status: "resolved"
-  },
-  {
-    id: 5,
-    customer: { name: "Robert Brown", email: "robert@example.com" },
-    lastMessage: "Can you provide samples?",
-    time: "3h ago",
-    status: "active"
-  }
-];
+interface RecentConversationsProps {
+  data?: RecentConversation[];
+  loading?: boolean;
+}
 
 const getInitials = (name: string) => {
   return name
@@ -74,7 +41,7 @@ const getInitials = (name: string) => {
     .slice(0, 2);
 };
 
-export function RecentConversations() {
+export function RecentConversations({ data, loading }: RecentConversationsProps) {
   return (
     <Card>
       <CardHeader>
@@ -99,42 +66,66 @@ export function RecentConversations() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {conversations.map((conv) => {
-                const statusMap = {
-                  active: "success",
-                  pending: "warning",
-                  resolved: "secondary"
-                } as const;
+              {loading ? (
+                [...Array(3)].map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell><Skeleton className="h-8 w-32" /></TableCell>
+                    <TableCell className="hidden md:table-cell"><Skeleton className="h-4 w-40" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+                  </TableRow>
+                ))
+              ) : data && data.length > 0 ? (
+                data.map((conv) => {
+                  const statusMap: Record<string, "success" | "warning" | "secondary"> = {
+                    active: "success",
+                    open: "success",
+                    pending: "warning",
+                    waiting: "warning",
+                    resolved: "secondary",
+                    closed: "secondary"
+                  };
 
-                return (
-                  <TableRow key={conv.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-8 w-8">
-                          <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                            {getInitials(conv.customer.name)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <div className="font-medium">{conv.customer.name}</div>
-                          <div className="text-muted-foreground hidden text-xs sm:block">
-                            {conv.customer.email}
+                  return (
+                    <TableRow key={conv.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-8 w-8">
+                            <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                              {getInitials(conv.customer_name)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <div className="font-medium">{conv.customer_name}</div>
+                            {conv.customer_email && (
+                              <div className="text-muted-foreground hidden text-xs sm:block">
+                                {conv.customer_email}
+                              </div>
+                            )}
                           </div>
                         </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground hidden max-w-[200px] truncate md:table-cell">
-                      {conv.lastMessage}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">{conv.time}</TableCell>
-                    <TableCell>
-                      <Badge variant={statusMap[conv.status]} className="capitalize">
-                        {conv.status}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground hidden max-w-[200px] truncate md:table-cell">
+                        {conv.last_message || "-"}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-sm">
+                        {formatDistanceToNow(new Date(conv.created_at), { addSuffix: true })}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={statusMap[conv.status] || "secondary"} className="capitalize">
+                          {conv.status}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                    No conversations in this period
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </div>

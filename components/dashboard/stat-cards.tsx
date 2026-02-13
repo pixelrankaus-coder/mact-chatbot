@@ -5,43 +5,46 @@ import { ArrowRightIcon, MessageSquare, Users, Clock, Bot } from "lucide-react";
 import Link from "next/link";
 
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
-const stats = [
-  {
-    name: "Total Conversations",
-    value: "1,234",
-    change: "+12%",
-    changeType: "positive",
-    href: "/inbox",
-    icon: MessageSquare
-  },
-  {
-    name: "Active Visitors",
-    value: "56",
-    change: "+5%",
-    changeType: "positive",
-    href: "/customers",
-    icon: Users
-  },
-  {
-    name: "Avg. Response Time",
-    value: "1.2m",
-    change: "-18%",
-    changeType: "positive",
-    href: "#",
-    icon: Clock
-  },
-  {
-    name: "AI Resolution Rate",
-    value: "78%",
-    change: "+8%",
-    changeType: "positive",
-    href: "/ai-agent",
-    icon: Bot
-  }
-];
+interface StatCardsProps {
+  data?: {
+    totalConversations: number;
+    activeConversations: number;
+    resolvedConversations: number;
+    aiResolutionRate: number;
+  };
+  loading?: boolean;
+}
 
-export default function StatCards() {
+export default function StatCards({ data, loading }: StatCardsProps) {
+  const stats = [
+    {
+      name: "Total Conversations",
+      value: data?.totalConversations ?? 0,
+      href: "/inbox",
+      icon: MessageSquare
+    },
+    {
+      name: "Active",
+      value: data?.activeConversations ?? 0,
+      href: "/inbox",
+      icon: Users
+    },
+    {
+      name: "Resolved",
+      value: data?.resolvedConversations ?? 0,
+      href: "/inbox",
+      icon: Clock
+    },
+    {
+      name: "AI Resolution Rate",
+      value: `${data?.aiResolutionRate ?? 0}%`,
+      href: "/ai-agent",
+      icon: Bot
+    }
+  ];
+
   return (
     <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
       {stats.map((item) => (
@@ -54,17 +57,12 @@ export default function StatCards() {
                 </div>
                 <span className="text-muted-foreground truncate text-sm">{item.name}</span>
               </div>
-              <span
-                className={cn(
-                  "text-sm font-medium",
-                  item.changeType === "positive"
-                    ? "text-emerald-700 dark:text-emerald-500"
-                    : "text-red-700 dark:text-red-500"
-                )}>
-                {item.change}
-              </span>
             </div>
-            <dd className="text-foreground mt-1 text-3xl font-semibold">{item.value}</dd>
+            {loading ? (
+              <Skeleton className="h-9 w-20" />
+            ) : (
+              <dd className="text-foreground mt-1 text-3xl font-semibold">{item.value}</dd>
+            )}
           </CardContent>
           <CardFooter className="border-border flex justify-end border-t p-0!">
             <Link
