@@ -130,52 +130,49 @@ async function checkDeepSeek(): Promise<ServiceHealth> {
 }
 
 async function checkWooCommerce(): Promise<ServiceHealth> {
-  const url = process.env.WOOCOMMERCE_URL;
-  const key = process.env.WOOCOMMERCE_CONSUMER_KEY;
-  const secret = process.env.WOOCOMMERCE_CONSUMER_SECRET;
-  if (!url || !key || !secret) {
-    // Check integration_settings in Supabase
-    try {
-      const supabase = createServiceClient();
-      const { data } = await supabase
-        .from("integration_settings")
-        .select("settings")
-        .eq("integration_type", "woocommerce")
-        .single();
-      if (!data?.settings?.url) {
-        return { name: "WooCommerce", type: "integration", status: "unconfigured", responseTime: null, details: "Not configured" };
-      }
-      // Use DB settings
-      const start = Date.now();
-      const auth = Buffer.from(`${data.settings.consumer_key}:${data.settings.consumer_secret}`).toString("base64");
-      const res = await fetch(`${data.settings.url}/wp-json/wc/v3/products?per_page=1`, {
-        headers: { Authorization: `Basic ${auth}` },
-        signal: AbortSignal.timeout(10000),
-      });
-      const responseTime = Date.now() - start;
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return { name: "WooCommerce", type: "integration", status: "operational", responseTime, url: data.settings.url };
-    } catch (e: unknown) {
-      return {
-        name: "WooCommerce",
-        type: "integration",
-        status: "down",
-        responseTime: null,
-        details: e instanceof Error ? e.message : "Connection failed",
-      };
+  // DB-first: check integration_settings before env vars
+  let wooUrl = "";
+  let wooKey = "";
+  let wooSecret = "";
+
+  try {
+    const supabase = createServiceClient();
+    const { data } = await supabase
+      .from("integration_settings")
+      .select("settings, is_enabled")
+      .eq("integration_type", "woocommerce")
+      .single();
+
+    if (data?.is_enabled && data.settings?.url && data.settings?.consumer_key && data.settings?.consumer_secret) {
+      wooUrl = data.settings.url;
+      wooKey = data.settings.consumer_key;
+      wooSecret = data.settings.consumer_secret;
     }
+  } catch {
+    // Fall through to env vars
+  }
+
+  // Fall back to env vars if DB didn't have credentials
+  if (!wooUrl) {
+    wooUrl = process.env.WOOCOMMERCE_URL || "";
+    wooKey = process.env.WOOCOMMERCE_CONSUMER_KEY || "";
+    wooSecret = process.env.WOOCOMMERCE_CONSUMER_SECRET || "";
+  }
+
+  if (!wooUrl || !wooKey || !wooSecret) {
+    return { name: "WooCommerce", type: "integration", status: "unconfigured", responseTime: null, details: "Not configured" };
   }
 
   const start = Date.now();
   try {
-    const auth = Buffer.from(`${key}:${secret}`).toString("base64");
-    const res = await fetch(`${url}/wp-json/wc/v3/products?per_page=1`, {
+    const auth = Buffer.from(`${wooKey}:${wooSecret}`).toString("base64");
+    const res = await fetch(`${wooUrl}/wp-json/wc/v3/products?per_page=1`, {
       headers: { Authorization: `Basic ${auth}` },
       signal: AbortSignal.timeout(10000),
     });
     const responseTime = Date.now() - start;
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return { name: "WooCommerce", type: "integration", status: "operational", responseTime, url };
+    return { name: "WooCommerce", type: "integration", status: "operational", responseTime, url: wooUrl };
   } catch (e: unknown) {
     return {
       name: "WooCommerce",
@@ -183,7 +180,7 @@ async function checkWooCommerce(): Promise<ServiceHealth> {
       status: "down",
       responseTime: Date.now() - start,
       details: e instanceof Error ? e.message : "Connection failed",
-      url,
+      url: wooUrl,
     };
   }
 }
