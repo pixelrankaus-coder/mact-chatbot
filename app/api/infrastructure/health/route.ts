@@ -147,7 +147,7 @@ async function checkWooCommerce(): Promise<ServiceHealth> {
       // Use DB settings
       const start = Date.now();
       const auth = Buffer.from(`${data.settings.consumer_key}:${data.settings.consumer_secret}`).toString("base64");
-      const res = await fetch(`${data.settings.url}/wp-json/wc/v3/system_status`, {
+      const res = await fetch(`${data.settings.url}/wp-json/wc/v3/products?per_page=1`, {
         headers: { Authorization: `Basic ${auth}` },
         signal: AbortSignal.timeout(10000),
       });
@@ -168,7 +168,7 @@ async function checkWooCommerce(): Promise<ServiceHealth> {
   const start = Date.now();
   try {
     const auth = Buffer.from(`${key}:${secret}`).toString("base64");
-    const res = await fetch(`${url}/wp-json/wc/v3/system_status`, {
+    const res = await fetch(`${url}/wp-json/wc/v3/products?per_page=1`, {
       headers: { Authorization: `Basic ${auth}` },
       signal: AbortSignal.timeout(10000),
     });
