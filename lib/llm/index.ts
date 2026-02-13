@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
+import { createServiceClient } from "@/lib/supabase";
 import {
   getSkillsAsFunctions,
   executeSkill,
@@ -95,6 +96,53 @@ export const PROVIDERS = {
   },
 };
 
+// --- API Key Resolution (DB-first, env-fallback) ---
+
+let apiKeyCache: { keys: Record<string, string>; fetchedAt: number } | null = null;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+export async function getApiKey(provider: LLMProvider): Promise<string> {
+  // Check cache
+  if (apiKeyCache && Date.now() - apiKeyCache.fetchedAt < CACHE_TTL) {
+    const cached = apiKeyCache.keys[provider];
+    if (cached) return cached;
+  }
+
+  // Try DB
+  try {
+    const supabase = createServiceClient();
+    const { data } = await supabase
+      .from("integration_settings")
+      .select("settings")
+      .eq("integration_type", "ai_providers")
+      .single();
+
+    if (data?.settings) {
+      const settings = data.settings as Record<string, string>;
+      apiKeyCache = {
+        keys: {
+          openai: settings.openai_api_key || "",
+          anthropic: settings.anthropic_api_key || "",
+          deepseek: settings.deepseek_api_key || "",
+        },
+        fetchedAt: Date.now(),
+      };
+      const dbKey = apiKeyCache.keys[provider];
+      if (dbKey) return dbKey;
+    }
+  } catch {
+    // Fall through to env vars
+  }
+
+  // Fallback to env vars
+  const envMap: Record<LLMProvider, string> = {
+    openai: process.env.OPENAI_API_KEY || "",
+    anthropic: process.env.ANTHROPIC_API_KEY || "",
+    deepseek: process.env.DEEPSEEK_API_KEY || "",
+  };
+  return envMap[provider];
+}
+
 function calculateCost(
   provider: LLMProvider,
   model: string,
@@ -136,7 +184,7 @@ async function chatOpenAI(
   systemPrompt: string,
   messages: LLMMessage[]
 ): Promise<LLMResponse> {
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const openai = new OpenAI({ apiKey: await getApiKey("openai") });
 
   // Get enabled skills as tools if skills are enabled
   let tools: OpenAI.Chat.Completions.ChatCompletionTool[] | undefined;
@@ -275,7 +323,7 @@ async function chatAnthropic(
   systemPrompt: string,
   messages: LLMMessage[]
 ): Promise<LLMResponse> {
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const anthropic = new Anthropic({ apiKey: await getApiKey("anthropic") });
 
   // Filter out system messages for Anthropic (system is separate)
   const chatMessages = messages.filter((m) => m.role !== "system");
@@ -317,7 +365,7 @@ async function chatDeepSeek(
 ): Promise<LLMResponse> {
   // DeepSeek uses OpenAI-compatible API
   const openai = new OpenAI({
-    apiKey: process.env.DEEPSEEK_API_KEY,
+    apiKey: await getApiKey("deepseek"),
     baseURL: "https://api.deepseek.com/v1",
   });
 

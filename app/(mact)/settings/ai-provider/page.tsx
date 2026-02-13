@@ -17,7 +17,8 @@ import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2, Cpu, Sparkles, Zap, DollarSign } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { ArrowLeft, Loader2, Cpu, Sparkles, Zap, DollarSign, Key, Eye, EyeOff, Play, CheckCircle, XCircle } from "lucide-react";
 import { PROVIDERS, PRICING, type LLMProvider } from "@/lib/llm";
 
 interface LLMSettings {
@@ -37,8 +38,24 @@ export default function AIProviderPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // API Keys state
+  const [keys, setKeys] = useState({
+    openai_api_key: "",
+    anthropic_api_key: "",
+    deepseek_api_key: "",
+  });
+  const [keyStatus, setKeyStatus] = useState({
+    has_openai: false, has_anthropic: false, has_deepseek: false,
+    env_openai: false, env_anthropic: false, env_deepseek: false,
+  });
+  const [showKey, setShowKey] = useState({ openai: false, anthropic: false, deepseek: false });
+  const [keySaving, setKeySaving] = useState(false);
+  const [testingProvider, setTestingProvider] = useState<string | null>(null);
+  const [testResults, setTestResults] = useState<Record<string, { success: boolean; message: string } | null>>({});
+
   useEffect(() => {
     loadSettings();
+    loadApiKeys();
   }, []);
 
   const loadSettings = async () => {
@@ -94,6 +111,86 @@ export default function AIProviderPage() {
       toast.error("Failed to save settings");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const loadApiKeys = async () => {
+    try {
+      const res = await fetch("/api/settings/ai-keys");
+      if (res.ok) {
+        const data = await res.json();
+        setKeys({
+          openai_api_key: data.openai_api_key,
+          anthropic_api_key: data.anthropic_api_key,
+          deepseek_api_key: data.deepseek_api_key,
+        });
+        setKeyStatus({
+          has_openai: data.has_openai,
+          has_anthropic: data.has_anthropic,
+          has_deepseek: data.has_deepseek,
+          env_openai: data.env_openai,
+          env_anthropic: data.env_anthropic,
+          env_deepseek: data.env_deepseek,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to load API keys:", error);
+    }
+  };
+
+  const saveApiKeys = async () => {
+    setKeySaving(true);
+    try {
+      const res = await fetch("/api/settings/ai-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "save", ...keys }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setKeys({
+          openai_api_key: data.openai_api_key,
+          anthropic_api_key: data.anthropic_api_key,
+          deepseek_api_key: data.deepseek_api_key,
+        });
+        setKeyStatus((prev) => ({
+          ...prev,
+          has_openai: data.has_openai,
+          has_anthropic: data.has_anthropic,
+          has_deepseek: data.has_deepseek,
+        }));
+        toast.success("API keys saved!");
+      } else {
+        toast.error(data.error || "Failed to save keys");
+      }
+    } catch {
+      toast.error("Failed to save API keys");
+    } finally {
+      setKeySaving(false);
+    }
+  };
+
+  const testConnection = async (provider: string) => {
+    setTestingProvider(provider);
+    setTestResults((prev) => ({ ...prev, [provider]: null }));
+    try {
+      const res = await fetch("/api/settings/ai-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "test", provider }),
+      });
+      const data = await res.json();
+      setTestResults((prev) => ({ ...prev, [provider]: data }));
+      if (data.success) {
+        toast.success(`${provider} connection successful!`);
+      } else {
+        toast.error(data.message || `${provider} connection failed`);
+      }
+    } catch {
+      setTestResults((prev) => ({ ...prev, [provider]: { success: false, message: "Request failed" } }));
+      toast.error("Connection test failed");
+    } finally {
+      setTestingProvider(null);
     }
   };
 
@@ -318,6 +415,113 @@ export default function AIProviderPage() {
                     <span>Long (4000)</span>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* API Keys */}
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Key className="h-5 w-5 text-red-600" />
+                  API Keys
+                </CardTitle>
+                <CardDescription>
+                  Manage your AI provider API keys. Keys stored here override environment variables.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {(
+                  [
+                    { key: "openai", label: "OpenAI API Key", field: "openai_api_key", placeholder: "sk-...", has: keyStatus.has_openai, env: keyStatus.env_openai },
+                    { key: "anthropic", label: "Anthropic API Key", field: "anthropic_api_key", placeholder: "sk-ant-...", has: keyStatus.has_anthropic, env: keyStatus.env_anthropic },
+                    { key: "deepseek", label: "DeepSeek API Key", field: "deepseek_api_key", placeholder: "sk-...", has: keyStatus.has_deepseek, env: keyStatus.env_deepseek },
+                  ] as const
+                ).map((provider) => (
+                  <div key={provider.key} className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor={`${provider.key}-key`}>{provider.label}</Label>
+                      <div className="flex items-center gap-1.5">
+                        {testResults[provider.key]?.success === true && (
+                          <CheckCircle className="h-3.5 w-3.5 text-green-500" />
+                        )}
+                        {testResults[provider.key]?.success === false && (
+                          <XCircle className="h-3.5 w-3.5 text-red-500" />
+                        )}
+                        {provider.has && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-green-600 border-green-200">DB</Badge>
+                        )}
+                        {provider.env && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-slate-500 border-slate-200">ENV</Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <Input
+                          id={`${provider.key}-key`}
+                          type={showKey[provider.key as keyof typeof showKey] ? "text" : "password"}
+                          placeholder={provider.placeholder}
+                          value={keys[provider.field]}
+                          onChange={(e) => setKeys({ ...keys, [provider.field]: e.target.value })}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-full px-3"
+                          onClick={() =>
+                            setShowKey((prev) => ({
+                              ...prev,
+                              [provider.key]: !prev[provider.key as keyof typeof prev],
+                            }))
+                          }
+                        >
+                          {showKey[provider.key as keyof typeof showKey] ? (
+                            <EyeOff className="h-4 w-4 text-slate-400" />
+                          ) : (
+                            <Eye className="h-4 w-4 text-slate-400" />
+                          )}
+                        </Button>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => testConnection(provider.key)}
+                        disabled={testingProvider === provider.key}
+                        title="Test connection"
+                      >
+                        {testingProvider === provider.key ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Play className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+
+                <Button
+                  onClick={saveApiKeys}
+                  disabled={keySaving}
+                  variant="outline"
+                  className="w-full"
+                >
+                  {keySaving ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving Keys...
+                    </>
+                  ) : (
+                    <>
+                      <Key className="mr-2 h-4 w-4" />
+                      Save API Keys
+                    </>
+                  )}
+                </Button>
+
+                <p className="text-xs text-slate-400">
+                  Keys are stored securely in the database. Environment variables are used as fallback when no database key is set.
+                </p>
               </CardContent>
             </Card>
 

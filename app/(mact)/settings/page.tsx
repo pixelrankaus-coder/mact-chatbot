@@ -18,6 +18,7 @@ import {
   ChevronRight,
   Settings,
   Server,
+  DollarSign,
 } from "lucide-react";
 import { ADMIN_VERSION, WIDGET_VERSION } from "@/lib/version";
 
@@ -86,6 +87,14 @@ const settingsSections: SettingsSection[] = [
         href: "/settings/ai-provider",
         icon: <Cpu className="h-5 w-5" />,
         iconBg: "bg-amber-100 text-amber-600",
+      },
+      {
+        id: "ai-billing",
+        label: "AI Billing",
+        description: "Monitor AI spending and token usage",
+        href: "/settings/ai-billing",
+        icon: <DollarSign className="h-5 w-5" />,
+        iconBg: "bg-green-100 text-green-600",
       },
     ],
   },

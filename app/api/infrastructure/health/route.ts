@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase";
+import { getApiKey } from "@/lib/llm";
 
 interface ServiceHealth {
   name: string;
@@ -37,7 +38,7 @@ async function checkSupabase(): Promise<ServiceHealth> {
 }
 
 async function checkOpenAI(): Promise<ServiceHealth> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = await getApiKey("openai");
   if (!apiKey) {
     return { name: "OpenAI", type: "ai", status: "unconfigured", responseTime: null, details: "API key not set" };
   }
@@ -63,7 +64,7 @@ async function checkOpenAI(): Promise<ServiceHealth> {
 }
 
 async function checkAnthropic(): Promise<ServiceHealth> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = await getApiKey("anthropic");
   if (!apiKey) {
     return { name: "Anthropic", type: "ai", status: "unconfigured", responseTime: null, details: "API key not set" };
   }
@@ -103,7 +104,7 @@ async function checkAnthropic(): Promise<ServiceHealth> {
 }
 
 async function checkDeepSeek(): Promise<ServiceHealth> {
-  const apiKey = process.env.DEEPSEEK_API_KEY;
+  const apiKey = await getApiKey("deepseek");
   if (!apiKey) {
     return { name: "DeepSeek", type: "ai", status: "unconfigured", responseTime: null, details: "API key not set" };
   }
