@@ -1,12 +1,74 @@
 import WooCommerceRestApi from "@woocommerce/woocommerce-rest-api";
+import { createServiceClient } from "@/lib/supabase";
 
-// WooCommerce API client
-const api = new WooCommerceRestApi({
-  url: process.env.WOOCOMMERCE_URL || "https://mact.au",
-  consumerKey: process.env.WOOCOMMERCE_CONSUMER_KEY || "",
-  consumerSecret: process.env.WOOCOMMERCE_CONSUMER_SECRET || "",
-  version: "wc/v3",
-});
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type SupabaseAny = any;
+
+// Cached WooCommerce credentials from DB
+let cachedCredentials: { url: string; key: string; secret: string } | null = null;
+let credentialsCacheTime = 0;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Get WooCommerce credentials - DB first, then env vars
+ */
+async function getWooCredentials(): Promise<{ url: string; key: string; secret: string }> {
+  // Return cached if fresh
+  if (cachedCredentials && Date.now() - credentialsCacheTime < CACHE_TTL) {
+    return cachedCredentials;
+  }
+
+  try {
+    const supabase = createServiceClient() as SupabaseAny;
+    const { data } = await supabase
+      .from("integration_settings")
+      .select("settings, is_enabled")
+      .eq("integration_type", "woocommerce")
+      .single();
+
+    if (data?.is_enabled && data.settings?.url && data.settings?.consumer_key && data.settings?.consumer_secret) {
+      cachedCredentials = {
+        url: data.settings.url,
+        key: data.settings.consumer_key,
+        secret: data.settings.consumer_secret,
+      };
+      credentialsCacheTime = Date.now();
+      return cachedCredentials;
+    }
+  } catch {
+    // DB not available, fall back to env vars
+  }
+
+  // Fallback to environment variables
+  cachedCredentials = {
+    url: process.env.WOOCOMMERCE_URL || "https://mact.au",
+    key: process.env.WOOCOMMERCE_CONSUMER_KEY || "",
+    secret: process.env.WOOCOMMERCE_CONSUMER_SECRET || "",
+  };
+  credentialsCacheTime = Date.now();
+  return cachedCredentials;
+}
+
+/**
+ * Get a WooCommerce API client with current credentials (DB-first)
+ */
+async function getWooClient(): Promise<WooCommerceRestApi> {
+  const creds = await getWooCredentials();
+  return new WooCommerceRestApi({
+    url: creds.url,
+    consumerKey: creds.key,
+    consumerSecret: creds.secret,
+    version: "wc/v3",
+  });
+}
+
+/**
+ * Check if WooCommerce credentials are available
+ */
+async function hasWooCredentials(): Promise<boolean> {
+  const creds = await getWooCredentials();
+  return !!(creds.url && creds.key && creds.secret);
+}
 
 // Order status mappings for customer-friendly display
 const statusLabels: Record<string, string> = {
@@ -141,8 +203,7 @@ function transformOrder(rawOrder: Record<string, unknown>): WooOrder {
 export async function lookupOrderByNumber(
   orderNumber: string
 ): Promise<OrderLookupResult> {
-  // Check if WooCommerce is configured
-  if (!process.env.WOOCOMMERCE_CONSUMER_KEY || !process.env.WOOCOMMERCE_CONSUMER_SECRET) {
+  if (!(await hasWooCredentials())) {
     return {
       success: false,
       error: "WooCommerce integration not configured",
@@ -150,6 +211,7 @@ export async function lookupOrderByNumber(
   }
 
   try {
+    const api = await getWooClient();
     // First, try to get by ID directly
     const cleanNumber = orderNumber.replace(/[^0-9]/g, "");
 
@@ -213,8 +275,7 @@ export async function lookupOrderByNumber(
 export async function lookupOrdersByEmail(
   email: string
 ): Promise<OrderLookupResult> {
-  // Check if WooCommerce is configured
-  if (!process.env.WOOCOMMERCE_CONSUMER_KEY || !process.env.WOOCOMMERCE_CONSUMER_SECRET) {
+  if (!(await hasWooCredentials())) {
     return {
       success: false,
       error: "WooCommerce integration not configured",
@@ -231,6 +292,7 @@ export async function lookupOrdersByEmail(
       };
     }
 
+    const api = await getWooClient();
     const response = await api.get("orders", {
       search: email,
       per_page: 10,
@@ -423,11 +485,12 @@ export async function getWooCustomers(params: {
   page?: number;
   per_page?: number;
 }): Promise<{ customers: WooCustomer[]; total: number }> {
-  if (!process.env.WOOCOMMERCE_CONSUMER_KEY || !process.env.WOOCOMMERCE_CONSUMER_SECRET) {
+  if (!(await hasWooCredentials())) {
     return { customers: [], total: 0 };
   }
 
   try {
+    const api = await getWooClient();
     const response = await api.get("customers", {
       search: params.search || "",
       page: params.page || 1,
@@ -450,11 +513,12 @@ export async function getWooCustomers(params: {
  * Get a single WooCommerce customer by ID
  */
 export async function getWooCustomer(id: number): Promise<WooCustomer | null> {
-  if (!process.env.WOOCOMMERCE_CONSUMER_KEY || !process.env.WOOCOMMERCE_CONSUMER_SECRET) {
+  if (!(await hasWooCredentials())) {
     return null;
   }
 
   try {
+    const api = await getWooClient();
     const response = await api.get(`customers/${id}`);
     return response.data;
   } catch (error) {
@@ -467,11 +531,12 @@ export async function getWooCustomer(id: number): Promise<WooCustomer | null> {
  * Get orders for a specific WooCommerce customer
  */
 export async function getWooCustomerOrders(customerId: number): Promise<WooOrder[]> {
-  if (!process.env.WOOCOMMERCE_CONSUMER_KEY || !process.env.WOOCOMMERCE_CONSUMER_SECRET) {
+  if (!(await hasWooCredentials())) {
     return [];
   }
 
   try {
+    const api = await getWooClient();
     const response = await api.get("orders", {
       customer: customerId,
       per_page: 10,
@@ -496,11 +561,12 @@ export async function listWooOrders(params: {
   after?: string; // ISO date
   before?: string; // ISO date
 }): Promise<{ orders: WooOrder[]; total: number }> {
-  if (!process.env.WOOCOMMERCE_CONSUMER_KEY || !process.env.WOOCOMMERCE_CONSUMER_SECRET) {
+  if (!(await hasWooCredentials())) {
     return { orders: [], total: 0 };
   }
 
   try {
+    const api = await getWooClient();
     const queryParams: Record<string, string | number> = {
       page: params.page || 1,
       per_page: params.per_page || 25,
@@ -529,11 +595,12 @@ export async function listWooOrders(params: {
  * Get a single WooCommerce order by ID
  */
 export async function getWooOrder(orderId: number): Promise<WooOrder | null> {
-  if (!process.env.WOOCOMMERCE_CONSUMER_KEY || !process.env.WOOCOMMERCE_CONSUMER_SECRET) {
+  if (!(await hasWooCredentials())) {
     return null;
   }
 
   try {
+    const api = await getWooClient();
     const response = await api.get(`orders/${orderId}`);
     return transformOrder(response.data);
   } catch (error) {
@@ -580,11 +647,12 @@ export async function getWooProducts(params: {
   orderby?: string;
   order?: "asc" | "desc";
 }): Promise<{ products: WooProduct[]; total: number; totalPages: number }> {
-  if (!process.env.WOOCOMMERCE_CONSUMER_KEY || !process.env.WOOCOMMERCE_CONSUMER_SECRET) {
+  if (!(await hasWooCredentials())) {
     return { products: [], total: 0, totalPages: 0 };
   }
 
   try {
+    const api = await getWooClient();
     const queryParams: Record<string, string | number> = {
       page: params.page || 1,
       per_page: params.per_page || 100,
@@ -614,11 +682,12 @@ export async function getWooProducts(params: {
  * Get a single WooCommerce product by ID
  */
 export async function getWooProduct(productId: number): Promise<WooProduct | null> {
-  if (!process.env.WOOCOMMERCE_CONSUMER_KEY || !process.env.WOOCOMMERCE_CONSUMER_SECRET) {
+  if (!(await hasWooCredentials())) {
     return null;
   }
 
   try {
+    const api = await getWooClient();
     const response = await api.get(`products/${productId}`);
     return response.data;
   } catch (error) {
@@ -631,7 +700,7 @@ export async function getWooProduct(productId: number): Promise<WooProduct | nul
  * Get all WooCommerce products (handles pagination automatically)
  */
 export async function getAllWooProducts(): Promise<WooProduct[]> {
-  if (!process.env.WOOCOMMERCE_CONSUMER_KEY || !process.env.WOOCOMMERCE_CONSUMER_SECRET) {
+  if (!(await hasWooCredentials())) {
     return [];
   }
 
@@ -640,6 +709,7 @@ export async function getAllWooProducts(): Promise<WooProduct[]> {
   const perPage = 100;
 
   try {
+    const api = await getWooClient();
     while (true) {
       const response = await api.get("products", {
         page,
@@ -668,11 +738,12 @@ export async function getAllWooProducts(): Promise<WooProduct[]> {
  * Get WooCommerce product categories
  */
 export async function getWooProductCategories(): Promise<Array<{ id: number; name: string; slug: string; count: number }>> {
-  if (!process.env.WOOCOMMERCE_CONSUMER_KEY || !process.env.WOOCOMMERCE_CONSUMER_SECRET) {
+  if (!(await hasWooCredentials())) {
     return [];
   }
 
   try {
+    const api = await getWooClient();
     const response = await api.get("products/categories", {
       per_page: 100,
       orderby: "name",

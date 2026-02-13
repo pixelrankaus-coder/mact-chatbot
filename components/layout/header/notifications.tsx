@@ -1,5 +1,9 @@
-import { BellIcon, ClockIcon } from "lucide-react";
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
+import { BellIcon, ClockIcon, AlertTriangleIcon, CheckCircleIcon, ServerCrashIcon } from "lucide-react";
 import Link from "next/link";
+import { formatDistanceToNow } from "date-fns";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 import {
@@ -10,75 +14,192 @@ import {
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
-import { notifications, type Notification } from "./data";
+interface ServiceAlert {
+  id: string;
+  service_name: string;
+  previous_status: string | null;
+  current_status: string;
+  details: string | null;
+  created_at: string;
+  notified?: boolean;
+}
+
+const POLL_INTERVAL = 60_000; // Check every 60 seconds
+const HEALTH_CHECK_INTERVAL = 5 * 60_000; // Run health check every 5 minutes
 
 const Notifications = () => {
   const isMobile = useIsMobile();
+  const [alerts, setAlerts] = useState<ServiceAlert[]>([]);
+  const [hasUnread, setHasUnread] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const [lastHealthCheck, setLastHealthCheck] = useState(0);
+
+  // Fetch alerts from API
+  const fetchAlerts = useCallback(async () => {
+    try {
+      const res = await fetch("/api/infrastructure/alerts?limit=20");
+      if (res.ok) {
+        const data = await res.json();
+        setAlerts(data.alerts || []);
+        const unread = (data.alerts || []).some(
+          (a: ServiceAlert) => !a.notified && (a.current_status === "down" || a.current_status === "degraded")
+        );
+        setHasUnread(unread);
+      }
+    } catch {
+      // Silently fail - don't spam console on network issues
+    }
+  }, []);
+
+  // Run health check and detect changes
+  const runHealthCheck = useCallback(async () => {
+    try {
+      await fetch("/api/infrastructure/alerts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "check" }),
+      });
+      setLastHealthCheck(Date.now());
+      // Fetch updated alerts after check
+      await fetchAlerts();
+    } catch {
+      // Silently fail
+    }
+  }, [fetchAlerts]);
+
+  // Mark alerts as read when dropdown is opened
+  const handleOpenChange = useCallback(async (open: boolean) => {
+    setIsOpen(open);
+    if (open && hasUnread) {
+      setHasUnread(false);
+      try {
+        await fetch("/api/infrastructure/alerts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "mark_read", before: new Date().toISOString() }),
+        });
+      } catch {
+        // Silently fail
+      }
+    }
+  }, [hasUnread]);
+
+  // Initial load + polling
+  useEffect(() => {
+    // Run initial health check
+    runHealthCheck();
+
+    // Poll for new alerts
+    const alertInterval = setInterval(fetchAlerts, POLL_INTERVAL);
+
+    // Periodic health checks
+    const healthInterval = setInterval(() => {
+      if (Date.now() - lastHealthCheck > HEALTH_CHECK_INTERVAL) {
+        runHealthCheck();
+      }
+    }, HEALTH_CHECK_INTERVAL);
+
+    return () => {
+      clearInterval(alertInterval);
+      clearInterval(healthInterval);
+    };
+  }, [fetchAlerts, runHealthCheck, lastHealthCheck]);
+
+  const getAlertIcon = (status: string) => {
+    if (status === "down") return <ServerCrashIcon className="size-4 text-red-500" />;
+    if (status === "degraded") return <AlertTriangleIcon className="size-4 text-amber-500" />;
+    return <CheckCircleIcon className="size-4 text-emerald-500" />;
+  };
+
+  const getAlertLabel = (alert: ServiceAlert) => {
+    if (alert.current_status === "operational") {
+      return `${alert.service_name} is back online`;
+    }
+    if (alert.current_status === "down") {
+      return `${alert.service_name} is down`;
+    }
+    if (alert.current_status === "degraded") {
+      return `${alert.service_name} is degraded`;
+    }
+    return `${alert.service_name} status changed`;
+  };
+
+  const getAlertDescription = (alert: ServiceAlert) => {
+    if (alert.current_status === "operational" && alert.previous_status) {
+      return `Recovered from ${alert.previous_status} state`;
+    }
+    return alert.details || `Changed from ${alert.previous_status || "unknown"} to ${alert.current_status}`;
+  };
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={isOpen} onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger asChild>
         <Button size="icon-sm" variant="ghost" className="relative">
-          <BellIcon />
-          <span className="bg-destructive absolute end-0.5 top-0.5 block size-1.5 shrink-0 rounded-full"></span>
+          <BellIcon className={cn(
+            hasUnread && "text-red-500"
+          )} />
+          {hasUnread && (
+            <span className="absolute end-0.5 top-0.5 block size-2 shrink-0 rounded-full bg-red-500 animate-pulse" />
+          )}
         </Button>
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align={isMobile ? "center" : "end"} className="ms-4 w-80 p-0">
         <DropdownMenuLabel className="bg-background dark:bg-muted sticky top-0 z-10 p-0">
           <div className="flex justify-between border-b px-6 py-4">
-            <div className="font-medium">Notifications</div>
+            <div className="font-medium">Service Alerts</div>
             <Button variant="link" className="h-auto p-0 text-xs" size="icon-sm" asChild>
-              <Link href="/dashboard/pages/notifications">View all</Link>
+              <Link href="/settings/infrastructure">View all</Link>
             </Button>
           </div>
         </DropdownMenuLabel>
 
         <ScrollArea className="h-[350px]">
-          {notifications.map((item: Notification, key) => (
-            <DropdownMenuItem
-              key={key}
-              className="group flex cursor-pointer items-start gap-9 rounded-none border-b px-4 py-3">
-              <div className="flex flex-1 items-start gap-2">
-                <div className="flex-none">
-                  <Avatar className="size-8">
-                    <AvatarImage src={`/images/avatars/${item.avatar}`} />
-                    <AvatarFallback> {item.title.charAt(0)}</AvatarFallback>
-                  </Avatar>
-                </div>
-                <div className="flex flex-1 flex-col gap-1">
-                  <div className="dark:group-hover:text-default-800 truncate text-sm font-medium">
-                    {item.title}
+          {alerts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-2 px-4 py-12 text-center">
+              <CheckCircleIcon className="size-8 text-emerald-500" />
+              <p className="text-sm font-medium">All systems operational</p>
+              <p className="text-muted-foreground text-xs">No recent service alerts</p>
+            </div>
+          ) : (
+            alerts.map((alert) => (
+              <DropdownMenuItem
+                key={alert.id}
+                className="group flex cursor-pointer items-start gap-3 rounded-none border-b px-4 py-3"
+                asChild>
+                <Link href="/settings/infrastructure">
+                  <div className="flex-none pt-0.5">
+                    {getAlertIcon(alert.current_status)}
                   </div>
-                  <div className="dark:group-hover:text-default-700 text-muted-foreground line-clamp-1 text-xs">
-                    {item.desc}
+                  <div className="flex flex-1 flex-col gap-1">
+                    <div className={cn(
+                      "text-sm font-medium",
+                      alert.current_status === "down" && "text-red-600 dark:text-red-400",
+                      alert.current_status === "degraded" && "text-amber-600 dark:text-amber-400",
+                      alert.current_status === "operational" && "text-emerald-600 dark:text-emerald-400"
+                    )}>
+                      {getAlertLabel(alert)}
+                    </div>
+                    <div className="text-muted-foreground line-clamp-1 text-xs">
+                      {getAlertDescription(alert)}
+                    </div>
+                    <div className="text-muted-foreground flex items-center gap-1 text-xs">
+                      <ClockIcon className="size-3!" />
+                      {formatDistanceToNow(new Date(alert.created_at), { addSuffix: true })}
+                    </div>
                   </div>
-                  {item.type === "confirm" && (
-                    <div className="flex items-center gap-2">
-                      <Button size="sm" variant="outline">
-                        Accept
-                      </Button>
-                      <Button size="sm" variant="destructive">
-                        Decline
-                      </Button>
+                  {!alert.notified && (alert.current_status === "down" || alert.current_status === "degraded") && (
+                    <div className="flex-0">
+                      <span className="block size-2 rounded-full border bg-red-500/80" />
                     </div>
                   )}
-                  <div className="dark:group-hover:text-default-500 text-muted-foreground flex items-center gap-1 text-xs">
-                    <ClockIcon className="size-3!" />
-                    {item.date}
-                  </div>
-                </div>
-              </div>
-              {item.unread_message && (
-                <div className="flex-0">
-                  <span className="bg-destructive/80 block size-2 rounded-full border" />
-                </div>
-              )}
-            </DropdownMenuItem>
-          ))}
+                </Link>
+              </DropdownMenuItem>
+            ))
+          )}
         </ScrollArea>
       </DropdownMenuContent>
     </DropdownMenu>

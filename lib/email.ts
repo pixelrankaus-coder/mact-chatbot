@@ -123,6 +123,209 @@ export async function sendNewConversationEmail(
   }
 }
 
+// ============ SERVICE ALERTS ============
+
+interface ServiceAlertEmailData {
+  serviceName: string;
+  status: string;
+  details?: string;
+  timestamp: string;
+}
+
+export async function sendServiceAlertEmail(
+  data: ServiceAlertEmailData
+): Promise<boolean> {
+  const emails = getNotificationEmails();
+  if (!resend || emails.length === 0) {
+    console.log("Email notifications not configured, skipping service alert email");
+    return false;
+  }
+
+  const { serviceName, status, details, timestamp } = data;
+  const dashboardUrl = `${getAppUrl()}/settings/infrastructure`;
+  const time = new Date(timestamp).toLocaleString("en-AU", {
+    timeZone: "Australia/Sydney",
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+
+  const statusColor = status === "down" ? "#dc2626" : "#f59e0b";
+  const statusLabel = status === "down" ? "Down" : "Degraded";
+  const emoji = status === "down" ? "🔴" : "🟡";
+
+  try {
+    await resend.emails.send({
+      from: getFromEmail(),
+      to: emails,
+      subject: `🚨 MACt Service Alert - ${serviceName} ${statusLabel}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
+          <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+              <div style="background: ${statusColor}; color: white; padding: 24px; text-align: center;">
+                <h1 style="margin: 0; font-size: 24px; font-weight: 600;">${emoji} Service Alert</h1>
+              </div>
+              <div style="padding: 24px;">
+                <p style="margin: 0 0 20px 0; color: #374151; font-size: 15px; line-height: 1.6;">
+                  A critical service in the MACt platform has gone ${statusLabel.toLowerCase()}.
+                </p>
+                <div style="background: #fef2f2; border: 1px solid #fecaca; padding: 16px; border-radius: 8px; margin-bottom: 20px;">
+                  <p style="margin: 0 0 8px 0; font-size: 14px;">
+                    <strong style="color: #991b1b;">Service:</strong>
+                    <span style="color: #1e293b;">${serviceName}</span>
+                  </p>
+                  <p style="margin: 0 0 8px 0; font-size: 14px;">
+                    <strong style="color: #991b1b;">Status:</strong>
+                    <span style="color: ${statusColor}; font-weight: 600;">${statusLabel}</span>
+                  </p>
+                  <p style="margin: 0 0 8px 0; font-size: 14px;">
+                    <strong style="color: #991b1b;">Time:</strong>
+                    <span style="color: #1e293b;">${time}</span>
+                  </p>
+                  ${details ? `
+                    <p style="margin: 0; font-size: 14px;">
+                      <strong style="color: #991b1b;">Details:</strong>
+                      <span style="color: #1e293b;">${details}</span>
+                    </p>
+                  ` : ""}
+                </div>
+                <div style="text-align: center;">
+                  <a href="${dashboardUrl}" style="display: inline-block; background: ${statusColor}; color: white; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 500; font-size: 15px;">
+                    View Infrastructure Dashboard →
+                  </a>
+                </div>
+              </div>
+              <div style="background: #f8fafc; padding: 16px; text-align: center; border-top: 1px solid #e2e8f0;">
+                <p style="margin: 0; color: #94a3b8; font-size: 12px;">
+                  Automated alert from MACt monitoring system
+                </p>
+              </div>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+    });
+
+    console.log(`Service alert email sent for ${serviceName} (${statusLabel})`);
+    return true;
+  } catch (error) {
+    console.error("Failed to send service alert email:", error);
+    return false;
+  }
+}
+
+interface ServiceRecoveryEmailData {
+  serviceName: string;
+  previousStatus: string;
+  timestamp: string;
+  downSince?: string;
+}
+
+export async function sendServiceRecoveryEmail(
+  data: ServiceRecoveryEmailData
+): Promise<boolean> {
+  const emails = getNotificationEmails();
+  if (!resend || emails.length === 0) {
+    console.log("Email notifications not configured, skipping recovery email");
+    return false;
+  }
+
+  const { serviceName, previousStatus, timestamp, downSince } = data;
+  const dashboardUrl = `${getAppUrl()}/settings/infrastructure`;
+  const time = new Date(timestamp).toLocaleString("en-AU", {
+    timeZone: "Australia/Sydney",
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+
+  let downtimeDuration = "";
+  if (downSince) {
+    const ms = new Date(timestamp).getTime() - new Date(downSince).getTime();
+    const minutes = Math.round(ms / 60000);
+    if (minutes < 60) {
+      downtimeDuration = `${minutes} minute${minutes !== 1 ? "s" : ""}`;
+    } else {
+      const hours = Math.floor(minutes / 60);
+      const mins = minutes % 60;
+      downtimeDuration = `${hours}h ${mins}m`;
+    }
+  }
+
+  try {
+    await resend.emails.send({
+      from: getFromEmail(),
+      to: emails,
+      subject: `✅ MACt Service Restored - ${serviceName} Back Online`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
+          <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+              <div style="background: #16a34a; color: white; padding: 24px; text-align: center;">
+                <h1 style="margin: 0; font-size: 24px; font-weight: 600;">✅ Service Restored</h1>
+              </div>
+              <div style="padding: 24px;">
+                <p style="margin: 0 0 20px 0; color: #374151; font-size: 15px; line-height: 1.6;">
+                  Great news! A previously ${previousStatus} service has been restored.
+                </p>
+                <div style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 16px; border-radius: 8px; margin-bottom: 20px;">
+                  <p style="margin: 0 0 8px 0; font-size: 14px;">
+                    <strong style="color: #166534;">Service:</strong>
+                    <span style="color: #1e293b;">${serviceName}</span>
+                  </p>
+                  <p style="margin: 0 0 8px 0; font-size: 14px;">
+                    <strong style="color: #166534;">Status:</strong>
+                    <span style="color: #16a34a; font-weight: 600;">Operational</span>
+                  </p>
+                  <p style="margin: 0 0 8px 0; font-size: 14px;">
+                    <strong style="color: #166534;">Recovered At:</strong>
+                    <span style="color: #1e293b;">${time}</span>
+                  </p>
+                  ${downtimeDuration ? `
+                    <p style="margin: 0; font-size: 14px;">
+                      <strong style="color: #166534;">Downtime:</strong>
+                      <span style="color: #1e293b;">${downtimeDuration}</span>
+                    </p>
+                  ` : ""}
+                </div>
+                <div style="text-align: center;">
+                  <a href="${dashboardUrl}" style="display: inline-block; background: #16a34a; color: white; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 500; font-size: 15px;">
+                    View Infrastructure Dashboard →
+                  </a>
+                </div>
+              </div>
+              <div style="background: #f8fafc; padding: 16px; text-align: center; border-top: 1px solid #e2e8f0;">
+                <p style="margin: 0; color: #94a3b8; font-size: 12px;">
+                  Automated alert from MACt monitoring system
+                </p>
+              </div>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+    });
+
+    console.log(`Service recovery email sent for ${serviceName}`);
+    return true;
+  } catch (error) {
+    console.error("Failed to send service recovery email:", error);
+    return false;
+  }
+}
+
 interface HandoffRequestEmailData {
   visitorName?: string;
   visitorEmail?: string;

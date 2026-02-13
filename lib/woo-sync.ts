@@ -49,27 +49,7 @@ export async function syncWooOrders(): Promise<SyncResult> {
   const supabase = createServiceClient() as SupabaseAny;
   const startTime = Date.now();
 
-  // Check WooCommerce credentials first
-  const hasWooCredentials = !!(
-    process.env.WOOCOMMERCE_URL &&
-    process.env.WOOCOMMERCE_CONSUMER_KEY &&
-    process.env.WOOCOMMERCE_CONSUMER_SECRET
-  );
-
   console.log("=== WOO ORDERS SYNC START ===");
-  console.log("WooCommerce URL:", process.env.WOOCOMMERCE_URL || "NOT SET");
-  console.log("WooCommerce Key exists:", !!process.env.WOOCOMMERCE_CONSUMER_KEY);
-  console.log("WooCommerce Secret exists:", !!process.env.WOOCOMMERCE_CONSUMER_SECRET);
-
-  if (!hasWooCredentials) {
-    console.log("WooCommerce credentials not configured - skipping sync");
-    return {
-      success: true,
-      recordsSynced: 0,
-      duration: Date.now() - startTime,
-      error: "WooCommerce not configured",
-    };
-  }
 
   // Log sync start
   const { data: logEntry } = await supabase
@@ -235,25 +215,7 @@ export async function syncWooCustomers(): Promise<SyncResult> {
   const supabase = createServiceClient() as SupabaseAny;
   const startTime = Date.now();
 
-  // Check WooCommerce credentials first
-  const hasWooCredentials = !!(
-    process.env.WOOCOMMERCE_URL &&
-    process.env.WOOCOMMERCE_CONSUMER_KEY &&
-    process.env.WOOCOMMERCE_CONSUMER_SECRET
-  );
-
   console.log("=== WOO CUSTOMERS SYNC START ===");
-  console.log("WooCommerce credentials configured:", hasWooCredentials);
-
-  if (!hasWooCredentials) {
-    console.log("WooCommerce credentials not configured - skipping sync");
-    return {
-      success: true,
-      recordsSynced: 0,
-      duration: Date.now() - startTime,
-      error: "WooCommerce not configured",
-    };
-  }
 
   // Log sync start
   const { data: logEntry } = await supabase
