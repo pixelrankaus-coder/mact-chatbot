@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { BellIcon, ClockIcon, AlertTriangleIcon, CheckCircleIcon, ServerCrashIcon } from "lucide-react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
@@ -35,38 +35,43 @@ const Notifications = () => {
   const [alerts, setAlerts] = useState<ServiceAlert[]>([]);
   const [hasUnread, setHasUnread] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
-  const [lastHealthCheck, setLastHealthCheck] = useState(0);
+  const consecutiveErrors = useRef(0);
 
   // Fetch alerts from API
   const fetchAlerts = useCallback(async () => {
     try {
       const res = await fetch("/api/infrastructure/alerts?limit=20");
       if (res.ok) {
+        consecutiveErrors.current = 0;
         const data = await res.json();
         setAlerts(data.alerts || []);
         const unread = (data.alerts || []).some(
           (a: ServiceAlert) => !a.notified && (a.current_status === "down" || a.current_status === "degraded")
         );
         setHasUnread(unread);
+      } else {
+        consecutiveErrors.current++;
       }
     } catch {
-      // Silently fail - don't spam console on network issues
+      consecutiveErrors.current++;
     }
   }, []);
 
   // Run health check and detect changes
   const runHealthCheck = useCallback(async () => {
+    // Stop retrying after 3 consecutive failures
+    if (consecutiveErrors.current > 3) return;
     try {
-      await fetch("/api/infrastructure/alerts", {
+      const res = await fetch("/api/infrastructure/alerts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "check" }),
       });
-      setLastHealthCheck(Date.now());
+      if (!res.ok) consecutiveErrors.current++;
       // Fetch updated alerts after check
       await fetchAlerts();
     } catch {
-      // Silently fail
+      consecutiveErrors.current++;
     }
   }, [fetchAlerts]);
 
@@ -96,17 +101,13 @@ const Notifications = () => {
     const alertInterval = setInterval(fetchAlerts, POLL_INTERVAL);
 
     // Periodic health checks
-    const healthInterval = setInterval(() => {
-      if (Date.now() - lastHealthCheck > HEALTH_CHECK_INTERVAL) {
-        runHealthCheck();
-      }
-    }, HEALTH_CHECK_INTERVAL);
+    const healthInterval = setInterval(runHealthCheck, HEALTH_CHECK_INTERVAL);
 
     return () => {
       clearInterval(alertInterval);
       clearInterval(healthInterval);
     };
-  }, [fetchAlerts, runHealthCheck, lastHealthCheck]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const getAlertIcon = (status: string) => {
     if (status === "down") return <ServerCrashIcon className="size-4 text-red-500" />;

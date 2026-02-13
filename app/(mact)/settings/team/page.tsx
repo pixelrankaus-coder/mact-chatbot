@@ -48,6 +48,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Switch } from "@/components/ui/switch";
 import {
   Users,
   Plus,
@@ -60,6 +61,7 @@ import {
   Loader2,
   RefreshCw,
   ArrowLeft,
+  Bell,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAgentOptional } from "@/contexts/AgentContext";
@@ -74,6 +76,20 @@ interface Agent {
   last_seen_at?: string;
   created_at: string;
 }
+
+interface AlertPreferences {
+  service_alerts: boolean;
+  new_conversations: boolean;
+  handoff_requests: boolean;
+}
+
+type EmailAlertPreferences = Record<string, AlertPreferences>;
+
+const defaultPrefs: AlertPreferences = {
+  service_alerts: false,
+  new_conversations: false,
+  handoff_requests: false,
+};
 
 const roleIcons = {
   owner: ShieldCheck,
@@ -111,8 +127,13 @@ export default function TeamPage() {
     newPassword: "",
   });
 
+  const [alertPrefs, setAlertPrefs] = useState<EmailAlertPreferences>({});
+  const [alertPrefsLoading, setAlertPrefsLoading] = useState(true);
+  const [savingAlerts, setSavingAlerts] = useState(false);
+
   useEffect(() => {
     loadAgents();
+    loadAlertPrefs();
   }, []);
 
   const loadAgents = async () => {
@@ -129,6 +150,47 @@ export default function TeamPage() {
       toast.error("Failed to load team members");
     }
     setLoading(false);
+  };
+
+  const loadAlertPrefs = async () => {
+    setAlertPrefsLoading(true);
+    try {
+      const res = await fetch("/api/settings/email-alerts");
+      if (res.ok) {
+        const data = await res.json();
+        setAlertPrefs(data.preferences || {});
+      }
+    } catch (error) {
+      console.error("Failed to load alert preferences:", error);
+    }
+    setAlertPrefsLoading(false);
+  };
+
+  const saveAlertPrefs = async () => {
+    setSavingAlerts(true);
+    try {
+      const res = await fetch("/api/settings/email-alerts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ preferences: alertPrefs }),
+      });
+      if (!res.ok) throw new Error("Failed to save");
+      toast.success("Email alert preferences saved!");
+    } catch (error) {
+      console.error("Failed to save alert preferences:", error);
+      toast.error("Failed to save email alert preferences");
+    }
+    setSavingAlerts(false);
+  };
+
+  const toggleAlertPref = (agentId: string, type: keyof AlertPreferences) => {
+    setAlertPrefs((prev) => {
+      const current = prev[agentId] || { ...defaultPrefs };
+      return {
+        ...prev,
+        [agentId]: { ...current, [type]: !current[type] },
+      };
+    });
   };
 
   const canManageAgents = !currentAgent || currentAgent?.role === "owner" || currentAgent?.role === "admin";
@@ -607,6 +669,112 @@ export default function TeamPage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Email Alerts */}
+            {canManageAgents && (
+              <Card className="border-0 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Bell className="h-5 w-5 text-amber-600" />
+                    Email Alerts
+                  </CardTitle>
+                  <CardDescription>
+                    Choose which team members receive email notifications for each alert type
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {alertPrefsLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+                    </div>
+                  ) : agents.length === 0 ? (
+                    <p className="py-4 text-center text-sm text-slate-500">
+                      Add team members first to configure email alerts.
+                    </p>
+                  ) : (
+                    <>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Team Member</TableHead>
+                            <TableHead className="text-center">Service Alerts</TableHead>
+                            <TableHead className="text-center">New Conversations</TableHead>
+                            <TableHead className="text-center">Handoff Requests</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {agents.map((agent) => {
+                            const prefs = alertPrefs[agent.id] || defaultPrefs;
+                            return (
+                              <TableRow key={agent.id}>
+                                <TableCell>
+                                  <div className="flex items-center gap-3">
+                                    <Avatar className="h-8 w-8">
+                                      <AvatarFallback
+                                        className={
+                                          agent.role === "owner"
+                                            ? "bg-purple-100 text-purple-700 text-xs"
+                                            : agent.role === "admin"
+                                              ? "bg-blue-100 text-blue-700 text-xs"
+                                              : "bg-slate-100 text-slate-700 text-xs"
+                                        }
+                                      >
+                                        {getInitials(agent.name)}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <div>
+                                      <span className="text-sm font-medium">{agent.name}</span>
+                                      <p className="text-xs text-slate-500">{agent.email}</p>
+                                    </div>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <Switch
+                                    checked={prefs.service_alerts}
+                                    onCheckedChange={() => toggleAlertPref(agent.id, "service_alerts")}
+                                  />
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <Switch
+                                    checked={prefs.new_conversations}
+                                    onCheckedChange={() => toggleAlertPref(agent.id, "new_conversations")}
+                                  />
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <Switch
+                                    checked={prefs.handoff_requests}
+                                    onCheckedChange={() => toggleAlertPref(agent.id, "handoff_requests")}
+                                  />
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                      <div className="mt-4 flex items-center justify-between">
+                        <p className="text-xs text-slate-500">
+                          When no members are selected, alerts fall back to the NOTIFICATION_EMAIL environment variable.
+                        </p>
+                        <Button
+                          onClick={saveAlertPrefs}
+                          disabled={savingAlerts}
+                          className="bg-blue-600 hover:bg-blue-700"
+                        >
+                          {savingAlerts ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Saving...
+                            </>
+                          ) : (
+                            "Save Preferences"
+                          )}
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       </div>

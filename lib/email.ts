@@ -1,15 +1,98 @@
 import { Resend } from "resend";
+import { createServiceClient } from "@/lib/supabase";
 
 // Initialize Resend client (only if API key is available)
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
   : null;
 
-// Get notification emails from environment variable
+// Get notification emails from environment variable (fallback)
 function getNotificationEmails(): string[] {
   const emails = process.env.NOTIFICATION_EMAIL;
   if (!emails) return [];
   return emails.split(",").map((e) => e.trim()).filter(Boolean);
+}
+
+// Cache for DB-based alert recipients
+type AlertType = "service_alerts" | "new_conversations" | "handoff_requests";
+interface AlertPreferences {
+  service_alerts: boolean;
+  new_conversations: boolean;
+  handoff_requests: boolean;
+}
+let recipientCache: { emails: Record<AlertType, string[]>; timestamp: number } | null = null;
+const RECIPIENT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Get email recipients for a specific alert type.
+ * Reads from DB preferences first, falls back to NOTIFICATION_EMAIL env var.
+ */
+export async function getAlertRecipients(alertType: AlertType): Promise<string[]> {
+  // Check cache
+  if (recipientCache && Date.now() - recipientCache.timestamp < RECIPIENT_CACHE_TTL) {
+    return recipientCache.emails[alertType] || [];
+  }
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabase = createServiceClient() as any;
+
+    // Fetch preferences from settings table
+    const { data: prefData } = await supabase
+      .from("settings")
+      .select("value")
+      .eq("key", "email_alert_preferences")
+      .single();
+
+    const preferences = prefData?.value as Record<string, AlertPreferences> | null;
+
+    if (!preferences || Object.keys(preferences).length === 0) {
+      // No DB preferences — fall back to env var for all alert types
+      const fallback = getNotificationEmails();
+      recipientCache = {
+        emails: {
+          service_alerts: fallback,
+          new_conversations: fallback,
+          handoff_requests: fallback,
+        },
+        timestamp: Date.now(),
+      };
+      return fallback;
+    }
+
+    // Fetch agent emails for enabled agent IDs
+    const { data: agents } = await supabase
+      .from("agents")
+      .select("id, email");
+
+    const agentEmailMap: Record<string, string> = {};
+    for (const agent of agents || []) {
+      agentEmailMap[agent.id] = agent.email;
+    }
+
+    // Build recipient lists per alert type
+    const alertTypes: AlertType[] = ["service_alerts", "new_conversations", "handoff_requests"];
+    const emails: Record<AlertType, string[]> = {
+      service_alerts: [],
+      new_conversations: [],
+      handoff_requests: [],
+    };
+
+    for (const type of alertTypes) {
+      for (const [agentId, prefs] of Object.entries(preferences)) {
+        if (prefs[type] && agentEmailMap[agentId]) {
+          emails[type].push(agentEmailMap[agentId]);
+        }
+      }
+    }
+
+    recipientCache = { emails, timestamp: Date.now() };
+    return emails[alertType] || [];
+  } catch (error) {
+    console.error("Failed to fetch alert recipients from DB:", error);
+    // Fall back to env var
+    return getNotificationEmails();
+  }
 }
 
 // Get the app URL for inbox links
@@ -33,7 +116,7 @@ interface NewConversationEmailData {
 export async function sendNewConversationEmail(
   data: NewConversationEmailData
 ): Promise<boolean> {
-  const emails = getNotificationEmails();
+  const emails = await getAlertRecipients("new_conversations");
   if (!resend || emails.length === 0) {
     console.log("Email notifications not configured, skipping new conversation email");
     return false;
@@ -135,7 +218,7 @@ interface ServiceAlertEmailData {
 export async function sendServiceAlertEmail(
   data: ServiceAlertEmailData
 ): Promise<boolean> {
-  const emails = getNotificationEmails();
+  const emails = await getAlertRecipients("service_alerts");
   if (!resend || emails.length === 0) {
     console.log("Email notifications not configured, skipping service alert email");
     return false;
@@ -231,7 +314,7 @@ interface ServiceRecoveryEmailData {
 export async function sendServiceRecoveryEmail(
   data: ServiceRecoveryEmailData
 ): Promise<boolean> {
-  const emails = getNotificationEmails();
+  const emails = await getAlertRecipients("service_alerts");
   if (!resend || emails.length === 0) {
     console.log("Email notifications not configured, skipping recovery email");
     return false;
@@ -337,7 +420,7 @@ interface HandoffRequestEmailData {
 export async function sendHandoffRequestEmail(
   data: HandoffRequestEmailData
 ): Promise<boolean> {
-  const emails = getNotificationEmails();
+  const emails = await getAlertRecipients("handoff_requests");
   if (!resend || emails.length === 0) {
     console.log("Email notifications not configured, skipping handoff email");
     return false;
