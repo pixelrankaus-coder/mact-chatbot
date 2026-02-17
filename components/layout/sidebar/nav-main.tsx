@@ -32,6 +32,7 @@ import {
   DollarSignIcon,
   PackageIcon,
   ServerIcon,
+  ScrollTextIcon,
   type LucideIcon
 } from "lucide-react";
 import Link from "next/link";
@@ -185,6 +186,12 @@ export const navItems: NavGroup[] = [
         title: "Infrastructure",
         href: "/settings/infrastructure",
         icon: ServerIcon
+      },
+      {
+        title: "System Logs",
+        href: "/logs",
+        icon: ScrollTextIcon,
+        isNew: true
       }
     ]
   }

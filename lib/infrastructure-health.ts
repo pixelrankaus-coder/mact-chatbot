@@ -5,6 +5,7 @@
 
 import { createServiceClient } from "@/lib/supabase";
 import { getApiKey } from "@/lib/llm";
+import { logInfo, logWarn } from "@/lib/logger";
 
 export interface ServiceHealth {
   name: string;
@@ -393,16 +394,39 @@ export async function runAllHealthChecks(): Promise<HealthCheckResult> {
   const operational = services.filter((s) => s.status === "operational").length;
   const configured = services.filter((s) => s.status !== "unconfigured").length;
 
+  const summary = {
+    total: services.length,
+    operational,
+    degraded: services.filter((s) => s.status === "degraded").length,
+    down: services.filter((s) => s.status === "down").length,
+    unconfigured: services.filter((s) => s.status === "unconfigured").length,
+    configured,
+  };
+
+  // Log health check results
+  const downServices = services.filter((s) => s.status === "down").map((s) => s.name);
+  const degradedServices = services.filter((s) => s.status === "degraded").map((s) => s.name);
+
+  if (downServices.length > 0) {
+    logWarn("health", `Health check: ${downServices.length} service(s) down — ${downServices.join(", ")} (${totalTime}ms)`, {
+      duration_ms: totalTime,
+      metadata: { down: downServices, degraded: degradedServices, operational, configured },
+    });
+  } else if (degradedServices.length > 0) {
+    logWarn("health", `Health check: ${degradedServices.length} service(s) degraded — ${degradedServices.join(", ")} (${totalTime}ms)`, {
+      duration_ms: totalTime,
+      metadata: { degraded: degradedServices, operational, configured },
+    });
+  } else {
+    logInfo("health", `Health check: all ${operational}/${configured} configured services operational (${totalTime}ms)`, {
+      duration_ms: totalTime,
+      metadata: { operational, configured },
+    });
+  }
+
   return {
     services,
-    summary: {
-      total: services.length,
-      operational,
-      degraded: services.filter((s) => s.status === "degraded").length,
-      down: services.filter((s) => s.status === "down").length,
-      unconfigured: services.filter((s) => s.status === "unconfigured").length,
-      configured,
-    },
+    summary,
     checkedAt: new Date().toISOString(),
     totalCheckTime: totalTime,
   };

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { trackChatEvent, upsertProfile, subscribeToList } from "@/lib/klaviyo";
+import { logInfo, logError } from "@/lib/logger";
 
 // Create supabase client at runtime for server-side usage
 function getSupabase() {
@@ -206,6 +207,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    logInfo("widget", `New chat started from ${location || "unknown location"} (${visitorName || "anonymous"})`, {
+      path: "/api/widget/conversations",
+      method: "POST",
+      status_code: 201,
+      metadata: {
+        conversationId: conversation.id,
+        visitorName: visitorName || prechatData?.name,
+        visitorEmail: visitorEmail || prechatData?.email,
+        location,
+        ip: clientIP,
+      },
+    });
+
     return NextResponse.json(
       { conversation, isExisting: false },
       { status: 201, headers: corsHeaders }
@@ -220,6 +234,10 @@ export async function POST(request: NextRequest) {
       errorMessage = String(error);
     }
     console.error("Failed to create conversation:", errorMessage);
+    logError("widget", `Widget conversation creation failed: ${errorMessage}`, {
+      path: "/api/widget/conversations", method: "POST", status_code: 500,
+      metadata: { error: errorMessage },
+    });
     return NextResponse.json(
       { error: "Failed to create conversation", details: errorMessage },
       { status: 500, headers: corsHeaders }

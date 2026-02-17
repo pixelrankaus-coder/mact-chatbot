@@ -3,6 +3,7 @@ import { syncCin7Orders, syncCin7Customers } from "@/lib/cin7-sync";
 import { syncWooOrders, syncWooCustomers, SyncResult } from "@/lib/woo-sync";
 import { syncWooOrdersWithLogging, syncWooCustomersWithLogging } from "@/lib/woo-sync-db";
 import { createServiceClient } from "@/lib/supabase";
+import { logInfo, logError, logWarn } from "@/lib/logger";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseAny = any;
@@ -95,6 +96,9 @@ export async function GET(request: NextRequest) {
 
   if (!isDev && cronSecret && authHeader !== `Bearer ${cronSecret}`) {
     console.warn("Unauthorized cron access attempt");
+    logWarn("cron", "Unauthorized data-sync cron access attempt", {
+      path: "/api/cron/data-sync", method: "GET", status_code: 401,
+    });
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -123,7 +127,7 @@ export async function GET(request: NextRequest) {
 
   // Skip entirely if nothing should sync
   if (!cin7ShouldSync && !wooShouldSync) {
-    console.log("Scheduled data sync skipped: Not due yet based on frequency settings");
+    logInfo("cron", "Data sync skipped — not due yet", { path: "/api/cron/data-sync", method: "GET" });
     return NextResponse.json({
       skipped: true,
       reason: "Not due yet based on frequency settings",
@@ -140,10 +144,8 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  console.log("Starting scheduled data sync (Cin7 + WooCommerce)...", {
-    cin7ShouldSync,
-    wooShouldSync,
-  });
+  const syncParts = [cin7ShouldSync && "Cin7", wooShouldSync && "WooCommerce"].filter(Boolean).join(" + ");
+  logInfo("sync", `Data sync started (${syncParts})`, { path: "/api/cron/data-sync", method: "GET" });
   const startTime = Date.now();
 
   const results = {
@@ -228,6 +230,11 @@ export async function GET(request: NextRequest) {
       totalDuration: `${totalDuration}ms`,
     });
 
+    const cin7OrderCount = results.cin7.orders.recordsSynced || 0;
+    const cin7CustCount = results.cin7.customers.recordsSynced || 0;
+    const wooOrderCount = results.woocommerce.orders.recordsSynced || 0;
+    const wooCustCount = results.woocommerce.customers.recordsSynced || 0;
+
     // Count successes and failures
     const allResults = [
       results.cin7.orders,
@@ -239,6 +246,10 @@ export async function GET(request: NextRequest) {
     const failures = allResults.filter((r) => !r.success).length;
 
     if (failures === 4) {
+      logError("sync", `Data sync failed — all 4 sync tasks failed (${totalDuration}ms)`, {
+        path: "/api/cron/data-sync", method: "GET", status_code: 500, duration_ms: totalDuration,
+        metadata: { results },
+      });
       return NextResponse.json(
         {
           error: "All syncs failed",
@@ -250,6 +261,10 @@ export async function GET(request: NextRequest) {
     }
 
     if (failures > 0) {
+      logWarn("sync", `Data sync partial: ${successes}/4 succeeded — Cin7: ${cin7OrderCount} orders, ${cin7CustCount} customers | Woo: ${wooOrderCount} orders, ${wooCustCount} customers (${totalDuration}ms)`, {
+        path: "/api/cron/data-sync", method: "GET", status_code: 207, duration_ms: totalDuration,
+        metadata: { results },
+      });
       return NextResponse.json(
         {
           warning: `Partial sync failure (${successes}/4 succeeded)`,
@@ -260,6 +275,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    logInfo("sync", `Data sync completed — Cin7: ${cin7OrderCount} orders, ${cin7CustCount} customers | Woo: ${wooOrderCount} orders, ${wooCustCount} customers (${totalDuration}ms)`, {
+      path: "/api/cron/data-sync", method: "GET", status_code: 200, duration_ms: totalDuration,
+      metadata: { cin7OrderCount, cin7CustCount, wooOrderCount, wooCustCount },
+    });
+
     return NextResponse.json({
       success: true,
       results,
@@ -267,10 +287,18 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Scheduled data sync failed:", error);
+    const totalDuration = Date.now() - startTime;
+    const errorMsg = error instanceof Error ? error.message : "Unknown error";
+
+    logError("sync", `Data sync crashed: ${errorMsg} (${totalDuration}ms)`, {
+      path: "/api/cron/data-sync", method: "GET", status_code: 500, duration_ms: totalDuration,
+      metadata: { error: errorMsg },
+    });
+
     return NextResponse.json(
       {
         error: "Sync failed",
-        message: error instanceof Error ? error.message : "Unknown error",
+        message: errorMsg,
       },
       { status: 500 }
     );

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase";
+import { logInfo } from "@/lib/logger";
 
 const INTEGRATION_TYPE = "ai_providers";
 
@@ -109,6 +110,22 @@ async function handleSave(body: Record<string, string>) {
   );
 
   if (error) throw error;
+
+  // Log which providers were updated
+  const updated: string[] = [];
+  if (openai_api_key && !openai_api_key.includes("••••")) updated.push("OpenAI");
+  if (anthropic_api_key && !anthropic_api_key.includes("••••")) updated.push("Anthropic");
+  if (deepseek_api_key && !deepseek_api_key.includes("••••")) updated.push("DeepSeek");
+  if (openai_api_key === "") updated.push("OpenAI (removed)");
+  if (anthropic_api_key === "") updated.push("Anthropic (removed)");
+  if (deepseek_api_key === "") updated.push("DeepSeek (removed)");
+
+  if (updated.length > 0) {
+    logInfo("settings", `AI API keys updated: ${updated.join(", ")}`, {
+      path: "/api/settings/ai-keys", method: "POST", status_code: 200,
+      metadata: { providers: updated },
+    });
+  }
 
   return NextResponse.json({
     success: true,

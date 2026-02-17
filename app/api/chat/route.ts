@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { generateAIResponse, type AISettings } from "@/lib/ai";
 import type { Database } from "@/types/database";
 import type { SkillContext } from "@/src/lib/skills";
+import { logInfo, logError } from "@/lib/logger";
 
 // Initialize Supabase with service role key for server-side operations
 const supabase = createClient<Database>(
@@ -22,6 +23,7 @@ interface ChatRequest {
 }
 
 export async function POST(request: NextRequest) {
+  const startTime = Date.now();
   try {
     const body: ChatRequest = await request.json();
     const { conversationId, message, conversationHistory: providedHistory } = body;
@@ -160,6 +162,26 @@ export async function POST(request: NextRequest) {
         .eq("id", conversationId);
     }
 
+    const duration = Date.now() - startTime;
+    const totalTokens = aiResponse.usage
+      ? (aiResponse.usage.prompt_tokens || 0) + (aiResponse.usage.completion_tokens || 0)
+      : 0;
+
+    logInfo("ai", `AI responded using ${aiResponse.model || "unknown model"} (${duration}ms, ${totalTokens} tokens)`, {
+      path: "/api/chat",
+      method: "POST",
+      status_code: 200,
+      duration_ms: duration,
+      metadata: {
+        model: aiResponse.model,
+        tokens: totalTokens,
+        prompt_tokens: aiResponse.usage?.prompt_tokens,
+        completion_tokens: aiResponse.usage?.completion_tokens,
+        conversationId,
+        skillsUsed: aiResponse.skillExecutions?.length || 0,
+      },
+    });
+
     return NextResponse.json({
       success: true,
       message: savedMessage || {
@@ -175,21 +197,37 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Chat API error:", error);
 
+    const duration = Date.now() - startTime;
+    const errorMsg = error instanceof Error ? error.message : "Unknown error";
+
     // Handle specific OpenAI errors
     if (error instanceof Error) {
       if (error.message.includes("rate limit") || error.message.includes("429")) {
+        logError("ai", `AI rate limited (${duration}ms)`, {
+          path: "/api/chat", method: "POST", status_code: 429, duration_ms: duration,
+          metadata: { error: errorMsg },
+        });
         return NextResponse.json(
           { error: "AI service is busy. Please try again in a moment." },
           { status: 429 }
         );
       }
       if (error.message.includes("authentication") || error.message.includes("401") || error.message.includes("API key")) {
+        logError("ai", `AI authentication failed (${duration}ms)`, {
+          path: "/api/chat", method: "POST", status_code: 500, duration_ms: duration,
+          metadata: { error: errorMsg },
+        });
         return NextResponse.json(
           { error: "AI service authentication failed. Please check configuration." },
           { status: 500 }
         );
       }
     }
+
+    logError("ai", `AI response failed: ${errorMsg}`, {
+      path: "/api/chat", method: "POST", status_code: 500, duration_ms: duration,
+      metadata: { error: errorMsg },
+    });
 
     return NextResponse.json(
       { error: "Failed to generate AI response. Please try again." },

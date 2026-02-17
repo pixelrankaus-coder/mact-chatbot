@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { syncCin7Orders, syncCin7Customers } from "@/lib/cin7-sync";
+import { logInfo, logError, logWarn } from "@/lib/logger";
 
 /**
  * GET /api/cron/cin7-sync - Scheduled sync endpoint
@@ -15,10 +16,13 @@ export async function GET(request: NextRequest) {
 
   if (!isDev && cronSecret && authHeader !== `Bearer ${cronSecret}`) {
     console.warn("Unauthorized cron access attempt");
+    logWarn("cron", "Unauthorized Cin7 cron access attempt", {
+      path: "/api/cron/cin7-sync", method: "GET", status_code: 401,
+    });
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  console.log("Starting scheduled Cin7 sync...");
+  logInfo("sync", "Cin7 sync started", { path: "/api/cron/cin7-sync", method: "GET" });
   const startTime = Date.now();
 
   try {
@@ -36,6 +40,14 @@ export async function GET(request: NextRequest) {
       totalDuration: `${totalDuration}ms`,
     });
 
+    logInfo("sync", `Cin7 sync completed: ${ordersResult.recordsSynced} orders, ${customersResult.recordsSynced} customers (${totalDuration}ms)`, {
+      path: "/api/cron/cin7-sync",
+      method: "GET",
+      status_code: 200,
+      duration_ms: totalDuration,
+      metadata: { orders: ordersResult, customers: customersResult },
+    });
+
     return NextResponse.json({
       success: true,
       orders: ordersResult,
@@ -44,10 +56,21 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Scheduled Cin7 sync failed:", error);
+    const totalDuration = Date.now() - startTime;
+    const errorMsg = error instanceof Error ? error.message : "Unknown error";
+
+    logError("sync", `Cin7 sync failed: ${errorMsg} (${totalDuration}ms)`, {
+      path: "/api/cron/cin7-sync",
+      method: "GET",
+      status_code: 500,
+      duration_ms: totalDuration,
+      metadata: { error: errorMsg },
+    });
+
     return NextResponse.json(
       {
         error: "Sync failed",
-        message: error instanceof Error ? error.message : "Unknown error",
+        message: errorMsg,
       },
       { status: 500 }
     );
