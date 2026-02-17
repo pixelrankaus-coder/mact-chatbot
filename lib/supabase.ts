@@ -1,11 +1,21 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-// Client-side Supabase client (uses anon key)
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
+// Singleton client-side Supabase client to prevent multiple GoTrueClient instances
+const globalForSupabase = globalThis as unknown as {
+  supabaseClient: SupabaseClient<Database> | undefined;
+};
+
+export const supabase =
+  globalForSupabase.supabaseClient ??
+  createClient<Database>(supabaseUrl, supabaseAnonKey);
+
+if (typeof window !== "undefined") {
+  globalForSupabase.supabaseClient = supabase;
+}
 
 // Server-side Supabase client with service role (for admin operations)
 export function createServiceClient() {

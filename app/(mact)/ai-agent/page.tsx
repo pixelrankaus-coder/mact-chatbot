@@ -115,6 +115,14 @@ function AIAgentPageContent() {
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Sitemap crawler state
+  const [sitemapUrl, setSitemapUrl] = useState("");
+  const [discovering, setDiscovering] = useState(false);
+  const [crawling, setCrawling] = useState(false);
+  const [discoveredUrls, setDiscoveredUrls] = useState<string[]>([]);
+  const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set());
+  const [crawlResults, setCrawlResults] = useState<{ succeeded: number; skipped: number; failed: number } | null>(null);
+
   // Test chat state
   const [testInput, setTestInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -345,6 +353,82 @@ function AIAgentPageContent() {
       setScraping(false);
     }
   }, [urlInput]);
+
+  // Sitemap discovery handler
+  const handleDiscoverSitemap = useCallback(async () => {
+    if (!sitemapUrl.trim()) {
+      toast.error("Please enter a sitemap URL");
+      return;
+    }
+
+    setDiscovering(true);
+    setDiscoveredUrls([]);
+    setSelectedUrls(new Set());
+    setCrawlResults(null);
+
+    try {
+      const response = await fetch("/api/knowledge-base/crawl-sitemap", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "discover", sitemapUrl: sitemapUrl.trim() }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to fetch sitemap");
+
+      setDiscoveredUrls(data.urls || []);
+      setSelectedUrls(new Set(data.urls || [])); // Select all by default
+      toast.success(`Found ${data.total} pages`, {
+        description: data.filteredOut > 0 ? `${data.filteredOut} non-HTML URLs filtered out` : undefined,
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to discover sitemap");
+    } finally {
+      setDiscovering(false);
+    }
+  }, [sitemapUrl]);
+
+  // Sitemap crawl handler
+  const handleCrawlSelected = useCallback(async () => {
+    if (selectedUrls.size === 0) {
+      toast.error("No URLs selected");
+      return;
+    }
+
+    setCrawling(true);
+    setCrawlResults(null);
+
+    try {
+      const response = await fetch("/api/knowledge-base/crawl-sitemap", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "crawl", urls: Array.from(selectedUrls) }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Crawl failed");
+
+      setCrawlResults(data.summary);
+      toast.success(`Crawled ${data.summary.succeeded} pages successfully`, {
+        description: `${data.summary.skipped} skipped, ${data.summary.failed} failed`,
+      });
+
+      // Refresh documents list
+      const { data: docs } = await supabase
+        .from("knowledge_base")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (docs) setDocuments(docs as UploadedDocument[]);
+
+      // Clear discovery state
+      setDiscoveredUrls([]);
+      setSelectedUrls(new Set());
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Crawl failed");
+    } finally {
+      setCrawling(false);
+    }
+  }, [selectedUrls]);
 
   // Poll for document status updates
   useEffect(() => {
@@ -612,6 +696,126 @@ function AIAgentPageContent() {
                 </TooltipContent>
               </Tooltip>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Sitemap Crawler */}
+        <Card className="border-0 shadow-sm">
+          <CardContent className="pt-6">
+            <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+              <Globe className="h-4 w-4 text-blue-600" />
+              Bulk Import from Sitemap
+            </h3>
+            <p className="text-xs text-slate-500 mb-3">
+              Crawl your entire website at once by importing from your sitemap.
+            </p>
+            <div className="flex items-center gap-2 mb-3">
+              <Input
+                placeholder="https://mact.au/sitemap.xml"
+                value={sitemapUrl}
+                onChange={(e) => setSitemapUrl(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !discovering) handleDiscoverSitemap();
+                }}
+                disabled={discovering || crawling}
+              />
+              <Button
+                variant="outline"
+                className="gap-2 shrink-0"
+                onClick={handleDiscoverSitemap}
+                disabled={discovering || crawling || !sitemapUrl.trim()}
+              >
+                {discovering ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Discovering...
+                  </>
+                ) : (
+                  <>
+                    <Globe className="h-4 w-4" />
+                    Discover Pages
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {/* Discovered URLs list */}
+            {discoveredUrls.length > 0 && (
+              <div className="border rounded-lg p-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-slate-700">
+                    {selectedUrls.size} of {discoveredUrls.length} pages selected
+                  </span>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedUrls(new Set(discoveredUrls))}
+                    >
+                      Select All
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedUrls(new Set())}
+                    >
+                      Clear
+                    </Button>
+                  </div>
+                </div>
+                <ScrollArea className="h-48">
+                  <div className="space-y-1">
+                    {discoveredUrls.map((url) => (
+                      <label
+                        key={url}
+                        className="flex items-center gap-2 py-1 px-2 rounded hover:bg-slate-50 cursor-pointer text-xs"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedUrls.has(url)}
+                          onChange={(e) => {
+                            setSelectedUrls((prev) => {
+                              const next = new Set(prev);
+                              if (e.target.checked) next.add(url);
+                              else next.delete(url);
+                              return next;
+                            });
+                          }}
+                          className="rounded"
+                        />
+                        <span className="truncate text-slate-600">{url}</span>
+                      </label>
+                    ))}
+                  </div>
+                </ScrollArea>
+                <Button
+                  className="w-full gap-2"
+                  onClick={handleCrawlSelected}
+                  disabled={crawling || selectedUrls.size === 0}
+                >
+                  {crawling ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Crawling {selectedUrls.size} pages...
+                    </>
+                  ) : (
+                    <>
+                      <ArrowUpFromLine className="h-4 w-4" />
+                      Crawl {selectedUrls.size} Selected Pages
+                    </>
+                  )}
+                </Button>
+                {crawlResults && (
+                  <div className="flex gap-3 text-xs">
+                    <span className="text-green-600">{crawlResults.succeeded} added</span>
+                    <span className="text-amber-600">{crawlResults.skipped} skipped</span>
+                    {crawlResults.failed > 0 && (
+                      <span className="text-red-600">{crawlResults.failed} failed</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 
