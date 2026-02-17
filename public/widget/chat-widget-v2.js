@@ -23,7 +23,7 @@
   // Default settings
   var defaults = {
     primaryColor: '#2563eb',
-    position: 'bottom-right',
+    position: 'bottom-left',
     offsetX: 20,
     offsetY: 20,
     bubbleSize: 'medium',
@@ -76,7 +76,7 @@
     bubble.style.cssText = [
       'position:fixed',
       'bottom:' + (settings.offsetY || 20) + 'px',
-      'right:' + (settings.offsetX || 20) + 'px',
+      'left:' + (settings.offsetX || 20) + 'px',
       'width:' + size + 'px',
       'height:' + size + 'px',
       'border-radius:50%',
@@ -121,7 +121,7 @@
     var width = mobile ? '100%' : '400px';
     var height = mobile ? '100%' : '600px';
     var bottom = mobile ? '0' : ((settings.offsetY || 20) + getBubbleSize() + 12) + 'px';
-    var right = mobile ? '0' : (settings.offsetX || 20) + 'px';
+    var left = mobile ? '0' : (settings.offsetX || 20) + 'px';
     var borderRadius = mobile ? '0' : '16px';
 
     chatContainer = document.createElement('div');
@@ -129,7 +129,7 @@
     chatContainer.style.cssText = [
       'position:fixed',
       'bottom:' + bottom,
-      'right:' + right,
+      'left:' + left,
       'width:' + width,
       'height:' + height,
       'max-height:' + (mobile ? '100vh' : '80vh'),
