@@ -64,7 +64,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useConversations } from "@/hooks/use-conversations";
 import { useMessages } from "@/hooks/use-messages";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase"; // Only used for realtime typing subscription
 import { useAgent } from "@/contexts/AgentContext";
 import type { Database } from "@/types/database";
 
@@ -406,28 +406,32 @@ export default function InboxPage() {
     try {
       // Update conversation status to active and clear handoff flag
       const currentMetadata = selectedConversation.metadata as Record<string, unknown> | null;
-      const { error } = await supabase
-        .from("conversations")
-        .update({
+      const res = await fetch("/api/conversations", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: selectedConversationId,
           status: "active",
-          assigned_to: "Admin", // In real app, this would be the logged-in user
+          assigned_to: "Admin",
           metadata: {
             ...currentMetadata,
             handoffRequested: false,
             handoffCompletedBy: "Admin",
             handoffCompletedAt: new Date().toISOString(),
           },
-        })
-        .eq("id", selectedConversationId);
-
-      if (error) throw error;
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to update conversation");
 
       // Add system message that agent has taken over
-      await supabase.from("messages").insert({
-        conversation_id: selectedConversationId,
-        sender_type: "system",
-        sender_name: "System",
-        content: "An agent has joined the conversation and will assist you from here.",
+      await fetch(`/api/conversations/${selectedConversationId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: "An agent has joined the conversation and will assist you from here.",
+          senderType: "system",
+          senderName: "System",
+        }),
       });
 
       toast.success("You've taken over this conversation");
@@ -443,17 +447,18 @@ export default function InboxPage() {
     setSavingNote(true);
     try {
       const currentMetadata = selectedConversation?.metadata as Record<string, unknown> | null;
-      const { error } = await supabase
-        .from("conversations")
-        .update({
+      const res = await fetch("/api/conversations", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: selectedConversationId,
           metadata: {
             ...currentMetadata,
             notes: customerNote,
           },
-        })
-        .eq("id", selectedConversationId);
-
-      if (error) throw error;
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to save note");
       toast.success("Note saved");
     } catch (error) {
       console.error("Failed to save note:", error);
@@ -475,17 +480,18 @@ export default function InboxPage() {
         return;
       }
 
-      const { error } = await supabase
-        .from("conversations")
-        .update({
+      const res = await fetch("/api/conversations", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: selectedConversationId,
           metadata: {
             ...currentMetadata,
             tags: [...currentTags, newTag],
           },
-        })
-        .eq("id", selectedConversationId);
-
-      if (error) throw error;
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to add tag");
       setNewTag("");
       toast.success("Tag added");
     } catch (error) {

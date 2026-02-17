@@ -117,6 +117,25 @@ export async function POST(
 
     if (msgError) throw msgError;
 
+    // Auto-detect email in visitor message and save to conversation
+    if (!conversation.visitor_email) {
+      const emailMatch = content.trim().match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+      if (emailMatch) {
+        const detectedEmail = emailMatch[0].toLowerCase();
+        await supabase
+          .from("conversations")
+          .update({
+            visitor_email: detectedEmail,
+            metadata: {
+              ...(conversation.metadata as Record<string, unknown> || {}),
+              emailCapturedAt: new Date().toISOString(),
+              emailCaptureMethod: "auto-detected",
+            },
+          })
+          .eq("id", id);
+      }
+    }
+
     // Check if this is the first visitor message (for email notification)
     const { count: visitorMsgCount } = await supabase
       .from("messages")

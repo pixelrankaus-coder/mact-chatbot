@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -254,17 +253,20 @@ export default function TeamPage() {
     setSaving(true);
 
     try {
-      // Update agent record
-      const { error } = await supabase
-        .from("agents")
-        .update({
+      // Update agent record via API
+      const updateRes = await fetch("/api/agents", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: selectedAgent.id,
           name: editAgent.name,
           role: editAgent.role,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", selectedAgent.id);
-
-      if (error) throw error;
+        }),
+      });
+      if (!updateRes.ok) {
+        const errData = await updateRes.json();
+        throw new Error(errData.error || "Failed to update agent");
+      }
 
       // Reset password if provided
       if (editAgent.newPassword) {

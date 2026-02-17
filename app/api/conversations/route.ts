@@ -34,13 +34,47 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// POST /api/conversations - Create a new conversation
+export async function POST(request: NextRequest) {
+  const supabase = createServiceClient();
+
+  try {
+    const body = await request.json();
+    const { visitor_id, visitor_name, visitor_email } = body;
+
+    if (!visitor_id) {
+      return NextResponse.json({ error: "visitor_id is required" }, { status: 400 });
+    }
+
+    const { data, error } = await supabase
+      .from("conversations")
+      .insert({
+        visitor_id,
+        visitor_name: visitor_name || null,
+        visitor_email: visitor_email || null,
+        status: "active",
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return NextResponse.json({ conversation: data }, { status: 201 });
+  } catch (error) {
+    console.error("Failed to create conversation:", error);
+    return NextResponse.json(
+      { error: "Failed to create conversation" },
+      { status: 500 }
+    );
+  }
+}
+
 // PATCH /api/conversations - Update conversation status or assignment
 export async function PATCH(request: NextRequest) {
   const supabase = createServiceClient();
 
   try {
     const body = await request.json();
-    const { id, status, assigned_to } = body;
+    const { id, status, assigned_to, metadata } = body;
 
     if (!id) {
       return NextResponse.json({ error: "Conversation ID required" }, { status: 400 });
@@ -57,6 +91,9 @@ export async function PATCH(request: NextRequest) {
     }
     if (assigned_to !== undefined) {
       updateData.assigned_to = assigned_to;
+    }
+    if (metadata !== undefined) {
+      updateData.metadata = metadata;
     }
 
     const { data, error } = await supabase

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { supabase } from "@/lib/supabase";
 import type { Json } from "@/types/database";
 
 export function useSettings<T extends Json>(key: string, defaultValue: T) {
@@ -10,35 +9,20 @@ export function useSettings<T extends Json>(key: string, defaultValue: T) {
   const [error, setError] = useState<Error | null>(null);
   const defaultValueRef = useRef(defaultValue);
 
-  // Fetch setting by key with timeout
+  // Fetch setting by key via API (uses service role, bypasses RLS)
   const fetchSetting = useCallback(async () => {
     try {
       setLoading(true);
 
-      // Create a timeout promise
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error("Request timeout")), 10000);
-      });
+      const res = await fetch(`/api/settings?key=${encodeURIComponent(key)}`);
+      const data = await res.json();
 
-      // Race between the actual request and timeout
-      const result = await Promise.race([
-        supabase
-          .from("settings")
-          .select("value")
-          .eq("key", key)
-          .single(),
-        timeoutPromise
-      ]);
+      if (!res.ok) throw new Error(data.error || "Failed to fetch setting");
 
-      if (result.error) {
-        // If not found, use default value
-        if (result.error.code === "PGRST116") {
-          setValue(defaultValueRef.current);
-        } else {
-          throw result.error;
-        }
+      if (data.value !== null) {
+        setValue(data.value as T);
       } else {
-        setValue(result.data.value as T);
+        setValue(defaultValueRef.current);
       }
     } catch (err) {
       console.error(`Failed to fetch setting "${key}":`, err);
@@ -53,16 +37,19 @@ export function useSettings<T extends Json>(key: string, defaultValue: T) {
     fetchSetting();
   }, [fetchSetting]);
 
-  // Update setting
+  // Update setting via API
   const updateSetting = async (newValue: T) => {
-    const { error } = await supabase
-      .from("settings")
-      .upsert(
-        { key, value: newValue as Json },
-        { onConflict: "key" }
-      );
+    const res = await fetch("/api/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, value: newValue }),
+    });
 
-    if (error) throw error;
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || "Failed to update setting");
+    }
+
     setValue(newValue);
   };
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { supabase, subscribeToConversations } from "@/lib/supabase";
+import { subscribeToConversations } from "@/lib/supabase";
 import type { Database } from "@/types/database";
 
 type Conversation = Database["public"]["Tables"]["conversations"]["Row"];
@@ -83,25 +83,25 @@ export function useConversations(options: UseConversationsOptions = {}) {
     };
   }, [fetchConversations]);
 
-  // Create a new conversation
+  // Create a new conversation via API
   const createConversation = async (
     visitorId: string,
     visitorName?: string,
     visitorEmail?: string
   ) => {
-    const { data, error } = await supabase
-      .from("conversations")
-      .insert({
+    const res = await fetch("/api/conversations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
         visitor_id: visitorId,
         visitor_name: visitorName,
         visitor_email: visitorEmail,
-        status: "active",
-      })
-      .select()
-      .single();
+      }),
+    });
 
-    if (error) throw error;
-    return data;
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to create conversation");
+    return data.conversation;
   };
 
   // Update conversation status via API
