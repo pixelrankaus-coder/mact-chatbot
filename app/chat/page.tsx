@@ -179,6 +179,9 @@ export default function ChatPage() {
       // Start polling for new messages
       if (pollRef.current) clearInterval(pollRef.current);
       pollRef.current = setInterval(() => {
+        // Skip poll updates while a message is being sent to avoid duplicates
+        if (sendingRef.current) return;
+
         const since = lastMessageTime.current;
         const url = since
           ? `${baseUrl.current}/api/widget/conversations/${convId}/messages?since=${encodeURIComponent(since)}`
