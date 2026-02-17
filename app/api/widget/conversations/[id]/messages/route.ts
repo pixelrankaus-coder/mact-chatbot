@@ -260,6 +260,21 @@ export async function POST(
         knowledgeContent = knowledgeContent + orderContext;
       }
 
+      // Tell the AI what visitor info has already been collected
+      const knownEmail = conversation.visitor_email ||
+        content.trim().match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/)?.[0];
+      const knownName = conversation.visitor_name && conversation.visitor_name !== "Website Visitor"
+        ? conversation.visitor_name : null;
+
+      if (knownEmail || knownName) {
+        const parts = [];
+        if (knownName) parts.push(`name: ${knownName}`);
+        if (knownEmail) parts.push(`email: ${knownEmail}`);
+        knowledgeContent += `\n\n## Visitor info already collected\nYou already have this visitor's ${parts.join(" and ")}. Do NOT ask for this information again.`;
+      } else if (!isFirstVisitorMessage) {
+        knowledgeContent += `\n\n## Visitor info\nYou have already greeted this visitor. If you asked for their name/email and they didn't provide it, do NOT ask again. Just help them.`;
+      }
+
       // Get LLM provider settings
       const { data: llmSettings } = await supabase
         .from("llm_settings")
