@@ -48,7 +48,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAIAgentSettings } from "@/hooks/use-settings";
-import { supabase } from "@/lib/supabase";
 import { AgentTabs, useAgentTab } from "./components/agent-tabs";
 import { SkillsTab } from "./components/skills-tab";
 
@@ -162,17 +161,14 @@ function AIAgentPageContent() {
     }
   }, [loading, settings]);
 
-  // Fetch knowledge base documents
+  // Fetch knowledge base documents via API (uses service role, bypasses RLS)
   useEffect(() => {
     async function fetchDocuments() {
       try {
-        const { data, error } = await supabase
-          .from("knowledge_base")
-          .select("*")
-          .order("created_at", { ascending: false });
-
-        if (error) throw error;
-        setDocuments(data || []);
+        const res = await fetch("/api/knowledge-base/upload");
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to fetch documents");
+        setDocuments(data.documents || []);
       } catch (error) {
         console.error("Failed to fetch documents:", error);
       } finally {
@@ -413,12 +409,10 @@ function AIAgentPageContent() {
         description: `${data.summary.skipped} skipped, ${data.summary.failed} failed`,
       });
 
-      // Refresh documents list
-      const { data: docs } = await supabase
-        .from("knowledge_base")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (docs) setDocuments(docs as UploadedDocument[]);
+      // Refresh documents list via API
+      const docsRes = await fetch("/api/knowledge-base/upload");
+      const docsData = await docsRes.json();
+      if (docsData.documents) setDocuments(docsData.documents);
 
       // Clear discovery state
       setDiscoveredUrls([]);
@@ -430,28 +424,17 @@ function AIAgentPageContent() {
     }
   }, [selectedUrls]);
 
-  // Poll for document status updates
+  // Poll for document status updates via API
   useEffect(() => {
     const processingDocs = documents.filter((d) => d.status === "processing");
     if (processingDocs.length === 0) return;
 
     const interval = setInterval(async () => {
       try {
-        const { data, error } = await supabase
-          .from("knowledge_base")
-          .select("*")
-          .in("id", processingDocs.map((d) => d.id));
-
-        if (error) throw error;
-
-        if (data && data.length > 0) {
-          const typedData = data as UploadedDocument[];
-          setDocuments((prev) =>
-            prev.map((doc) => {
-              const updated = typedData.find((d) => d.id === doc.id);
-              return updated || doc;
-            })
-          );
+        const res = await fetch("/api/knowledge-base/upload");
+        const data = await res.json();
+        if (data.documents) {
+          setDocuments(data.documents);
         }
       } catch (error) {
         console.error("Failed to poll document status:", error);
