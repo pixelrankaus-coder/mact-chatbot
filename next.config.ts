@@ -18,10 +18,6 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: "https",
-        hostname: "pix1.dev"
-      },
-      {
-        protocol: "https",
         hostname: "mact.au"
       }
     ]

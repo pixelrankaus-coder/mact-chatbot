@@ -104,11 +104,11 @@ ${fallbackInstructions[fallbackAction] || fallbackInstructions.clarify}
 ## Helpful Links to Include When Relevant
 When providing information, include helpful links using markdown format [text](url).
 Available links:
-- Contact: [contact us](https://pix1.dev/mact/contact-us/)
-- Shop: [our shop](https://pix1.dev/mact/shop/)
-- About: [about us](https://pix1.dev/mact/about/)
+- Contact: [contact us](https://mact.au/contact-us/)
+- Shop: [our shop](https://mact.au/shop/)
+- About: [about us](https://mact.au/about/)
 
-Example: "You can find more details on our [contact page](https://pix1.dev/mact/contact-us/)"
+Example: "You can find more details on our [contact page](https://mact.au/contact-us/)"
 
 ## Human Handoff
 If the customer asks to speak with a human, real person, agent, or someone from the team:
