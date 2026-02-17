@@ -403,7 +403,7 @@ export async function runAllHealthChecks(): Promise<HealthCheckResult> {
     configured,
   };
 
-  // Log health check results
+  // Only log when there's a problem — skip "all operational" to reduce log noise
   const downServices = services.filter((s) => s.status === "down").map((s) => s.name);
   const degradedServices = services.filter((s) => s.status === "degraded").map((s) => s.name);
 
@@ -416,11 +416,6 @@ export async function runAllHealthChecks(): Promise<HealthCheckResult> {
     logWarn("health", `Health check: ${degradedServices.length} service(s) degraded — ${degradedServices.join(", ")} (${totalTime}ms)`, {
       duration_ms: totalTime,
       metadata: { degraded: degradedServices, operational, configured },
-    });
-  } else {
-    logInfo("health", `Health check: all ${operational}/${configured} configured services operational (${totalTime}ms)`, {
-      duration_ms: totalTime,
-      metadata: { operational, configured },
     });
   }
 

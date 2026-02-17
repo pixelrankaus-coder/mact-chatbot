@@ -27,8 +27,8 @@ interface ServiceAlert {
   notified?: boolean;
 }
 
-const POLL_INTERVAL = 60_000; // Check every 60 seconds
-const HEALTH_CHECK_INTERVAL = 5 * 60_000; // Run health check every 5 minutes
+const POLL_INTERVAL = 60_000; // Check for new alerts every 60 seconds
+const HEALTH_CHECK_INTERVAL = 15 * 60_000; // Run health check every 15 minutes
 
 const Notifications = () => {
   const isMobile = useIsMobile();
