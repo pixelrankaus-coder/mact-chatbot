@@ -115,7 +115,7 @@ function AIAgentPageContent() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Sitemap crawler state
-  const [sitemapUrl, setSitemapUrl] = useState("https://mact.au/sitemap.xml");
+  const [sitemapUrl, setSitemapUrl] = useState("https://mact.au/sitemap_index.xml");
   const [discovering, setDiscovering] = useState(false);
   const [crawling, setCrawling] = useState(false);
   const [discoveredUrls, setDiscoveredUrls] = useState<string[]>([]);
