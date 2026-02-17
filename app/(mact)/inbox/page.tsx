@@ -841,7 +841,7 @@ export default function InboxPage() {
           <NoSelectionState />
         )
       ) : (
-        <div className="flex h-full flex-col">
+        <div className="flex h-full flex-col overflow-hidden">
           {/* Action Bar - Like Mail app */}
           {selectedConversation && (
             <div className="flex h-[52px] items-center gap-2 px-2">
