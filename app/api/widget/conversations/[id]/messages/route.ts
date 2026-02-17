@@ -302,9 +302,9 @@ export async function POST(
           }
         }
       } catch (aiError) {
-        const errMsg = aiError instanceof Error ? aiError.message : String(aiError);
+        const errMsg = aiError instanceof Error ? `${aiError.message} | ${aiError.stack?.split('\n')[1]?.trim() || ''}` : String(aiError);
         console.error("AI response error:", errMsg, aiError);
-        // Insert fallback message
+        // Insert fallback message with debug info (temporary)
         const { data: fallbackMsg } = await supabase
           .from("messages")
           .insert({
@@ -317,6 +317,8 @@ export async function POST(
           .single();
 
         botMessage = fallbackMsg;
+        // Attach debug error to response (temporary for debugging)
+        (botMessage as Record<string, unknown>)._aiError = errMsg;
       }
     }
 
@@ -325,6 +327,9 @@ export async function POST(
         userMessage,
         botMessage,
         aiEnabled,
+        _debug: botMessage?.content?.includes("trouble responding") ? {
+          error: "AI generation failed - check Vercel function logs",
+        } : undefined,
       },
       { status: 201, headers: corsHeaders }
     );
