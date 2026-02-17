@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { supabase, subscribeToMessages } from "@/lib/supabase";
+import { subscribeToMessages } from "@/lib/supabase";
 import type { Database, SenderType } from "@/types/database";
 
 type Message = Database["public"]["Tables"]["messages"]["Row"];
@@ -11,7 +11,7 @@ export function useMessages(conversationId: string | null) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  // Fetch messages for a conversation
+  // Fetch messages via API (uses service role, bypasses RLS)
   const fetchMessages = useCallback(async () => {
     if (!conversationId) {
       setMessages([]);
@@ -21,14 +21,11 @@ export function useMessages(conversationId: string | null) {
 
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from("messages")
-        .select("*")
-        .eq("conversation_id", conversationId)
-        .order("created_at", { ascending: true });
+      const res = await fetch(`/api/conversations/${conversationId}/messages`);
+      const data = await res.json();
 
-      if (error) throw error;
-      setMessages(data || []);
+      if (!res.ok) throw new Error(data.error || "Failed to fetch messages");
+      setMessages(data.messages || []);
     } catch (err) {
       setError(err as Error);
     } finally {
@@ -51,7 +48,7 @@ export function useMessages(conversationId: string | null) {
     };
   }, [conversationId, fetchMessages]);
 
-  // Send a new message
+  // Send a new message via API
   const sendMessage = async (
     content: string,
     senderType: SenderType,
@@ -59,26 +56,16 @@ export function useMessages(conversationId: string | null) {
   ) => {
     if (!conversationId) throw new Error("No conversation selected");
 
-    const { data, error } = await supabase
-      .from("messages")
-      .insert({
-        conversation_id: conversationId,
-        content,
-        sender_type: senderType,
-        sender_name: senderName,
-      })
-      .select()
-      .single();
+    const res = await fetch(`/api/conversations/${conversationId}/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content, senderType, senderName }),
+    });
 
-    if (error) throw error;
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to send message");
 
-    // Also update conversation's updated_at
-    await supabase
-      .from("conversations")
-      .update({ updated_at: new Date().toISOString() })
-      .eq("id", conversationId);
-
-    return data;
+    return data.message;
   };
 
   return {

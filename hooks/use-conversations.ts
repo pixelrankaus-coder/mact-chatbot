@@ -19,31 +19,39 @@ export function useConversations(options: UseConversationsOptions = {}) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  // Fetch all conversations with optional status filter
+  // Fetch conversations via API (uses service role, bypasses RLS)
   const fetchConversations = useCallback(async () => {
     try {
       setLoading(true);
-      let query = supabase
-        .from("conversations")
-        .select("*")
-        .order("updated_at", { ascending: false });
+      const params = new URLSearchParams();
 
-      // Task 043: Apply status filter if specified
       if (options.status && options.status !== "all") {
         if (Array.isArray(options.status)) {
-          query = query.in("status", options.status);
+          // For array status, fetch all and filter client-side
+          params.set("status", "all");
         } else {
-          query = query.eq("status", options.status);
+          params.set("status", options.status);
         }
-      } else if (options.excludeResolved) {
-        // Exclude resolved conversations by default
-        query = query.in("status", ["active", "pending"]);
+      }
+      if (options.excludeResolved) {
+        params.set("excludeResolved", "true");
       }
 
-      const { data, error } = await query;
+      const res = await fetch(`/api/conversations?${params.toString()}`);
+      const data = await res.json();
 
-      if (error) throw error;
-      setConversations(data || []);
+      if (!res.ok) throw new Error(data.error || "Failed to fetch conversations");
+
+      let convs = data.conversations || [];
+
+      // Client-side filter for array status
+      if (Array.isArray(options.status)) {
+        convs = convs.filter((c: Conversation) =>
+          (options.status as ConversationStatus[]).includes(c.status as ConversationStatus)
+        );
+      }
+
+      setConversations(convs);
     } catch (err) {
       setError(err as Error);
     } finally {
@@ -96,36 +104,33 @@ export function useConversations(options: UseConversationsOptions = {}) {
     return data;
   };
 
-  // Update conversation status
-  // Task 043: Set resolved_at when resolving, clear it when reopening
+  // Update conversation status via API
   const updateStatus = async (
     conversationId: string,
     status: "active" | "pending" | "resolved"
   ) => {
-    const updateData: Record<string, unknown> = { status };
-
-    if (status === "resolved") {
-      updateData.resolved_at = new Date().toISOString();
-    } else {
-      updateData.resolved_at = null;
+    const res = await fetch("/api/conversations", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: conversationId, status }),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || "Failed to update status");
     }
-
-    const { error } = await supabase
-      .from("conversations")
-      .update(updateData)
-      .eq("id", conversationId);
-
-    if (error) throw error;
   };
 
-  // Assign conversation to agent
+  // Assign conversation to agent via API
   const assignToAgent = async (conversationId: string, agentId: string | null) => {
-    const { error } = await supabase
-      .from("conversations")
-      .update({ assigned_to: agentId })
-      .eq("id", conversationId);
-
-    if (error) throw error;
+    const res = await fetch("/api/conversations", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: conversationId, assigned_to: agentId }),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || "Failed to assign agent");
+    }
   };
 
   return {
