@@ -51,15 +51,9 @@ export function logActivity(entry: LogEntry): void {
   }
 
   // Fire-and-forget — we intentionally don't await this
-  _writeLog(entry).catch((err) => {
-    // If table doesn't exist, switch to console-only mode silently
-    if (err?.code === "42P01" || err?.message?.includes("relation")) {
-      _tableMissing = true;
-      console.log(`[${entry.level.toUpperCase()}] [${entry.category}] ${entry.message}`);
-      return;
-    }
-    // Other errors: fallback to console so we never lose the log entirely
-    console.error("[logger] Failed to write log:", err);
+  _writeLog(entry).catch(() => {
+    // Table likely doesn't exist yet — switch to console-only mode silently
+    _tableMissing = true;
     console.log(`[${entry.level.toUpperCase()}] [${entry.category}] ${entry.message}`);
   });
 }

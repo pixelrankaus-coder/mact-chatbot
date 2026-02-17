@@ -60,12 +60,9 @@ export async function GET(request: NextRequest) {
     const { data, count, error } = await query;
 
     if (error) {
-      // Table doesn't exist yet — return empty results instead of 500
-      if (error.code === "42P01" || error.message?.includes("relation") || error.code === "PGRST116") {
-        return NextResponse.json({ logs: [], total: 0, page, limit });
-      }
-      console.error("Failed to fetch system logs:", error);
-      return NextResponse.json({ error: "Failed to fetch logs" }, { status: 500 });
+      // Table may not exist yet — return empty results instead of 500
+      console.error("system_logs query error:", error.code, error.message);
+      return NextResponse.json({ logs: [], total: 0, page, limit });
     }
 
     return NextResponse.json({

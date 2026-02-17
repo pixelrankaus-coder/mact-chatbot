@@ -10,6 +10,7 @@ import {
   formatCustomerForChat,
 } from "@/lib/chatbot-lookup";
 import { sendNewConversationEmail } from "@/lib/email";
+import { logInfo, logError } from "@/lib/logger";
 
 // Create supabase client at runtime for server-side usage
 function getSupabase() {
@@ -282,6 +283,17 @@ export async function POST(
         if (!botError) {
           botMessage = botMsg;
 
+          logInfo("ai", `Widget chat: AI responded using ${aiResponse.model} (${aiResponse.usage?.totalTokens || 0} tokens)`, {
+            path: `/api/widget/conversations/${id}/messages`,
+            method: "POST",
+            status_code: 201,
+            metadata: {
+              model: aiResponse.model,
+              tokens: aiResponse.usage?.totalTokens,
+              conversationId: id,
+            },
+          });
+
           // Log token usage if available
           if (aiResponse.usage) {
             const cost = calculateTokenCost(
@@ -304,7 +316,15 @@ export async function POST(
       } catch (aiError) {
         const errMsg = aiError instanceof Error ? `${aiError.message} | ${aiError.stack?.split('\n')[1]?.trim() || ''}` : String(aiError);
         console.error("AI response error:", errMsg, aiError);
-        // Insert fallback message with debug info (temporary)
+
+        logError("ai", `Widget chat AI failed: ${aiError instanceof Error ? aiError.message : String(aiError)}`, {
+          path: `/api/widget/conversations/${id}/messages`,
+          method: "POST",
+          status_code: 500,
+          metadata: { conversationId: id, error: errMsg },
+        });
+
+        // Insert fallback message
         const { data: fallbackMsg } = await supabase
           .from("messages")
           .insert({

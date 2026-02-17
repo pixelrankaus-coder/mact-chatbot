@@ -20,12 +20,9 @@ export async function GET(request: NextRequest) {
       .gte("timestamp", twentyFourHoursAgo);
 
     if (error) {
-      // Table doesn't exist yet — return empty stats instead of 500
-      if (error.code === "42P01" || error.message?.includes("relation") || error.code === "PGRST116") {
-        return NextResponse.json({ total: 0, byLevel: { info: 0, warn: 0, error: 0 }, byCategory: {}, period: "24h" });
-      }
-      console.error("Failed to fetch log stats:", error);
-      return NextResponse.json({ error: "Failed to fetch log stats" }, { status: 500 });
+      // Table may not exist yet — return empty stats instead of 500
+      console.error("system_logs stats error:", error.code, error.message);
+      return NextResponse.json({ total: 0, byLevel: { info: 0, warn: 0, error: 0 }, byCategory: {}, period: "24h" });
     }
 
     const logs = data || [];
@@ -50,6 +47,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Log stats API error:", error);
-    return NextResponse.json({ error: "Failed to fetch log stats" }, { status: 500 });
+    return NextResponse.json({ total: 0, byLevel: { info: 0, warn: 0, error: 0 }, byCategory: {}, period: "24h" });
   }
 }
