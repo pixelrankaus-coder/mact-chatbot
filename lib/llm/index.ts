@@ -208,8 +208,13 @@ async function chatOpenAI(
   // Get enabled skills as tools if skills are enabled
   let tools: OpenAI.Chat.Completions.ChatCompletionTool[] | undefined;
   if (config.enableSkills) {
-    const skillTools = await getSkillsAsFunctions();
-    tools = skillTools.length > 0 ? skillTools : undefined;
+    try {
+      const skillTools = await getSkillsAsFunctions();
+      tools = skillTools.length > 0 ? skillTools : undefined;
+    } catch (skillError) {
+      console.warn("Failed to load skills (tables may not exist):", skillError);
+      // Continue without skills
+    }
   }
 
   // Build initial messages

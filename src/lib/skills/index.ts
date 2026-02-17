@@ -78,7 +78,7 @@ export async function getEnabledSkillDefinitions(): Promise<SkillDefinition[]> {
   const supabase = createServiceClient() as SupabaseAny;
 
   // Get enabled skills from database
-  const { data: enabledSkills } = await supabase
+  const { data: enabledSkills, error } = await supabase
     .from("ai_skills")
     .select(`
       skill_id,
@@ -90,7 +90,7 @@ export async function getEnabledSkillDefinitions(): Promise<SkillDefinition[]> {
     `)
     .eq("is_enabled", true);
 
-  if (!enabledSkills) return [];
+  if (error || !enabledSkills) return [];
 
   // Filter to only registered and available skills
   const enabledSlugs = new Set(

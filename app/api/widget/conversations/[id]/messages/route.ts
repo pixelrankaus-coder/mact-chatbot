@@ -302,7 +302,8 @@ export async function POST(
           }
         }
       } catch (aiError) {
-        console.error("AI response error:", aiError);
+        const errMsg = aiError instanceof Error ? aiError.message : String(aiError);
+        console.error("AI response error:", errMsg, aiError);
         // Insert fallback message
         const { data: fallbackMsg } = await supabase
           .from("messages")
