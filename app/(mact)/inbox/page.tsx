@@ -1154,7 +1154,27 @@ export default function InboxPage() {
                                 : "bg-blue-600 text-white"
                           }`}
                         >
-                          <p className="whitespace-pre-line text-sm">{message.content}</p>
+                          <p className="whitespace-pre-line text-sm">
+                            {message.content.split(/(https?:\/\/[^\s,)]+)/g).map((part, i) =>
+                              /^https?:\/\//.test(part) ? (
+                                <a
+                                  key={i}
+                                  href={part}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={`underline break-all ${
+                                    message.sender_type === "visitor"
+                                      ? "text-blue-600"
+                                      : "text-white/90 hover:text-white"
+                                  }`}
+                                >
+                                  {part}
+                                </a>
+                              ) : (
+                                <span key={i}>{part}</span>
+                              )
+                            )}
+                          </p>
                         </div>
                       </div>
                     </div>

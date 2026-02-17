@@ -39,8 +39,17 @@ interface WidgetSettings {
   };
 }
 
+interface ProductCard {
+  name: string;
+  price: string;
+  image: string | null;
+  url: string;
+}
+
 // ─── Constants ───────────────────────────────────────────────────────
 const POLL_INTERVAL = 3000;
+const PRODUCT_URL_REGEX = /https?:\/\/mact\.au\/product\/([a-z0-9-]+)\/?/g;
+const URL_REGEX = /(https?:\/\/[^\s,)]+)/g;
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 function getBaseUrl(): string {
@@ -75,6 +84,8 @@ export default function ChatPage() {
   const [sending, setSending] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
 
+  const [productCards, setProductCards] = useState<Record<string, ProductCard>>({});
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastMessageTime = useRef<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -82,6 +93,129 @@ export default function ChatPage() {
 
   const primaryColor = settings.appearance?.primaryColor || "#2563eb";
   const agentName = settings.aiAgent?.name || "MACt Assistant";
+
+  // ─── Fetch product cards for any mact.au/product/ URLs in messages ──
+  useEffect(() => {
+    const slugs = new Set<string>();
+    for (const msg of messages) {
+      if (msg.sender_type === "visitor") continue;
+      const matches = msg.content.matchAll(PRODUCT_URL_REGEX);
+      for (const m of matches) {
+        if (m[1] && !productCards[m[1]]) slugs.add(m[1]);
+      }
+    }
+    if (slugs.size === 0) return;
+
+    for (const slug of slugs) {
+      fetch(`${baseUrl.current}/api/widget/product-card?slug=${encodeURIComponent(slug)}`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.found && data.product) {
+            setProductCards((prev) => ({ ...prev, [slug]: data.product }));
+          }
+        })
+        .catch(() => {});
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages]);
+
+  // ─── Render message content with clickable links ──────────────────
+  function renderMessageContent(text: string, isVisitor: boolean) {
+    // Split text into parts: plain text and URLs
+    const parts: Array<{ type: "text" | "url"; value: string }> = [];
+    let lastIndex = 0;
+    const urlRegex = new RegExp(URL_REGEX.source, "g");
+    let match;
+    while ((match = urlRegex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push({ type: "text", value: text.slice(lastIndex, match.index) });
+      }
+      parts.push({ type: "url", value: match[1] });
+      lastIndex = match.index + match[0].length;
+    }
+    if (lastIndex < text.length) {
+      parts.push({ type: "text", value: text.slice(lastIndex) });
+    }
+
+    // Collect product slugs mentioned in this message
+    const msgProductSlugs: string[] = [];
+    const productUrlRegex = new RegExp(PRODUCT_URL_REGEX.source, "g");
+    let pm;
+    while ((pm = productUrlRegex.exec(text)) !== null) {
+      if (pm[1]) msgProductSlugs.push(pm[1]);
+    }
+
+    const linkColor = isVisitor ? "#fff" : primaryColor;
+
+    return (
+      <>
+        <div style={{ fontSize: 14, lineHeight: 1.45, whiteSpace: "pre-wrap" }}>
+          {parts.map((part, i) =>
+            part.type === "url" ? (
+              <a
+                key={i}
+                href={part.value}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: linkColor, textDecoration: "underline", wordBreak: "break-all" }}
+              >
+                {part.value}
+              </a>
+            ) : (
+              <span key={i}>{part.value}</span>
+            )
+          )}
+        </div>
+        {msgProductSlugs.map((slug) => {
+          const card = productCards[slug];
+          if (!card) return null;
+          return (
+            <a
+              key={slug}
+              href={card.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: "flex",
+                gap: 10,
+                marginTop: 8,
+                padding: 8,
+                background: "#fff",
+                borderRadius: 10,
+                border: "1px solid #e5e7eb",
+                textDecoration: "none",
+                color: "#1f2937",
+                cursor: "pointer",
+              }}
+            >
+              {card.image && (
+                <img
+                  src={card.image}
+                  alt={card.name}
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 6,
+                    objectFit: "cover",
+                    flexShrink: 0,
+                  }}
+                />
+              )}
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.3 }}>{card.name}</div>
+                {card.price && (
+                  <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{card.price} inc. GST</div>
+                )}
+                <div style={{ fontSize: 11, color: primaryColor, marginTop: 4, fontWeight: 500 }}>
+                  View Product →
+                </div>
+              </div>
+            </a>
+          );
+        })}
+      </>
+    );
+  }
 
   // ─── Init: fetch settings + prechat config ──────────────────────
   useEffect(() => {
@@ -424,7 +558,7 @@ export default function ChatPage() {
                 {!isVisitor && (
                   <div style={styles.senderName}>{msg.sender_name}</div>
                 )}
-                <div style={styles.messageContent}>{msg.content}</div>
+                <div>{renderMessageContent(msg.content, isVisitor)}</div>
                 <div
                   style={{
                     ...styles.messageTime,
