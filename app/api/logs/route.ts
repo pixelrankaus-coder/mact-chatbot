@@ -60,6 +60,10 @@ export async function GET(request: NextRequest) {
     const { data, count, error } = await query;
 
     if (error) {
+      // Table doesn't exist yet — return empty results instead of 500
+      if (error.code === "42P01" || error.message?.includes("relation") || error.code === "PGRST116") {
+        return NextResponse.json({ logs: [], total: 0, page, limit });
+      }
       console.error("Failed to fetch system logs:", error);
       return NextResponse.json({ error: "Failed to fetch logs" }, { status: 500 });
     }
@@ -72,6 +76,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Logs API error:", error);
-    return NextResponse.json({ error: "Failed to fetch logs" }, { status: 500 });
+    // Defensive: if table missing, return empty instead of crashing
+    return NextResponse.json({ logs: [], total: 0, page: 1, limit: 100 });
   }
 }

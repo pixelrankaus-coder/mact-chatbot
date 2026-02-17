@@ -40,10 +40,25 @@ interface LogEntry {
  *     metadata: { model: "gpt-4o", tokens: 450, conversationId: "abc-123" }
  *   });
  */
+// Track if table is missing so we don't spam errors on every call
+let _tableMissing = false;
+
 export function logActivity(entry: LogEntry): void {
+  // If we already know the table doesn't exist, just console.log
+  if (_tableMissing) {
+    console.log(`[${entry.level.toUpperCase()}] [${entry.category}] ${entry.message}`);
+    return;
+  }
+
   // Fire-and-forget — we intentionally don't await this
   _writeLog(entry).catch((err) => {
-    // Fallback to console so we never lose the log entirely
+    // If table doesn't exist, switch to console-only mode silently
+    if (err?.code === "42P01" || err?.message?.includes("relation")) {
+      _tableMissing = true;
+      console.log(`[${entry.level.toUpperCase()}] [${entry.category}] ${entry.message}`);
+      return;
+    }
+    // Other errors: fallback to console so we never lose the log entirely
     console.error("[logger] Failed to write log:", err);
     console.log(`[${entry.level.toUpperCase()}] [${entry.category}] ${entry.message}`);
   });
