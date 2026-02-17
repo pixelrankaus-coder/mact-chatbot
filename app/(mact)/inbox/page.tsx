@@ -1083,7 +1083,8 @@ export default function InboxPage() {
           )}
 
           {/* Messages */}
-          <ScrollArea className="flex-1 bg-slate-50 p-6">
+          <div className="flex-1 min-h-0">
+          <ScrollArea className="h-full bg-slate-50 p-6">
             <div className="mx-auto max-w-2xl space-y-4">
               {messagesLoading ? (
                 <div className="flex items-center justify-center py-12">
@@ -1186,6 +1187,7 @@ export default function InboxPage() {
               <div ref={messagesEndRef} />
             </div>
           </ScrollArea>
+          </div>
 
           {/* Visitor Typing Indicator */}
           {selectedConversation && visitorTyping[selectedConversation.id] && (
