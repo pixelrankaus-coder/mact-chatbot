@@ -918,6 +918,7 @@ function AIAgentPageContent() {
                 </div>
                 <CheckCircle2 className="h-8 w-8 text-green-500" />
               </div>
+              {documents.filter((d) => d.status === "processing").length > 0 && (
               <div className="flex items-center justify-between rounded-lg bg-blue-50 p-4">
                 <div>
                   <p className="font-medium text-blue-700">Processing</p>
@@ -927,6 +928,7 @@ function AIAgentPageContent() {
                 </div>
                 <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
               </div>
+              )}
               {documents.filter((d) => d.status === "error").length > 0 && (
                 <div className="flex items-center justify-between rounded-lg bg-red-50 p-4">
                   <div>
