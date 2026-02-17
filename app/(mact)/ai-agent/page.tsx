@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect, useRef, useCallback } from "react";
+import { Suspense, useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -45,11 +45,64 @@ import {
   Clock,
   MousePointer,
   ArrowUpFromLine,
+  Search,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAIAgentSettings } from "@/hooks/use-settings";
 import { AgentTabs, useAgentTab } from "./components/agent-tabs";
 import { SkillsTab } from "./components/skills-tab";
+
+// URL categorization for sitemap crawler
+interface UrlCategory {
+  key: string;
+  label: string;
+  urls: string[];
+}
+
+const CATEGORY_MAP: Record<string, { key: string; label: string }> = {
+  "product": { key: "product", label: "Products" },
+  "product-category": { key: "product-category", label: "Product Categories" },
+  "category": { key: "category", label: "Blog Categories" },
+  "shop": { key: "shop", label: "Shop" },
+};
+
+function categorizeUrls(urls: string[]): UrlCategory[] {
+  const buckets: Record<string, string[]> = {};
+  const rootPages: string[] = [];
+
+  for (const url of urls) {
+    try {
+      const pathname = new URL(url).pathname.replace(/\/$/, "") || "/";
+      const segments = pathname.split("/").filter(Boolean);
+      const firstSegment = segments[0] || "";
+
+      if (CATEGORY_MAP[firstSegment]) {
+        const cat = CATEGORY_MAP[firstSegment];
+        if (!buckets[cat.key]) buckets[cat.key] = [];
+        buckets[cat.key].push(url);
+      } else {
+        rootPages.push(url);
+      }
+    } catch {
+      rootPages.push(url);
+    }
+  }
+
+  const categories: UrlCategory[] = [];
+  const order = ["product", "product-category", "category", "shop"];
+  for (const key of order) {
+    if (buckets[key]?.length) {
+      const config = Object.values(CATEGORY_MAP).find((c) => c.key === key)!;
+      categories.push({ key, label: config.label, urls: buckets[key].sort() });
+    }
+  }
+  if (rootPages.length > 0) {
+    categories.push({ key: "pages", label: "Pages & Posts", urls: rootPages.sort() });
+  }
+  return categories;
+}
 
 interface UploadedDocument {
   id: string;
@@ -121,6 +174,18 @@ function AIAgentPageContent() {
   const [discoveredUrls, setDiscoveredUrls] = useState<string[]>([]);
   const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set());
   const [crawlResults, setCrawlResults] = useState<{ succeeded: number; skipped: number; failed: number } | null>(null);
+  const [urlSearchQuery, setUrlSearchQuery] = useState("");
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+
+  // Derived: categorized and filtered URL groups
+  const urlCategories = useMemo(() => categorizeUrls(discoveredUrls), [discoveredUrls]);
+  const filteredCategories = useMemo(() => {
+    if (!urlSearchQuery.trim()) return urlCategories;
+    const query = urlSearchQuery.toLowerCase();
+    return urlCategories
+      .map((cat) => ({ ...cat, urls: cat.urls.filter((url) => url.toLowerCase().includes(query)) }))
+      .filter((cat) => cat.urls.length > 0);
+  }, [urlCategories, urlSearchQuery]);
 
   // Test chat state
   const [testInput, setTestInput] = useState("");
@@ -373,7 +438,9 @@ function AIAgentPageContent() {
       if (!response.ok) throw new Error(data.error || "Failed to fetch sitemap");
 
       setDiscoveredUrls(data.urls || []);
-      setSelectedUrls(new Set(data.urls || [])); // Select all by default
+      setSelectedUrls(new Set()); // Start with none selected
+      setExpandedCategories(new Set(categorizeUrls(data.urls || []).map((c) => c.key)));
+      setUrlSearchQuery("");
       toast.success(`Found ${data.total} pages`, {
         description: data.filteredOut > 0 ? `${data.filteredOut} non-HTML URLs filtered out` : undefined,
       });
@@ -722,7 +789,7 @@ function AIAgentPageContent() {
               </Button>
             </div>
 
-            {/* Discovered URLs list */}
+            {/* Discovered URLs list - grouped by category */}
             {discoveredUrls.length > 0 && (
               <div className="border rounded-lg p-3 space-y-3">
                 <div className="flex items-center justify-between">
@@ -746,31 +813,110 @@ function AIAgentPageContent() {
                     </Button>
                   </div>
                 </div>
-                <ScrollArea className="h-48">
+
+                {/* Search filter */}
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                  <Input
+                    placeholder="Filter URLs..."
+                    className="pl-8 h-8 text-xs"
+                    value={urlSearchQuery}
+                    onChange={(e) => setUrlSearchQuery(e.target.value)}
+                  />
+                </div>
+
+                <ScrollArea className="h-56">
                   <div className="space-y-1">
-                    {discoveredUrls.map((url) => (
-                      <label
-                        key={url}
-                        className="flex items-center gap-2 py-1 px-2 rounded hover:bg-slate-50 cursor-pointer text-xs"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedUrls.has(url)}
-                          onChange={(e) => {
-                            setSelectedUrls((prev) => {
-                              const next = new Set(prev);
-                              if (e.target.checked) next.add(url);
-                              else next.delete(url);
-                              return next;
-                            });
-                          }}
-                          className="rounded"
-                        />
-                        <span className="truncate text-slate-600">{url}</span>
-                      </label>
-                    ))}
+                    {filteredCategories.map((cat) => {
+                      const isExpanded = expandedCategories.has(cat.key);
+                      const selectedInCat = cat.urls.filter((u) => selectedUrls.has(u)).length;
+                      const allSelected = selectedInCat === cat.urls.length;
+
+                      return (
+                        <div key={cat.key} className="border rounded-md">
+                          {/* Category header */}
+                          <div className="flex items-center gap-1 px-2 py-1.5 bg-slate-50 hover:bg-slate-100 rounded-t-md">
+                            <button
+                              type="button"
+                              className="flex items-center gap-1 flex-1 text-left"
+                              onClick={() =>
+                                setExpandedCategories((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(cat.key)) next.delete(cat.key);
+                                  else next.add(cat.key);
+                                  return next;
+                                })
+                              }
+                            >
+                              {isExpanded ? (
+                                <ChevronDown className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                              ) : (
+                                <ChevronRight className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                              )}
+                              <span className="text-xs font-medium text-slate-700">{cat.label}</span>
+                              <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0">
+                                {selectedInCat}/{cat.urls.length}
+                              </Badge>
+                            </button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 text-[10px] px-2"
+                              onClick={() => {
+                                setSelectedUrls((prev) => {
+                                  const next = new Set(prev);
+                                  if (allSelected) {
+                                    cat.urls.forEach((u) => next.delete(u));
+                                  } else {
+                                    cat.urls.forEach((u) => next.add(u));
+                                  }
+                                  return next;
+                                });
+                              }}
+                            >
+                              {allSelected ? "Deselect" : "Select All"}
+                            </Button>
+                          </div>
+
+                          {/* URL list within category */}
+                          {isExpanded && (
+                            <div className="px-2 py-1 space-y-0.5">
+                              {cat.urls.map((url) => {
+                                const pathname = (() => {
+                                  try { return new URL(url).pathname; } catch { return url; }
+                                })();
+                                return (
+                                  <label
+                                    key={url}
+                                    className="flex items-center gap-2 py-0.5 px-1 rounded hover:bg-slate-50 cursor-pointer text-xs"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedUrls.has(url)}
+                                      onChange={(e) => {
+                                        setSelectedUrls((prev) => {
+                                          const next = new Set(prev);
+                                          if (e.target.checked) next.add(url);
+                                          else next.delete(url);
+                                          return next;
+                                        });
+                                      }}
+                                      className="rounded"
+                                    />
+                                    <span className="truncate text-slate-600" title={url}>
+                                      {pathname}
+                                    </span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </ScrollArea>
+
                 <Button
                   className="w-full gap-2"
                   onClick={handleCrawlSelected}
