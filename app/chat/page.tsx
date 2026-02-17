@@ -78,6 +78,7 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastMessageTime = useRef<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const sendingRef = useRef(false);
 
   const primaryColor = settings.appearance?.primaryColor || "#2563eb";
   const agentName = settings.aiAgent?.name || "MACt Assistant";
@@ -206,7 +207,9 @@ export default function ChatPage() {
 
   // ─── Send message ───────────────────────────────────────────────
   const sendMessage = async () => {
-    if (!inputValue.trim() || !conversationId || sending) return;
+    // Use ref to prevent double-sends from React state batching race conditions
+    if (!inputValue.trim() || !conversationId || sendingRef.current) return;
+    sendingRef.current = true;
 
     const content = inputValue.trim();
     setInputValue("");
@@ -236,12 +239,17 @@ export default function ChatPage() {
       const data = await res.json();
 
       setMessages((prev) => {
+        // Remove optimistic message
         let updated = prev.filter((m) => m.id !== tempId);
         if (data.userMessage) {
+          // Remove any poll-added duplicate before adding
+          updated = updated.filter((m) => m.id !== data.userMessage.id);
           updated = [...updated, data.userMessage];
           lastMessageTime.current = data.userMessage.created_at;
         }
         if (data.botMessage) {
+          // Remove any poll-added duplicate before adding
+          updated = updated.filter((m) => m.id !== data.botMessage.id);
           updated = [...updated, data.botMessage];
           lastMessageTime.current = data.botMessage.created_at;
         }
@@ -254,6 +262,7 @@ export default function ChatPage() {
       setInputValue(content); // restore input
     } finally {
       setSending(false);
+      sendingRef.current = false;
     }
   };
 
