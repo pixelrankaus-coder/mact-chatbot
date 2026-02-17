@@ -9,17 +9,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase";
 import { sendServiceAlertEmail, sendServiceRecoveryEmail } from "@/lib/email";
+import { runAllHealthChecks } from "@/lib/infrastructure-health";
+import type { ServiceHealth } from "@/lib/infrastructure-health";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseAny = any;
-
-interface ServiceHealth {
-  name: string;
-  type: string;
-  status: "operational" | "degraded" | "down" | "unconfigured";
-  responseTime: number | null;
-  details?: string;
-}
 
 interface StatusCacheEntry {
   status: string;
@@ -112,18 +106,8 @@ export async function POST(request: NextRequest) {
 
 async function runHealthCheckAndAlert(supabase: SupabaseAny) {
   try {
-    // 1. Fetch current health status from our own endpoint
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL
-      || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
-    const healthRes = await fetch(`${baseUrl}/api/infrastructure/health`, {
-      signal: AbortSignal.timeout(30000),
-    });
-
-    if (!healthRes.ok) {
-      return NextResponse.json({ error: "Health check failed" }, { status: 500 });
-    }
-
-    const healthData = await healthRes.json();
+    // 1. Run health checks directly (no self-fetch)
+    const healthData = await runAllHealthChecks();
     const services: ServiceHealth[] = healthData.services;
 
     // 2. Get previous status cache from settings table

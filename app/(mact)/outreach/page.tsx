@@ -92,6 +92,7 @@ export default function OutreachPage() {
   const [campaigns, setCampaigns] = useState<OutreachCampaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -127,6 +128,55 @@ export default function OutreachPage() {
       toast.error(error instanceof Error ? error.message : "Failed to delete");
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const count = selectedIds.size;
+    if (count === 0) return;
+
+    // Check for any "sending" campaigns in selection
+    const sendingCampaigns = campaigns.filter(
+      (c) => selectedIds.has(c.id) && c.status === "sending"
+    );
+    if (sendingCampaigns.length > 0) {
+      toast.error("Cannot delete campaigns that are currently sending");
+      return;
+    }
+
+    if (!confirm(`Delete ${count} campaign${count > 1 ? "s" : ""}? This cannot be undone.`)) {
+      return;
+    }
+
+    setBulkDeleting(true);
+    let deleted = 0;
+    let failed = 0;
+    const deletedIds = new Set<string>();
+
+    for (const id of selectedIds) {
+      try {
+        const res = await fetch(`/api/outreach/campaigns/${id}`, {
+          method: "DELETE",
+        });
+        if (!res.ok) {
+          failed++;
+        } else {
+          deleted++;
+          deletedIds.add(id);
+        }
+      } catch {
+        failed++;
+      }
+    }
+
+    setCampaigns((prev) => prev.filter((c) => !deletedIds.has(c.id)));
+    setSelectedIds(new Set());
+    setBulkDeleting(false);
+
+    if (failed > 0) {
+      toast.error(`Deleted ${deleted}, failed to delete ${failed}`);
+    } else {
+      toast.success(`Deleted ${deleted} campaign${deleted > 1 ? "s" : ""}`);
     }
   };
 
@@ -352,6 +402,21 @@ export default function OutreachPage() {
             ))}
           </SelectContent>
         </Select>
+        {selectedIds.size > 0 && (
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={handleBulkDelete}
+            disabled={bulkDeleting}
+          >
+            {bulkDeleting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="h-4 w-4" />
+            )}
+            Delete {selectedIds.size} selected
+          </Button>
+        )}
       </div>
 
       {/* Campaigns Table */}
