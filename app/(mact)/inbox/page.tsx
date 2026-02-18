@@ -331,7 +331,7 @@ export default function InboxPage() {
 
     setSendingMessage(true);
     try {
-      await sendMessage(newMessage, "agent", "Admin");
+      await sendMessage(newMessage, "agent", currentAgent?.name || "Admin");
       setNewMessage("");
     } catch (error) {
       console.error("Failed to send message:", error);
@@ -429,11 +429,11 @@ export default function InboxPage() {
         body: JSON.stringify({
           id: selectedConversationId,
           status: "active",
-          assigned_to: "Admin",
+          assigned_to: currentAgent?.id || null,
           metadata: {
             ...currentMetadata,
             handoffRequested: false,
-            handoffCompletedBy: "Admin",
+            handoffCompletedBy: currentAgent?.name || "Admin",
             handoffCompletedAt: new Date().toISOString(),
           },
         }),
@@ -445,7 +445,7 @@ export default function InboxPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          content: "An agent has joined the conversation and will assist you from here.",
+          content: `${currentAgent?.name || "An agent"} has joined the conversation and will assist you from here.`,
           senderType: "system",
           senderName: "System",
         }),
@@ -1245,7 +1245,7 @@ export default function InboxPage() {
                         </Button>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-slate-400">Responding as Admin</span>
+                        <span className="text-xs text-slate-400">Responding as {currentAgent?.name || "Admin"}</span>
                         <Button
                           variant="outline"
                           className="gap-2 border-purple-200 text-purple-600 hover:bg-purple-50 hover:text-purple-700"
