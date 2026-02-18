@@ -148,6 +148,7 @@
     iframe.src = BASE_URL + '/chat?embed=true&storeId=' + encodeURIComponent(storeId);
     iframe.style.cssText = 'width:100%;height:100%;border:none;border-radius:' + borderRadius;
     iframe.setAttribute('allow', 'microphone');
+    iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation');
     iframe.setAttribute('title', 'MACt Chat');
 
     chatContainer.appendChild(iframe);
