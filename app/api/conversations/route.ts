@@ -119,3 +119,30 @@ export async function PATCH(request: NextRequest) {
     );
   }
 }
+
+// DELETE /api/conversations?id=xxx - Delete a conversation and its messages
+export async function DELETE(request: NextRequest) {
+  const supabase = createServiceClient();
+
+  try {
+    const id = new URL(request.url).searchParams.get("id");
+    if (!id) {
+      return NextResponse.json({ error: "Conversation ID required" }, { status: 400 });
+    }
+
+    // Delete messages first (child records)
+    await supabase.from("messages").delete().eq("conversation_id", id);
+
+    // Delete the conversation
+    const { error } = await supabase.from("conversations").delete().eq("id", id);
+    if (error) throw error;
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Failed to delete conversation:", error);
+    return NextResponse.json(
+      { error: "Failed to delete conversation" },
+      { status: 500 }
+    );
+  }
+}

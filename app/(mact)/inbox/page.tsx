@@ -49,8 +49,6 @@ import {
   ChevronDown,
   Archive,
   Trash2,
-  Reply,
-  Forward,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -89,6 +87,7 @@ export default function InboxPage() {
   const {
     conversations,
     loading: conversationsLoading,
+    refetch,
     updateStatus,
     assignToAgent,
   } = useConversations();
@@ -398,6 +397,23 @@ export default function InboxPage() {
     } catch (error) {
       console.error("Failed to update status:", error);
       toast.error("Failed to update conversation");
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!selectedConversationId) return;
+    const name = selectedConversation?.visitor_name || "this visitor";
+    if (!window.confirm(`Delete conversation with ${name}? This will permanently remove all messages.`)) return;
+
+    try {
+      const res = await fetch(`/api/conversations?id=${selectedConversationId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete");
+      toast.success("Conversation deleted");
+      setSelectedConversationId(null);
+      refetch();
+    } catch (error) {
+      console.error("Failed to delete conversation:", error);
+      toast.error("Failed to delete conversation");
     }
   };
 
@@ -867,7 +883,7 @@ export default function InboxPage() {
 
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon">
+                    <Button variant="ghost" size="icon" onClick={handleDelete}>
                       <Trash2 />
                       <span className="sr-only">Delete</span>
                     </Button>
@@ -876,38 +892,7 @@ export default function InboxPage() {
                 </Tooltip>
               </div>
 
-              <Separator orientation="vertical" className="h-4" />
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon">
-                    <Clock />
-                    <span className="sr-only">Snooze</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Snooze</TooltipContent>
-              </Tooltip>
-
-              <div className="ml-auto flex items-center gap-2">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                      <Reply />
-                      <span className="sr-only">Reply</span>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Reply</TooltipContent>
-                </Tooltip>
-
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                      <Forward />
-                      <span className="sr-only">Forward</span>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Forward</TooltipContent>
-                </Tooltip>
+              <div className="ml-auto">
               </div>
 
               <Separator orientation="vertical" className="h-4" />
