@@ -118,13 +118,14 @@ export default function InboxPage() {
   useEffect(() => {
     const loadAgents = async () => {
       setLoadingAgents(true);
-      const { data, error } = await supabase
-        .from("agents")
-        .select("id, email, name, avatar_url, role, is_online")
-        .order("name", { ascending: true });
-
-      if (!error && data) {
-        setAgents(data);
+      try {
+        const res = await fetch("/api/agents");
+        if (res.ok) {
+          const data = await res.json();
+          setAgents(data.agents || data || []);
+        }
+      } catch (err) {
+        console.error("Failed to load agents:", err);
       }
       setLoadingAgents(false);
     };

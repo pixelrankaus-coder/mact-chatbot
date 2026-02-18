@@ -103,7 +103,13 @@ export async function PATCH(request: NextRequest) {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error("Supabase update error:", error.code, error.message, error.details, "Update data:", JSON.stringify(updateData), "Conv ID:", id);
+      return NextResponse.json(
+        { error: "Failed to update conversation", details: error.message, code: error.code },
+        { status: 500 }
+      );
+    }
     return NextResponse.json({ conversation: data });
   } catch (error) {
     console.error("Failed to update conversation:", error);
