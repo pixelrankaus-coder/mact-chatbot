@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,6 +30,46 @@ export default function LiveChatSettings() {
   const [autoAssign, setAutoAssign] = useState(true);
   const [responseTime, setResponseTime] = useState("immediate");
   const [maxConcurrent, setMaxConcurrent] = useState("5");
+  const [requireEmail, setRequireEmail] = useState(false);
+  const [savingEmail, setSavingEmail] = useState(false);
+
+  // Load current prechat form setting
+  useEffect(() => {
+    fetch("/api/settings/prechat")
+      .then((r) => r.json())
+      .then((data) => {
+        setRequireEmail(data.enabled === true);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Toggle require email before chat (updates prechat_form setting)
+  const handleRequireEmailToggle = async (checked: boolean) => {
+    setRequireEmail(checked);
+    setSavingEmail(true);
+    try {
+      const res = await fetch("/api/settings/prechat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          enabled: checked,
+          title: "Start a conversation",
+          subtitle: "Please fill in your details to begin",
+          fields: [
+            { id: "name", type: "text", label: "Name", placeholder: "Your name", required: true },
+            { id: "email", type: "email", label: "Email", placeholder: "your@email.com", required: true },
+          ],
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to save");
+      toast.success(checked ? "Email required before chat" : "Email no longer required");
+    } catch {
+      setRequireEmail(!checked); // revert on error
+      toast.error("Failed to update setting");
+    } finally {
+      setSavingEmail(false);
+    }
+  };
 
   const handleSave = () => {
     toast.success("Live chat settings saved!");
@@ -199,7 +239,11 @@ export default function LiveChatSettings() {
                     Visitors must provide email to start chatting
                   </p>
                 </div>
-                <Switch defaultChecked={false} />
+                <Switch
+                  checked={requireEmail}
+                  onCheckedChange={handleRequireEmailToggle}
+                  disabled={savingEmail}
+                />
               </div>
               <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-4">
                 <div>
