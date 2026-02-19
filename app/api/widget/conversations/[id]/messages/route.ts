@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { generateAIResponse, calculateTokenCost } from "@/lib/ai";
+import { generateAIResponse, calculateTokenCost, cleanAIResponse } from "@/lib/ai";
 import { detectOrderIntent } from "@/lib/woocommerce";
 import { detectCin7OrderIntent } from "@/lib/cin7";
 import {
@@ -220,6 +220,21 @@ export async function POST(
         .filter(Boolean)
         .join("\n\n---\n\n") || "";
 
+      // Fetch real product URLs so the AI uses correct links
+      const { data: productCatalog } = await supabase
+        .from("woo_products")
+        .select("name, slug, price")
+        .eq("status", "publish")
+        .order("name")
+        .limit(100);
+
+      if (productCatalog && productCatalog.length > 0) {
+        const productDirectory = productCatalog
+          .map(p => `${p.name} — https://mact.au/product/${p.slug}/${p.price ? ` ($${parseFloat(p.price).toFixed(2)})` : ""}`)
+          .join("\n");
+        knowledgeContent += `\n\n## Product directory (use these EXACT URLs)\n${productDirectory}`;
+      }
+
       // Detect order intent and look up order from Supabase cache
       // Uses local cache for fast lookups (~200ms) instead of Cin7 API (3-5s)
       const cin7Intent = detectCin7OrderIntent(content.trim());
@@ -302,6 +317,39 @@ export async function POST(
           } : undefined
         );
 
+        // Post-process: strip markdown formatting and fix product URLs
+        let cleanedContent = cleanAIResponse(aiResponse.content);
+
+        // Fix product URLs: validate against actual slugs in woo_products
+        const productUrlMatches = cleanedContent.match(/https?:\/\/mact\.au\/product\/([a-z0-9-]+)\/?/g);
+        if (productUrlMatches) {
+          const slugsInResponse = productUrlMatches.map(url => {
+            const match = url.match(/\/product\/([a-z0-9-]+)/);
+            return match ? match[1] : null;
+          }).filter(Boolean) as string[];
+
+          if (slugsInResponse.length > 0) {
+            // Look up which slugs actually exist
+            const { data: validProducts } = await supabase
+              .from("woo_products")
+              .select("slug")
+              .in("slug", slugsInResponse)
+              .eq("status", "publish");
+
+            const validSlugs = new Set((validProducts || []).map(p => p.slug));
+
+            // Replace invalid product URLs with shop page
+            for (const slug of slugsInResponse) {
+              if (!validSlugs.has(slug)) {
+                cleanedContent = cleanedContent.replace(
+                  new RegExp(`https?://mact\\.au/product/${slug}/?`, "g"),
+                  "https://mact.au/shop/"
+                );
+              }
+            }
+          }
+        }
+
         // Insert bot response
         const { data: botMsg, error: botError } = await supabase
           .from("messages")
@@ -309,7 +357,7 @@ export async function POST(
             conversation_id: id,
             sender_type: "ai",
             sender_name: aiSettings?.value?.name || "MACt Assistant",
-            content: aiResponse.content,
+            content: cleanedContent,
           })
           .select()
           .single();

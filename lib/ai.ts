@@ -187,6 +187,26 @@ ${knowledgeContent ? `## Additional knowledge base content\nUse this information
 You represent MACt. Be helpful, honest, and sound like a real person.`;
 }
 
+// Post-process AI response to strip markdown formatting
+// LLMs frequently ignore "no markdown" instructions, so we enforce it here
+export function cleanAIResponse(text: string): string {
+  return text
+    // Remove markdown headers (# ## ### etc)
+    .replace(/^#{1,6}\s+/gm, "")
+    // Remove bold **text** or __text__
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/__(.+?)__/g, "$1")
+    // Remove italic *text* (single asterisk, but not inside URLs)
+    .replace(/(?<![:/\w])\*([^*\n]+?)\*(?![/\w])/g, "$1")
+    // Remove bullet points (- or * at start of line)
+    .replace(/^[\-\*]\s+/gm, "")
+    // Remove numbered lists (1. 2. etc at start of line) but keep content
+    .replace(/^\d+\.\s+/gm, "")
+    // Clean up excessive blank lines
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 // LLM Configuration interface
 export interface LLMSettings {
   provider: LLMProvider;
