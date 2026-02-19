@@ -18,6 +18,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   ArrowLeft,
   Send,
   Mail,
@@ -134,6 +140,7 @@ export default function CampaignDetailPage({
   const [showLogs, setShowLogs] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [selectedReply, setSelectedReply] = useState<OutreachReply | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -189,7 +196,7 @@ export default function CampaignDetailPage({
 
   const fetchStats = async () => {
     try {
-      const res = await fetch(`/api/outreach/campaigns/${id}/stats`);
+      const res = await fetch(`/api/outreach/campaigns/${id}/stats`, { cache: "no-store" });
       const data = await res.json();
       if (res.ok) {
         setCampaign(data.campaign);
@@ -202,7 +209,7 @@ export default function CampaignDetailPage({
 
   const fetchActivity = async () => {
     try {
-      const res = await fetch(`/api/outreach/campaigns/${id}/activity?limit=10`);
+      const res = await fetch(`/api/outreach/campaigns/${id}/activity?limit=10`, { cache: "no-store" });
       const data = await res.json();
       if (res.ok) {
         setActivity(data.events || []);
@@ -214,7 +221,7 @@ export default function CampaignDetailPage({
 
   const fetchReplies = async () => {
     try {
-      const res = await fetch(`/api/outreach/campaigns/${id}/replies?limit=10`);
+      const res = await fetch(`/api/outreach/campaigns/${id}/replies?limit=10`, { cache: "no-store" });
       const data = await res.json();
       if (res.ok) {
         setReplies(data.replies || []);
@@ -630,7 +637,8 @@ export default function CampaignDetailPage({
                     {replies.map((reply) => (
                       <div
                         key={reply.id}
-                        className="py-2 border-b last:border-0"
+                        className="py-2 border-b last:border-0 cursor-pointer hover:bg-slate-50 rounded-md px-2 -mx-2 transition-colors"
+                        onClick={() => setSelectedReply(reply)}
                       >
                         <div className="flex items-center justify-between">
                           <p className="text-sm font-medium">
@@ -778,6 +786,50 @@ export default function CampaignDetailPage({
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Reply Detail Dialog */}
+      <Dialog open={!!selectedReply} onOpenChange={(open) => !open && setSelectedReply(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-lg">
+              {selectedReply?.subject || "(No subject)"}
+            </DialogTitle>
+          </DialogHeader>
+          {selectedReply && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between text-sm border-b pb-3">
+                <div>
+                  <span className="text-slate-500">From: </span>
+                  <span className="font-medium">
+                    {selectedReply.from_name && `${selectedReply.from_name} `}
+                    &lt;{selectedReply.from_email}&gt;
+                  </span>
+                </div>
+                <span className="text-xs text-slate-400">
+                  {formatDate(selectedReply.created_at)}
+                </span>
+              </div>
+              {selectedReply.status === "forwarded" && selectedReply.forwarded_to && (
+                <div className="text-xs text-green-600 bg-green-50 px-3 py-1.5 rounded">
+                  Forwarded to {selectedReply.forwarded_to}
+                </div>
+              )}
+              <div className="text-sm leading-relaxed whitespace-pre-wrap">
+                {selectedReply.body_html ? (
+                  <div
+                    className="prose prose-sm max-w-none"
+                    dangerouslySetInnerHTML={{ __html: selectedReply.body_html }}
+                  />
+                ) : (
+                  <p className="text-slate-700">
+                    {selectedReply.body_text || "(No content)"}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Cancel Dialog */}
       <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>

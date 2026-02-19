@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase";
 import type { CustomerSource, UnifiedCustomer } from "@/types/customer";
 
+export const dynamic = "force-dynamic";
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseAny = any;
 
@@ -17,6 +19,45 @@ const DEFAULT_SEGMENT_SETTINGS = {
   active_months: 6,
   new_days: 30,
 };
+
+// Helper: fetch all rows from a Supabase table with pagination
+async function fetchAllPaginated(
+  supabase: SupabaseAny,
+  table: string,
+  select: string,
+  applyFilters?: (query: SupabaseAny) => SupabaseAny,
+  pageSize = 1000
+): Promise<{ data: SupabaseAny[]; total: number }> {
+  let allData: SupabaseAny[] = [];
+  let page = 0;
+  let total = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    let query = supabase
+      .from(table)
+      .select(select, { count: "exact" })
+      .range(page * pageSize, (page + 1) * pageSize - 1);
+
+    if (applyFilters) query = applyFilters(query);
+
+    const { data: chunk, count, error } = await query;
+
+    if (error) {
+      console.error(`Supabase ${table} query error:`, error);
+      hasMore = false;
+    } else if (chunk && chunk.length > 0) {
+      allData = allData.concat(chunk);
+      if (page === 0) total = count || 0;
+      page++;
+      hasMore = chunk.length === pageSize;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return { data: allData, total: total || allData.length };
+}
 
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
@@ -43,227 +84,107 @@ export async function GET(req: NextRequest) {
       segmentSettings = { ...DEFAULT_SEGMENT_SETTINGS, ...settingsData };
     }
 
-    // Fetch Cin7 customers from Supabase cache with order aggregates
+    // Run all data fetches in PARALLEL for speed
+    // - cin7_customers + cin7_orders + woo_customers fetched simultaneously
+    // - woo_orders is SKIPPED entirely (woo_customers already has orders_count & total_spent)
+    const searchFilter = search
+      ? {
+          cin7: (q: SupabaseAny) => q.or(`name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`),
+          woo: (q: SupabaseAny) => q.or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`),
+        }
+      : { cin7: undefined, woo: undefined };
+
+    const needCin7 = source !== "woocommerce";
+    const needWoo = source !== "cin7";
+
+    const [cin7CustomersResult, cin7OrdersResult, wooCustomersResult] = await Promise.all([
+      needCin7
+        ? fetchAllPaginated(supabase, "cin7_customers", "*", searchFilter.cin7)
+        : { data: [], total: 0 },
+      needCin7
+        ? fetchAllPaginated(supabase, "cin7_orders", "customer_id, total, order_date")
+        : { data: [], total: 0 },
+      needWoo
+        ? fetchAllPaginated(supabase, "woo_customers", "*", searchFilter.woo)
+        : { data: [], total: 0 },
+    ]);
+
+    const cin7Total = cin7CustomersResult.total;
+    const wooTotal = wooCustomersResult.total;
+
+    // Build Cin7 customers with order aggregates
     let cin7Customers: UnifiedCustomer[] = [];
-    let cin7Total = 0;
+    if (cin7CustomersResult.data.length > 0) {
+      const orderAggregates: Record<string, { count: number; total: number; lastDate: string | null }> = {};
+      cin7OrdersResult.data.forEach((o: { customer_id: string; total: number; order_date: string }) => {
+        const cid = o.customer_id;
+        if (!orderAggregates[cid]) {
+          orderAggregates[cid] = { count: 0, total: 0, lastDate: null };
+        }
+        orderAggregates[cid].count += 1;
+        orderAggregates[cid].total += parseFloat(String(o.total)) || 0;
+        if (!orderAggregates[cid].lastDate || o.order_date > orderAggregates[cid].lastDate) {
+          orderAggregates[cid].lastDate = o.order_date;
+        }
+      });
 
-    if (source !== "woocommerce") {
-      // Fetch ALL Cin7 customers with pagination to get around Supabase's 1000 row default limit
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let cin7Data: any[] = [];
-      let customersPage = 0;
-      const customersPageSize = 1000;
-      let hasMoreCustomers = true;
-
-      while (hasMoreCustomers) {
-        let query = supabase
-          .from("cin7_customers")
-          .select("*", { count: "exact" })
-          .range(customersPage * customersPageSize, (customersPage + 1) * customersPageSize - 1);
-
-        // Apply search filter
-        if (search) {
-          query = query.or(
-            `name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`
-          );
-        }
-
-        const { data: customersChunk, count, error } = await query;
-
-        if (error) {
-          console.error("Supabase cin7_customers query error:", error);
-          hasMoreCustomers = false;
-        } else if (customersChunk && customersChunk.length > 0) {
-          cin7Data = cin7Data.concat(customersChunk);
-          // Use count from first page to set total
-          if (customersPage === 0) {
-            cin7Total = count || 0;
-          }
-          customersPage++;
-          hasMoreCustomers = customersChunk.length === customersPageSize;
-        } else {
-          hasMoreCustomers = false;
-        }
-      }
-
-      if (cin7Data.length > 0) {
-
-        // Fetch ALL orders for Cin7 customers to calculate aggregates
-        // Use pagination to get around Supabase's 1000 row default limit
-        let cin7Orders: { customer_id: string; total: number; order_date: string }[] = [];
-        let ordersPage = 0;
-        const ordersPageSize = 1000;
-        let hasMoreOrders = true;
-
-        while (hasMoreOrders) {
-          const { data: ordersChunk } = await supabase
-            .from("cin7_orders")
-            .select("customer_id, total, order_date")
-            .range(ordersPage * ordersPageSize, (ordersPage + 1) * ordersPageSize - 1);
-
-          if (ordersChunk && ordersChunk.length > 0) {
-            cin7Orders = cin7Orders.concat(ordersChunk);
-            ordersPage++;
-            hasMoreOrders = ordersChunk.length === ordersPageSize;
-          } else {
-            hasMoreOrders = false;
-          }
-        }
-
-        // Build order aggregates by customer_id
-        const orderAggregates: Record<string, { count: number; total: number; lastDate: string | null }> = {};
-        (cin7Orders || []).forEach((o: { customer_id: string; total: number; order_date: string }) => {
-          const cid = o.customer_id;
-          if (!orderAggregates[cid]) {
-            orderAggregates[cid] = { count: 0, total: 0, lastDate: null };
-          }
-          orderAggregates[cid].count += 1;
-          orderAggregates[cid].total += parseFloat(String(o.total)) || 0;
-          if (!orderAggregates[cid].lastDate || o.order_date > orderAggregates[cid].lastDate) {
-            orderAggregates[cid].lastDate = o.order_date;
-          }
-        });
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        cin7Customers = (cin7Data || []).map((c: any) => {
-          const agg = orderAggregates[c.cin7_id] || { count: 0, total: 0, lastDate: null };
-          return {
-            id: `cin7-${c.cin7_id}`,
-            cin7Id: c.cin7_id,
-            name: c.name || "",
-            email: c.email || "",
-            phone: c.phone || "",
-            company: c.company || c.name || "",
-            status: c.status?.toLowerCase() === "active" ? "active" : "inactive",
-            sources: ["cin7"] as ("cin7" | "woocommerce")[],
-            lastUpdated: c.updated_at || "",
-            totalOrders: agg.count,
-            totalSpent: agg.total,
-            lastOrderDate: agg.lastDate,
-            cin7Data: {
-              currency: c.currency,
-              paymentTerm: c.payment_term,
-              creditLimit: c.credit_limit ? parseFloat(String(c.credit_limit)) : undefined,
-              discount: c.discount ? parseFloat(String(c.discount)) : undefined,
-              taxNumber: c.tax_number,
-              tags: c.tags,
-            },
-          };
-        });
-      }
+      cin7Customers = cin7CustomersResult.data.map((c: any) => {
+        const agg = orderAggregates[c.cin7_id] || { count: 0, total: 0, lastDate: null };
+        return {
+          id: `cin7-${c.cin7_id}`,
+          cin7Id: c.cin7_id,
+          name: c.name || "",
+          email: c.email || "",
+          phone: c.phone || "",
+          company: c.company || c.name || "",
+          status: c.status?.toLowerCase() === "active" ? "active" : "inactive",
+          sources: ["cin7"] as ("cin7" | "woocommerce")[],
+          lastUpdated: c.updated_at || "",
+          totalOrders: agg.count,
+          totalSpent: agg.total,
+          lastOrderDate: agg.lastDate,
+          cin7Data: {
+            currency: c.currency,
+            paymentTerm: c.payment_term,
+            creditLimit: c.credit_limit ? parseFloat(String(c.credit_limit)) : undefined,
+            discount: c.discount ? parseFloat(String(c.discount)) : undefined,
+            taxNumber: c.tax_number,
+            tags: c.tags,
+          },
+        };
+      });
     }
 
-    // Fetch WooCommerce customers from Supabase cache (includes guest checkout customers)
+    // Build WooCommerce customers using pre-computed aggregate columns
+    // (orders_count and total_spent already exist on woo_customers - no need to fetch woo_orders)
     let wooCustomers: UnifiedCustomer[] = [];
-    let wooTotal = 0;
-
-    if (source !== "cin7") {
-      // Fetch ALL WooCommerce customers with pagination to get around Supabase's 1000 row default limit
+    if (wooCustomersResult.data.length > 0) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let wooData: any[] = [];
-      let wooCustomersPage = 0;
-      const wooCustomersPageSize = 1000;
-      let hasMoreWooCustomers = true;
-
-      while (hasMoreWooCustomers) {
-        let wooQuery = supabase
-          .from("woo_customers")
-          .select("*", { count: "exact" })
-          .range(wooCustomersPage * wooCustomersPageSize, (wooCustomersPage + 1) * wooCustomersPageSize - 1);
-
-        // Apply search filter
-        if (search) {
-          wooQuery = wooQuery.or(
-            `first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`
-          );
-        }
-
-        const { data: wooCustomersChunk, count: wooCount, error: wooError } = await wooQuery;
-
-        if (wooError) {
-          console.error("Supabase woo_customers query error:", wooError);
-          hasMoreWooCustomers = false;
-        } else if (wooCustomersChunk && wooCustomersChunk.length > 0) {
-          wooData = wooData.concat(wooCustomersChunk);
-          // Use count from first page to set total
-          if (wooCustomersPage === 0) {
-            wooTotal = wooCount || 0;
-          }
-          wooCustomersPage++;
-          hasMoreWooCustomers = wooCustomersChunk.length === wooCustomersPageSize;
-        } else {
-          hasMoreWooCustomers = false;
-        }
-      }
-
-      if (wooData.length > 0) {
-
-        // Fetch ALL orders for WooCommerce customers to calculate aggregates
-        // Use pagination to get around Supabase's 1000 row default limit
-        let wooOrders: { customer_email: string; total: number; order_date: string }[] = [];
-        let wooOrdersPage = 0;
-        const wooOrdersPageSize = 1000;
-        let hasMoreWooOrders = true;
-
-        while (hasMoreWooOrders) {
-          const { data: wooOrdersChunk } = await supabase
-            .from("woo_orders")
-            .select("customer_email, total, order_date")
-            .range(wooOrdersPage * wooOrdersPageSize, (wooOrdersPage + 1) * wooOrdersPageSize - 1);
-
-          if (wooOrdersChunk && wooOrdersChunk.length > 0) {
-            wooOrders = wooOrders.concat(wooOrdersChunk);
-            wooOrdersPage++;
-            hasMoreWooOrders = wooOrdersChunk.length === wooOrdersPageSize;
-          } else {
-            hasMoreWooOrders = false;
-          }
-        }
-
-        // Build order aggregates by customer email
-        const wooOrderAggregates: Record<string, { count: number; total: number; lastDate: string | null }> = {};
-        (wooOrders || []).forEach((o: { customer_email: string; total: number; order_date: string }) => {
-          const email = o.customer_email?.toLowerCase();
-          if (!email) return;
-          if (!wooOrderAggregates[email]) {
-            wooOrderAggregates[email] = { count: 0, total: 0, lastDate: null };
-          }
-          wooOrderAggregates[email].count += 1;
-          wooOrderAggregates[email].total += parseFloat(String(o.total)) || 0;
-          if (!wooOrderAggregates[email].lastDate || o.order_date > wooOrderAggregates[email].lastDate) {
-            wooOrderAggregates[email].lastDate = o.order_date;
-          }
-        });
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        wooCustomers = (wooData || []).map((c: any) => {
-          const email = c.email?.toLowerCase();
-          const fallbackTotal = parseFloat(String(c.total_spent)) || 0;
-          const agg = email ? wooOrderAggregates[email] || { count: 0, total: 0, lastDate: null } : { count: c.orders_count || 0, total: fallbackTotal, lastDate: null };
-          return {
-            id: `woo-${c.woo_id}`,
-            wooId: c.woo_id,
-            name: `${c.first_name || ""} ${c.last_name || ""}`.trim() || c.email || "Guest",
-            email: c.email || "",
-            phone: c.phone || "",
-            company: c.company || "",
-            status: "active" as const,
-            sources: ["woocommerce"] as ("cin7" | "woocommerce")[],
-            lastUpdated: c.updated_at || "",
-            totalOrders: agg.count || parseInt(String(c.orders_count)) || 0,
-            totalSpent: agg.total || fallbackTotal,
-            lastOrderDate: agg.lastDate,
-            wooData: {
-              username: c.username,
-              ordersCount: c.orders_count,
-              totalSpent: c.total_spent,
-              avatarUrl: c.avatar_url,
-              billingAddress: c.billing_address,
-              shippingAddress: c.shipping_address,
-            },
-          };
-        });
-      }
+      wooCustomers = wooCustomersResult.data.map((c: any) => {
+        return {
+          id: `woo-${c.woo_id}`,
+          wooId: c.woo_id,
+          name: `${c.first_name || ""} ${c.last_name || ""}`.trim() || c.email || "Guest",
+          email: c.email || "",
+          phone: c.phone || "",
+          company: c.company || "",
+          status: "active" as const,
+          sources: ["woocommerce"] as ("cin7" | "woocommerce")[],
+          lastUpdated: c.updated_at || "",
+          totalOrders: parseInt(String(c.orders_count)) || 0,
+          totalSpent: parseFloat(String(c.total_spent)) || 0,
+          lastOrderDate: c.date_created || null,
+          wooData: {
+            username: c.username,
+            ordersCount: c.orders_count,
+            totalSpent: c.total_spent,
+            avatarUrl: c.avatar_url,
+            billingAddress: c.billing_address,
+            shippingAddress: c.shipping_address,
+          },
+        };
+      });
     }
 
     // Combine both lists

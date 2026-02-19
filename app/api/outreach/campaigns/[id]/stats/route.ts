@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+export const dynamic = "force-dynamic";
+
 function getSupabase() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const supabaseKey =
@@ -36,52 +38,74 @@ export async function GET(
       );
     }
 
-    // Also count emails directly from outreach_emails table for accuracy
+    // Count emails directly from outreach_emails table for accuracy
     // (counters might be out of sync if RPC fails)
-    const { count: sentCount } = await supabase
-      .from("outreach_emails")
-      .select("*", { count: "exact", head: true })
-      .eq("campaign_id", id)
-      .eq("status", "sent");
-
+    // Note: email statuses progress (sent → delivered → opened → clicked),
+    // so "delivered" count includes emails that are now opened/clicked/replied
     const { count: pendingCount } = await supabase
       .from("outreach_emails")
       .select("*", { count: "exact", head: true })
       .eq("campaign_id", id)
       .eq("status", "pending");
 
+    const { count: actualClickedCount } = await supabase
+      .from("outreach_emails")
+      .select("*", { count: "exact", head: true })
+      .eq("campaign_id", id)
+      .eq("status", "clicked");
+
+    const { count: actualBouncedCount } = await supabase
+      .from("outreach_emails")
+      .select("*", { count: "exact", head: true })
+      .eq("campaign_id", id)
+      .eq("status", "bounced");
+
+    // Count all non-pending, non-failed emails as "sent"
+    const { count: totalProcessed } = await supabase
+      .from("outreach_emails")
+      .select("*", { count: "exact", head: true })
+      .eq("campaign_id", id)
+      .not("status", "in", '("pending","failed")');
+
     // Use the higher of counter vs actual count (in case counters are behind)
-    const actualSent = Math.max(campaign.sent_count || 0, sentCount || 0);
-    const actualTotal = campaign.total_recipients || ((sentCount || 0) + (pendingCount || 0));
+    const actualSent = Math.max(campaign.sent_count || 0, totalProcessed || 0);
+    const actualTotal = campaign.total_recipients || ((totalProcessed || 0) + (pendingCount || 0));
+
+    // Use max of campaign counter vs direct count for each metric
+    const clicked = Math.max(campaign.clicked_count || 0, actualClickedCount || 0);
+    const bounced = Math.max(campaign.bounced_count || 0, actualBouncedCount || 0);
+    const delivered = Math.max(campaign.delivered_count || 0, 0);
+    const opened = Math.max(campaign.opened_count || 0, 0);
+    const replied = Math.max(campaign.replied_count || 0, 0);
 
     // Calculate rates
     const stats = {
       total_recipients: actualTotal,
       sent: actualSent,
-      delivered: campaign.delivered_count,
+      delivered,
       delivery_rate:
-        campaign.sent_count > 0
-          ? ((campaign.delivered_count / campaign.sent_count) * 100).toFixed(1)
+        actualSent > 0
+          ? ((delivered / actualSent) * 100).toFixed(1)
           : "0",
-      opened: campaign.opened_count,
+      opened,
       open_rate:
-        campaign.delivered_count > 0
-          ? ((campaign.opened_count / campaign.delivered_count) * 100).toFixed(1)
+        delivered > 0
+          ? ((opened / delivered) * 100).toFixed(1)
           : "0",
-      clicked: campaign.clicked_count,
+      clicked,
       click_rate:
-        campaign.delivered_count > 0
-          ? ((campaign.clicked_count / campaign.delivered_count) * 100).toFixed(1)
+        delivered > 0
+          ? ((clicked / delivered) * 100).toFixed(1)
           : "0",
-      replied: campaign.replied_count,
+      replied,
       reply_rate:
-        campaign.delivered_count > 0
-          ? ((campaign.replied_count / campaign.delivered_count) * 100).toFixed(1)
+        delivered > 0
+          ? ((replied / delivered) * 100).toFixed(1)
           : "0",
-      bounced: campaign.bounced_count,
+      bounced,
       bounce_rate:
-        campaign.sent_count > 0
-          ? ((campaign.bounced_count / campaign.sent_count) * 100).toFixed(1)
+        actualSent > 0
+          ? ((bounced / actualSent) * 100).toFixed(1)
           : "0",
     };
 

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+export const dynamic = "force-dynamic";
+
 function getSupabase() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const supabaseKey =
@@ -9,11 +11,41 @@ function getSupabase() {
   return createClient(supabaseUrl, supabaseKey);
 }
 
+// Helper: increment a campaign counter with RPC, fallback to direct update
+async function incrementCampaignCounter(
+  supabase: ReturnType<typeof getSupabase>,
+  rpcName: string,
+  campaignId: string,
+  columnName: string
+) {
+  const { error: rpcError } = await supabase.rpc(rpcName, {
+    p_campaign_id: campaignId,
+  });
+
+  if (rpcError) {
+    console.warn(`[Webhook] RPC ${rpcName} failed, using direct update:`, rpcError.message);
+    // Fallback: fetch current count and increment directly
+    const { data: campaign } = await supabase
+      .from("outreach_campaigns")
+      .select(columnName)
+      .eq("id", campaignId)
+      .single();
+
+    const currentCount = (campaign as Record<string, number> | null)?.[columnName] || 0;
+    await supabase
+      .from("outreach_campaigns")
+      .update({ [columnName]: currentCount + 1 })
+      .eq("id", campaignId);
+  }
+}
+
 // POST /api/outreach/webhooks/resend - Handle Resend email events
 export async function POST(request: NextRequest) {
   try {
     const payload = await request.json();
     const { type, data } = payload;
+
+    console.log("[Webhook] Received event:", type, "email_id:", data?.email_id);
 
     // Validate event type
     const validTypes = [
@@ -26,7 +58,7 @@ export async function POST(request: NextRequest) {
     ];
 
     if (!validTypes.includes(type)) {
-      // Unknown event type, acknowledge but ignore
+      console.log("[Webhook] Unknown event type, ignoring:", type);
       return NextResponse.json({ received: true });
     }
 
@@ -35,15 +67,16 @@ export async function POST(request: NextRequest) {
     // Find email by Resend ID
     const { data: email, error: fetchError } = await supabase
       .from("outreach_emails")
-      .select("id, campaign_id, status, first_opened_at, first_clicked_at")
+      .select("id, campaign_id, status, first_opened_at, first_clicked_at, open_count, click_count")
       .eq("resend_id", data.email_id)
       .single();
 
     if (fetchError || !email) {
-      // Not an outreach email, ignore
-      console.log("Webhook for non-outreach email:", data.email_id);
+      console.log("[Webhook] No matching outreach email for resend_id:", data.email_id);
       return NextResponse.json({ received: true });
     }
+
+    console.log("[Webhook] Matched email:", email.id, "campaign:", email.campaign_id, "current status:", email.status);
 
     const now = new Date().toISOString();
 
@@ -57,9 +90,8 @@ export async function POST(request: NextRequest) {
           })
           .eq("id", email.id);
 
-        await supabase.rpc("increment_campaign_delivered", {
-          p_campaign_id: email.campaign_id,
-        });
+        await incrementCampaignCounter(supabase, "increment_campaign_delivered", email.campaign_id, "delivered_count");
+        console.log("[Webhook] Delivered:", email.id);
         break;
       }
 
@@ -77,31 +109,15 @@ export async function POST(request: NextRequest) {
             status: newStatus,
             first_opened_at: isFirstOpen ? now : email.first_opened_at,
             last_opened_at: now,
-            open_count: supabase.rpc ? undefined : 0, // Handle increment separately
+            open_count: (email.open_count || 0) + 1,
           })
           .eq("id", email.id);
 
-        // Increment open count - try RPC first, fallback to direct update
-        const { error: rpcError } = await supabase.rpc("increment", {
-          row_id: email.id,
-          table_name: "outreach_emails",
-          column_name: "open_count",
-        });
-
-        if (rpcError) {
-          // If rpc doesn't exist, update directly
-          await supabase
-            .from("outreach_emails")
-            .update({ open_count: ((email as { open_count?: number }).open_count || 0) + 1 })
-            .eq("id", email.id);
-        }
-
         // Only increment campaign opened on first open
         if (isFirstOpen) {
-          await supabase.rpc("increment_campaign_opened", {
-            p_campaign_id: email.campaign_id,
-          });
+          await incrementCampaignCounter(supabase, "increment_campaign_opened", email.campaign_id, "opened_count");
         }
+        console.log("[Webhook] Opened:", email.id, "first:", isFirstOpen);
         break;
       }
 
@@ -116,15 +132,15 @@ export async function POST(request: NextRequest) {
           .update({
             status: newStatus,
             first_clicked_at: isFirstClick ? now : email.first_clicked_at,
+            click_count: (email.click_count || 0) + 1,
           })
           .eq("id", email.id);
 
         // Only increment campaign clicked on first click
         if (isFirstClick) {
-          await supabase.rpc("increment_campaign_clicked", {
-            p_campaign_id: email.campaign_id,
-          });
+          await incrementCampaignCounter(supabase, "increment_campaign_clicked", email.campaign_id, "clicked_count");
         }
+        console.log("[Webhook] Clicked:", email.id, "first:", isFirstClick, "link:", data.click?.link);
         break;
       }
 
@@ -138,9 +154,8 @@ export async function POST(request: NextRequest) {
           })
           .eq("id", email.id);
 
-        await supabase.rpc("increment_campaign_bounced", {
-          p_campaign_id: email.campaign_id,
-        });
+        await incrementCampaignCounter(supabase, "increment_campaign_bounced", email.campaign_id, "bounced_count");
+        console.log("[Webhook] Bounced:", email.id, "reason:", data.bounce?.message);
         break;
       }
 
@@ -154,9 +169,8 @@ export async function POST(request: NextRequest) {
           })
           .eq("id", email.id);
 
-        await supabase.rpc("increment_campaign_bounced", {
-          p_campaign_id: email.campaign_id,
-        });
+        await incrementCampaignCounter(supabase, "increment_campaign_bounced", email.campaign_id, "bounced_count");
+        console.log("[Webhook] Complained (spam):", email.id);
         break;
       }
     }
@@ -172,7 +186,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ received: true });
   } catch (error) {
-    console.error("Resend webhook error:", error);
+    console.error("[Webhook] Error processing:", error);
     // Return 200 to prevent Resend from retrying
     return NextResponse.json({ received: true, error: "Processing failed" });
   }
