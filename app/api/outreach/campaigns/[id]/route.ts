@@ -103,6 +103,9 @@ export async function PUT(
       "scheduled_at",
       "status",
       "is_dry_run",
+      "auto_resend_enabled",
+      "resend_delay_hours",
+      "resend_subject",
     ];
 
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };

@@ -41,6 +41,12 @@ export interface OutreachCampaign {
   replied_count: number;
   bounced_count: number;
   is_dry_run?: boolean;
+  // Auto-resend to non-openers
+  auto_resend_enabled?: boolean;
+  resend_delay_hours?: number;
+  resend_subject?: string;
+  resend_campaign_id?: string;
+  parent_campaign_id?: string;
   created_at: string;
   updated_at: string;
   created_by?: string;
@@ -174,6 +180,9 @@ export interface CreateCampaignRequest {
   scheduled_at?: string;
   start_immediately?: boolean;
   is_dry_run?: boolean;
+  auto_resend_enabled?: boolean;
+  resend_delay_hours?: number;
+  resend_subject?: string;
 }
 
 export interface CreateTemplateRequest {

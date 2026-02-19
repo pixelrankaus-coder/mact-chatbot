@@ -31,6 +31,7 @@ import {
   Mail,
   UserPlus,
   FlaskConical,
+  RefreshCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { OutreachTemplate } from "@/types/outreach";
@@ -62,6 +63,13 @@ const SEND_RATES = [
   { value: 25, label: "25/hour", description: "Conservative" },
   { value: 50, label: "50/hour", description: "Recommended" },
   { value: 100, label: "100/hour", description: "Faster" },
+];
+
+const RESEND_DELAYS = [
+  { value: 48, label: "48 hours" },
+  { value: 72, label: "3 days" },
+  { value: 120, label: "5 days" },
+  { value: 168, label: "7 days" },
 ];
 
 export default function NewCampaignPage() {
@@ -103,6 +111,11 @@ export default function NewCampaignPage() {
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("09:00");
   const [isDryRun, setIsDryRun] = useState(false);
+
+  // Auto-resend to non-openers
+  const [autoResendEnabled, setAutoResendEnabled] = useState(false);
+  const [resendDelayHours, setResendDelayHours] = useState(72);
+  const [resendSubject, setResendSubject] = useState("");
 
   // Fetch segments, templates, and settings on mount
   useEffect(() => {
@@ -262,6 +275,11 @@ export default function NewCampaignPage() {
   };
 
   const handleLaunch = async (saveAsDraft = false) => {
+    if (autoResendEnabled && !resendSubject.trim()) {
+      toast.error("Please enter a subject line for the follow-up email");
+      return;
+    }
+
     setCreating(true);
     try {
       const campaignId = sessionStorage.getItem("draft_campaign_id");
@@ -287,6 +305,9 @@ export default function NewCampaignPage() {
           scheduled_at: scheduledAt,
           status: saveAsDraft ? "draft" : sendNow ? "scheduled" : "scheduled",
           is_dry_run: isDryRun,
+          auto_resend_enabled: autoResendEnabled,
+          resend_delay_hours: autoResendEnabled ? resendDelayHours : null,
+          resend_subject: autoResendEnabled ? resendSubject : null,
         }),
       });
 
@@ -831,6 +852,63 @@ export default function NewCampaignPage() {
                 </div>
               )}
 
+              {/* Auto-Resend to Non-Openers */}
+              <div className={`p-4 rounded-lg border-2 ${autoResendEnabled ? "border-amber-500 bg-amber-50" : "border-slate-200"}`}>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <Checkbox
+                    id="autoResend"
+                    checked={autoResendEnabled}
+                    onCheckedChange={(checked) => setAutoResendEnabled(checked === true)}
+                    className="mt-1"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <RefreshCcw className="h-4 w-4 text-amber-600" />
+                      <span className="font-medium">Send follow-up to non-openers</span>
+                    </div>
+                    <p className="text-sm text-slate-500 mt-1">
+                      Automatically re-send with a new subject line to recipients who
+                      don&apos;t open the original email.
+                    </p>
+                  </div>
+                </label>
+
+                {autoResendEnabled && (
+                  <div className="mt-4 ml-8 space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="resendSubject">New Subject Line *</Label>
+                      <Input
+                        id="resendSubject"
+                        value={resendSubject}
+                        onChange={(e) => setResendSubject(e.target.value)}
+                        placeholder="e.g., Did you see this? {{first_name}}"
+                      />
+                      <p className="text-xs text-slate-500">
+                        Supports the same variables as your template (e.g. {"{{first_name}}"})
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Wait before resending</Label>
+                      <Select
+                        value={resendDelayHours.toString()}
+                        onValueChange={(v) => setResendDelayHours(parseInt(v))}
+                      >
+                        <SelectTrigger className="w-48">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {RESEND_DELAYS.map((d) => (
+                            <SelectItem key={d.value} value={d.value.toString()}>
+                              {d.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Final Summary */}
               <Card className="bg-slate-50 border-slate-200">
                 <CardHeader className="pb-2">
@@ -886,6 +964,15 @@ export default function NewCampaignPage() {
                         <p className="font-medium text-purple-600 flex items-center gap-1">
                           <FlaskConical className="h-4 w-4" />
                           Simulation (No real emails)
+                        </p>
+                      </div>
+                    )}
+                    {autoResendEnabled && (
+                      <div className="col-span-2">
+                        <p className="text-slate-500">Follow-up to Non-Openers</p>
+                        <p className="font-medium text-amber-600 flex items-center gap-1">
+                          <RefreshCcw className="h-4 w-4" />
+                          Resend after {RESEND_DELAYS.find(d => d.value === resendDelayHours)?.label} with new subject
                         </p>
                       </div>
                     )}

@@ -161,13 +161,23 @@ export async function sendSingleEmail(emailId: string): Promise<SendResult> {
 
   // Render template
   await logToDb("info", "render_template", "Rendering email template...", null, ctx);
-  const { subject, body } = renderTemplate(
+  const { subject: renderedSubject, body } = renderTemplate(
     {
       subject: email.campaign.template.subject,
       body: email.campaign.template.body,
     },
     email.personalization || {}
   );
+
+  // Override subject for auto-resend child campaigns
+  let subject = renderedSubject;
+  if (email.campaign.resend_subject) {
+    const { subject: overrideSubject } = renderTemplate(
+      { subject: email.campaign.resend_subject, body: "" },
+      email.personalization || {}
+    );
+    subject = overrideSubject;
+  }
 
   await logToDb("info", "render_template", "Template rendered successfully", {
     subject: subject,

@@ -67,6 +67,9 @@ export async function POST(request: NextRequest) {
       scheduled_at,
       start_immediately = false,
       is_dry_run = false,
+      auto_resend_enabled = false,
+      resend_delay_hours,
+      resend_subject,
     } = body;
 
     if (!name || !template_id || !segment) {
@@ -128,6 +131,9 @@ export async function POST(request: NextRequest) {
         scheduled_at: scheduled_at || null,
         total_recipients: totalRecipients,
         is_dry_run: is_dry_run,
+        auto_resend_enabled,
+        resend_delay_hours: resend_delay_hours || null,
+        resend_subject: resend_subject || null,
       })
       .select()
       .single();
