@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 // Routes that don't require authentication
 const publicRoutes = ["/login", "/setup", "/chat"];
-const publicPrefixes = ["/api/chat", "/api/widget", "/api/auth/bootstrap"];
+const publicPrefixes = ["/api/chat", "/api/widget", "/api/auth/bootstrap", "/api/outreach/webhooks", "/api/cron", "/api/infrastructure/health"];
 
 export function proxy(request: NextRequest) {
   return handleAuth(request);
