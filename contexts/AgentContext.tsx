@@ -60,6 +60,8 @@ export function AgentProvider({ children }: AgentProviderProps) {
         setAgent(null);
       }
     } catch (error) {
+      // Ignore AbortError - happens when component unmounts during fetch
+      if (error instanceof DOMException && error.name === "AbortError") return;
       console.error("Error loading agent:", error);
       setAgent(null);
     } finally {
