@@ -421,14 +421,14 @@ export default function CampaignDetailPage({
             <RefreshCcw className="h-4 w-4" />
           </Button>
 
-          {campaign.status === "draft" && (
+          {(campaign.status === "draft" || campaign.status === "scheduled") && (
             <Button onClick={handleStart} disabled={actionLoading}>
               {actionLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
               ) : (
                 <Play className="h-4 w-4 mr-2" />
               )}
-              Start
+              {campaign.status === "scheduled" ? "Send Now" : "Start"}
             </Button>
           )}
 

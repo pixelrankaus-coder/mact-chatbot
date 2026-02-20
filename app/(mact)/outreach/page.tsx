@@ -92,6 +92,7 @@ export default function OutreachPage() {
   const [campaigns, setCampaigns] = useState<OutreachCampaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [sendingId, setSendingId] = useState<string | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
@@ -129,6 +130,31 @@ export default function OutreachPage() {
       toast.error(error instanceof Error ? error.message : "Failed to delete");
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleSendNow = async (campaignId: string) => {
+    setSendingId(campaignId);
+    try {
+      const res = await fetch(`/api/outreach/campaigns/${campaignId}/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dryRun: false }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to start campaign");
+      }
+      toast.success("Campaign sending started");
+      // Update local state
+      setCampaigns((prev) =>
+        prev.map((c) => (c.id === campaignId ? { ...c, status: "sending" } : c))
+      );
+    } catch (error) {
+      console.error("Failed to send campaign:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to send");
+    } finally {
+      setSendingId(null);
     }
   };
 
@@ -572,6 +598,19 @@ export default function OutreachPage() {
                                   View Details
                                 </Link>
                               </DropdownMenuItem>
+                              {(campaign.status === "draft" || campaign.status === "scheduled") && (
+                                <DropdownMenuItem
+                                  disabled={sendingId === campaign.id}
+                                  onClick={() => handleSendNow(campaign.id)}
+                                >
+                                  {sendingId === campaign.id ? (
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  ) : (
+                                    <Play className="h-4 w-4 mr-2" />
+                                  )}
+                                  Send Now
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuItem>
                                 <Copy className="h-4 w-4 mr-2" />
                                 Duplicate
