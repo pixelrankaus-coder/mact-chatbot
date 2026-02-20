@@ -119,8 +119,11 @@ export async function GET(request: NextRequest) {
         continue;
       }
 
-      // Create child campaign
-      const childName = `${campaign.name} (Follow-up)`;
+      // Create child campaign with naming convention: append _followup
+      // e.g., 260220_flowoid-scc-launch_product → 260220_flowoid-scc-launch_product_followup
+      const childName = campaign.name.endsWith("_followup")
+        ? campaign.name
+        : `${campaign.name}_followup`;
       const { data: childCampaign, error: createError } = await supabase
         .from("outreach_campaigns")
         .insert({
