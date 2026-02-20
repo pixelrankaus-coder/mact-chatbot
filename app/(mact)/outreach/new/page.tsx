@@ -892,7 +892,7 @@ export default function NewCampaignPage() {
                       <Label>Wait before resending</Label>
                       <Select
                         value={resendDelayHours.toString()}
-                        onValueChange={(v) => setResendDelayHours(parseInt(v))}
+                        onValueChange={(v) => setResendDelayHours(parseFloat(v))}
                       >
                         <SelectTrigger className="w-48">
                           <SelectValue />
