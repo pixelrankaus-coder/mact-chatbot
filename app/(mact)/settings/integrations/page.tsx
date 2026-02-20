@@ -280,6 +280,11 @@ export default function IntegrationsSettings() {
       const res = await fetch("/api/ppc/oauth/authorize");
       if (res.ok) {
         const data = await res.json();
+        if (!data.authUrl) {
+          toast.error("Google OAuth not configured. Set GOOGLE_CLIENT_ID in environment.");
+          setPpcConnecting(false);
+          return;
+        }
         // Redirect to Google OAuth
         window.location.href = data.authUrl;
       } else {

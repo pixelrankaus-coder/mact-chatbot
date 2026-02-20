@@ -13,7 +13,10 @@ export async function GET() {
       .single();
 
     if (error && error.code !== "PGRST116") {
-      // PGRST116 = no rows returned
+      // PGRST116 = no rows returned, 42P01 = table doesn't exist
+      if (error.code === "42P01" || error.message?.includes("does not exist")) {
+        return NextResponse.json({ connection: null });
+      }
       console.error("Error fetching PPC connection:", error);
       return NextResponse.json({ error: "Failed to fetch connection" }, { status: 500 });
     }

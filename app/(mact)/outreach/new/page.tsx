@@ -73,6 +73,25 @@ const RESEND_DELAYS = [
   { value: 168, label: "7 days" },
 ];
 
+const CAMPAIGN_TYPES = [
+  { value: "product", label: "Product Launch" },
+  { value: "training", label: "Training / Course" },
+  { value: "technical", label: "Technical / Specs" },
+  { value: "promo", label: "Promo / Discount" },
+  { value: "newsletter", label: "Newsletter" },
+  { value: "winback", label: "Win-back" },
+  { value: "behavioral", label: "Behavioral" },
+];
+
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
 export default function NewCampaignPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
@@ -98,7 +117,8 @@ export default function NewCampaignPage() {
   const [loadingTemplates, setLoadingTemplates] = useState(true);
 
   // Step 3: Preview
-  const [campaignName, setCampaignName] = useState("");
+  const [campaignDesc, setCampaignDesc] = useState("");
+  const [campaignType, setCampaignType] = useState("product");
   const [fromName, setFromName] = useState("");
   const [fromEmail, setFromEmail] = useState("");
   const [replyTo, setReplyTo] = useState("");
@@ -112,6 +132,13 @@ export default function NewCampaignPage() {
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("09:00");
   const [isDryRun, setIsDryRun] = useState(false);
+
+  // Derived campaign name: YYMMDD_description_type
+  const today = new Date();
+  const datePrefix = `${String(today.getFullYear()).slice(2)}${String(today.getMonth() + 1).padStart(2, "0")}${String(today.getDate()).padStart(2, "0")}`;
+  const campaignName = campaignDesc
+    ? `${datePrefix}_${campaignDesc}_${campaignType}`
+    : "";
 
   // Auto-resend to non-openers
   const [autoResendEnabled, setAutoResendEnabled] = useState(false);
@@ -214,14 +241,21 @@ export default function NewCampaignPage() {
         const segmentInfo = segments.find((s) => s.id === selectedSegment);
         const templateInfo = templates.find((t) => t.id === selectedTemplate);
 
+        // Auto-generate description from segment + template if empty
+        const autoDesc = campaignDesc || slugify(`${segmentInfo?.name || "campaign"}-${templateInfo?.name || "email"}`);
+        // Infer type from segment
+        const autoType = campaignType || (selectedSegment === "dormant" ? "winback" : "product");
+        const autoName = `${datePrefix}_${autoDesc}_${autoType}`;
+        if (!campaignDesc) {
+          setCampaignDesc(autoDesc);
+          setCampaignType(autoType);
+        }
+
         const res = await fetch("/api/outreach/campaigns", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            name:
-              campaignName ||
-              `${segmentInfo?.name} - ${templateInfo?.name}` ||
-              "New Campaign",
+            name: autoName,
             template_id: selectedTemplate,
             segment: selectedSegment,
             segment_filter:
@@ -241,7 +275,6 @@ export default function NewCampaignPage() {
           throw new Error(data.error || "Failed to create campaign");
         }
 
-        setCampaignName(data.campaign.name);
         setTotalRecipients(data.total_recipients);
 
         // Fetch preview
@@ -259,8 +292,8 @@ export default function NewCampaignPage() {
       setLoading(false);
     }
 
-    if (step === 3 && !campaignName) {
-      toast.error("Please enter a campaign name");
+    if (step === 3 && !campaignDesc) {
+      toast.error("Please enter a campaign description");
       return;
     }
 
@@ -579,18 +612,46 @@ export default function NewCampaignPage() {
                 </p>
               </div>
 
-              {/* Campaign Settings Row */}
-              <div className="grid grid-cols-4 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Campaign Name</Label>
+              {/* Campaign Name Builder */}
+              <div className="space-y-3">
+                <Label>Campaign Name</Label>
+                <div className="grid grid-cols-[100px_1fr_180px] gap-2">
                   <Input
-                    id="name"
-                    value={campaignName}
-                    onChange={(e) => setCampaignName(e.target.value)}
-                    placeholder="e.g., January Win-back"
+                    value={`${datePrefix}_`}
+                    readOnly
+                    className="bg-muted text-muted-foreground font-mono text-sm"
                   />
+                  <Input
+                    value={campaignDesc}
+                    onChange={(e) => setCampaignDesc(slugify(e.target.value))}
+                    placeholder="flowoid-scc-launch"
+                    className="font-mono text-sm"
+                  />
+                  <Select
+                    value={campaignType}
+                    onValueChange={setCampaignType}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CAMPAIGN_TYPES.map((t) => (
+                        <SelectItem key={t.value} value={t.value}>
+                          {t.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
+                {campaignName && (
+                  <p className="text-xs text-muted-foreground font-mono bg-muted px-3 py-1.5 rounded-md inline-block">
+                    {campaignName}
+                  </p>
+                )}
+              </div>
 
+              {/* Campaign Settings Row */}
+              <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="fromName">From Name</Label>
                   <Input

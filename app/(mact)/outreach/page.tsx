@@ -97,6 +97,7 @@ export default function OutreachPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [segmentFilter, setSegmentFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
 
   useEffect(() => {
     fetchCampaigns();
@@ -244,6 +245,12 @@ export default function OutreachPage() {
   // Get unique segments for filter
   const segments = Array.from(new Set(campaigns.map((c) => c.segment)));
 
+  // Extract campaign type from name (suffix after last underscore)
+  const getCampaignType = (name: string) => {
+    const parts = name.split("_");
+    return parts.length >= 3 ? parts[parts.length - 1] : null;
+  };
+
   // Filter campaigns
   const filteredCampaigns = campaigns.filter((campaign) => {
     const matchesSearch =
@@ -253,7 +260,9 @@ export default function OutreachPage() {
       statusFilter === "all" || campaign.status === statusFilter;
     const matchesSegment =
       segmentFilter === "all" || campaign.segment === segmentFilter;
-    return matchesSearch && matchesStatus && matchesSegment;
+    const matchesType =
+      typeFilter === "all" || getCampaignType(campaign.name) === typeFilter;
+    return matchesSearch && matchesStatus && matchesSegment && matchesType;
   });
 
   // Calculate stats
@@ -400,6 +409,21 @@ export default function OutreachPage() {
                 {segment.charAt(0).toUpperCase() + segment.slice(1)}
               </SelectItem>
             ))}
+          </SelectContent>
+        </Select>
+        <Select value={typeFilter} onValueChange={setTypeFilter}>
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder="All Types" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Types</SelectItem>
+            <SelectItem value="product">Product Launch</SelectItem>
+            <SelectItem value="training">Training / Course</SelectItem>
+            <SelectItem value="technical">Technical / Specs</SelectItem>
+            <SelectItem value="promo">Promo / Discount</SelectItem>
+            <SelectItem value="newsletter">Newsletter</SelectItem>
+            <SelectItem value="winback">Win-back</SelectItem>
+            <SelectItem value="behavioral">Behavioral</SelectItem>
           </SelectContent>
         </Select>
         {selectedIds.size > 0 && (
