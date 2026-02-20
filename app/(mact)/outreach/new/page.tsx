@@ -66,6 +66,7 @@ const SEND_RATES = [
 ];
 
 const RESEND_DELAYS = [
+  { value: 0.05, label: "3 minutes (test)" },
   { value: 48, label: "48 hours" },
   { value: 72, label: "3 days" },
   { value: 120, label: "5 days" },
