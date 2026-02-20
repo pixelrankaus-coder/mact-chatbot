@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import crypto from "crypto";
+import { getGoogleAdsCredentials } from "@/lib/ppc/credentials";
 
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 
@@ -44,16 +45,18 @@ export async function GET(req: Request) {
   }
 
   try {
-    const clientId = process.env.GOOGLE_CLIENT_ID;
-    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+    const credentials = await getGoogleAdsCredentials();
     const redirectUri = process.env.GOOGLE_ADS_REDIRECT_URI || `${baseUrl}/api/ppc/oauth/callback`;
     const encryptionKey = process.env.PPC_TOKEN_ENCRYPTION_KEY || "default-key-change-in-production";
 
-    if (!clientId || !clientSecret) {
+    if (!credentials?.client_id || !credentials?.client_secret) {
       return NextResponse.redirect(
         `${baseUrl}/settings/integrations?ppc_error=${encodeURIComponent("OAuth credentials not configured")}`
       );
     }
+
+    const clientId = credentials.client_id;
+    const clientSecret = credentials.client_secret;
 
     // Exchange authorization code for tokens
     const tokenResponse = await fetch(GOOGLE_TOKEN_URL, {

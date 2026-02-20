@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import crypto from "crypto";
+import { getGoogleAdsCredentials } from "@/lib/ppc/credentials";
 
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_ADS_API_URL = "https://googleads.googleapis.com/v23";
@@ -65,16 +66,18 @@ export async function GET() {
   try {
     const supabase = await createClient();
     const encryptionKey = process.env.PPC_TOKEN_ENCRYPTION_KEY || "default-key-change-in-production";
-    const clientId = process.env.GOOGLE_CLIENT_ID;
-    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-    const developerToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
+    const credentials = await getGoogleAdsCredentials();
 
-    if (!clientId || !clientSecret) {
+    if (!credentials?.client_id || !credentials?.client_secret) {
       return NextResponse.json(
         { error: "Google OAuth credentials not configured" },
         { status: 500 }
       );
     }
+
+    const clientId = credentials.client_id;
+    const clientSecret = credentials.client_secret;
+    const developerToken = credentials.developer_token;
 
     if (!developerToken) {
       return NextResponse.json(

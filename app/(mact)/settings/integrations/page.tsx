@@ -194,6 +194,27 @@ export default function IntegrationsSettings() {
   const [ppcLoadingAccounts, setPpcLoadingAccounts] = useState(false);
   const [ppcSelectingAccount, setPpcSelectingAccount] = useState(false);
 
+  // Google Ads credentials state
+  interface GoogleAdsConfig {
+    client_id: string;
+    client_secret: string;
+    developer_token: string;
+    is_enabled: boolean;
+    has_credentials: boolean;
+  }
+  const [googleAdsConfig, setGoogleAdsConfig] = useState<GoogleAdsConfig>({
+    client_id: "",
+    client_secret: "",
+    developer_token: "",
+    is_enabled: false,
+    has_credentials: false,
+  });
+  const [googleAdsConfigLoading, setGoogleAdsConfigLoading] = useState(true);
+  const [googleAdsSaving, setGoogleAdsSaving] = useState(false);
+  const [showGoogleClientId, setShowGoogleClientId] = useState(false);
+  const [showGoogleClientSecret, setShowGoogleClientSecret] = useState(false);
+  const [showGoogleDevToken, setShowGoogleDevToken] = useState(false);
+
   // Fetch WooCommerce config
   const fetchWooConfig = useCallback(async () => {
     try {
@@ -238,6 +259,50 @@ export default function IntegrationsSettings() {
       setKlaviyoConfigLoading(false);
     }
   }, []);
+
+  // Fetch Google Ads config
+  const fetchGoogleAdsConfig = useCallback(async () => {
+    try {
+      const res = await fetch("/api/settings/integrations/google-ads");
+      if (res.ok) {
+        const data = await res.json();
+        setGoogleAdsConfig(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch Google Ads config:", error);
+    } finally {
+      setGoogleAdsConfigLoading(false);
+    }
+  }, []);
+
+  // Save Google Ads config
+  const saveGoogleAdsConfig = async () => {
+    setGoogleAdsSaving(true);
+    try {
+      const res = await fetch("/api/settings/integrations/google-ads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          client_id: googleAdsConfig.client_id,
+          client_secret: googleAdsConfig.client_secret,
+          developer_token: googleAdsConfig.developer_token,
+          is_enabled: true,
+        }),
+      });
+
+      if (res.ok) {
+        toast.success("Google Ads credentials saved");
+        fetchGoogleAdsConfig();
+      } else {
+        toast.error("Failed to save credentials");
+      }
+    } catch (error) {
+      toast.error("Failed to save credentials");
+      console.error("Save Google Ads config error:", error);
+    } finally {
+      setGoogleAdsSaving(false);
+    }
+  };
 
   // Fetch PPC connection
   const fetchPpcConnection = useCallback(async () => {
@@ -378,7 +443,8 @@ export default function IntegrationsSettings() {
     fetchCin7Config();
     fetchKlaviyoConfig();
     fetchPpcConnection();
-  }, [fetchWooConfig, fetchCin7Config, fetchKlaviyoConfig, fetchPpcConnection]);
+    fetchGoogleAdsConfig();
+  }, [fetchWooConfig, fetchCin7Config, fetchKlaviyoConfig, fetchPpcConnection, fetchGoogleAdsConfig]);
 
   const fetchSyncStatus = async () => {
     try {
@@ -1931,33 +1997,132 @@ export default function IntegrationsSettings() {
                     </>
                   ) : (
                     <>
-                      <div className="rounded-lg bg-blue-50 border border-blue-200 p-4">
-                        <p className="text-sm text-blue-700 mb-3">
-                          Connect your Google Ads account to track campaign performance,
-                          keywords, and get AI-powered optimization recommendations.
+                      {/* Step 1: API Credentials */}
+                      <div className="space-y-3">
+                        <p className="text-sm font-medium text-slate-700">API Credentials</p>
+                        <p className="text-xs text-slate-500">
+                          Enter your Google OAuth credentials. Get these from the{" "}
+                          <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                            Google Cloud Console
+                          </a>.
                         </p>
-                        <ul className="text-xs text-blue-600 space-y-1">
-                          <li>• Campaign performance metrics (CTR, CPC, CPA, ROAS)</li>
-                          <li>• Keyword-level analysis with quality scores</li>
-                          <li>• Geographic performance breakdown</li>
-                          <li>• AI recommendations for optimization</li>
-                        </ul>
-                      </div>
-                      <Button
-                        onClick={connectPpc}
-                        disabled={ppcConnecting}
-                        className="w-full sm:w-auto"
-                      >
-                        {ppcConnecting ? (
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        {googleAdsConfigLoading ? (
+                          <div className="flex items-center justify-center py-4">
+                            <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+                          </div>
                         ) : (
-                          <TrendingUp className="h-4 w-4 mr-2" />
+                          <div className="space-y-3">
+                            <div className="space-y-1.5">
+                              <Label htmlFor="googleClientId" className="text-xs">OAuth Client ID</Label>
+                              <div className="relative">
+                                <Input
+                                  id="googleClientId"
+                                  type={showGoogleClientId ? "text" : "password"}
+                                  value={googleAdsConfig.client_id}
+                                  onChange={(e) => setGoogleAdsConfig({ ...googleAdsConfig, client_id: e.target.value })}
+                                  placeholder="123456789.apps.googleusercontent.com"
+                                  className="pr-10 text-sm"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowGoogleClientId(!showGoogleClientId)}
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                >
+                                  {showGoogleClientId ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </button>
+                              </div>
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label htmlFor="googleClientSecret" className="text-xs">OAuth Client Secret</Label>
+                              <div className="relative">
+                                <Input
+                                  id="googleClientSecret"
+                                  type={showGoogleClientSecret ? "text" : "password"}
+                                  value={googleAdsConfig.client_secret}
+                                  onChange={(e) => setGoogleAdsConfig({ ...googleAdsConfig, client_secret: e.target.value })}
+                                  placeholder="GOCSPX-..."
+                                  className="pr-10 text-sm"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowGoogleClientSecret(!showGoogleClientSecret)}
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                >
+                                  {showGoogleClientSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </button>
+                              </div>
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label htmlFor="googleDevToken" className="text-xs">Developer Token</Label>
+                              <div className="relative">
+                                <Input
+                                  id="googleDevToken"
+                                  type={showGoogleDevToken ? "text" : "password"}
+                                  value={googleAdsConfig.developer_token}
+                                  onChange={(e) => setGoogleAdsConfig({ ...googleAdsConfig, developer_token: e.target.value })}
+                                  placeholder="Google Ads API Developer Token"
+                                  className="pr-10 text-sm"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowGoogleDevToken(!showGoogleDevToken)}
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                >
+                                  {showGoogleDevToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </button>
+                              </div>
+                            </div>
+                            <Button
+                              onClick={saveGoogleAdsConfig}
+                              disabled={googleAdsSaving}
+                              variant="outline"
+                              size="sm"
+                            >
+                              {googleAdsSaving ? (
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              ) : (
+                                <Check className="h-4 w-4 mr-2" />
+                              )}
+                              Save Credentials
+                            </Button>
+                          </div>
                         )}
-                        Connect Google Ads
-                      </Button>
-                      <p className="text-xs text-slate-400">
-                        You will be redirected to Google to authorize access to your Google Ads account.
-                      </p>
+                      </div>
+
+                      {/* Step 2: Connect */}
+                      <div className="border-t pt-4 space-y-3">
+                        <p className="text-sm font-medium text-slate-700">Connect Account</p>
+                        <div className="rounded-lg bg-blue-50 border border-blue-200 p-4">
+                          <p className="text-sm text-blue-700 mb-3">
+                            {googleAdsConfig.has_credentials
+                              ? "Credentials saved. Click below to connect your Google Ads account."
+                              : "Save your API credentials above first, then connect your account."}
+                          </p>
+                          <ul className="text-xs text-blue-600 space-y-1">
+                            <li>• Campaign performance metrics (CTR, CPC, CPA, ROAS)</li>
+                            <li>• Keyword-level analysis with quality scores</li>
+                            <li>• Geographic performance breakdown</li>
+                            <li>• AI recommendations for optimization</li>
+                          </ul>
+                        </div>
+                        <Button
+                          onClick={connectPpc}
+                          disabled={ppcConnecting || !googleAdsConfig.has_credentials}
+                          className="w-full sm:w-auto"
+                        >
+                          {ppcConnecting ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <TrendingUp className="h-4 w-4 mr-2" />
+                          )}
+                          Connect Google Ads
+                        </Button>
+                        {!googleAdsConfig.has_credentials && (
+                          <p className="text-xs text-amber-600">
+                            Save your API credentials above before connecting.
+                          </p>
+                        )}
+                      </div>
                     </>
                   )}
                 </CardContent>
