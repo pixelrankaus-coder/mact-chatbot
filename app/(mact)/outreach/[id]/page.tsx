@@ -42,6 +42,12 @@ import {
   Terminal,
   Trash2,
   FlaskConical,
+  MailCheck,
+  Timer,
+  ArrowRight,
+  Link2,
+  ExternalLink,
+  Ban,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { OutreachCampaign, OutreachEvent, OutreachReply } from "@/types/outreach";
@@ -141,6 +147,8 @@ export default function CampaignDetailPage({
   const [actionLoading, setActionLoading] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [selectedReply, setSelectedReply] = useState<OutreachReply | null>(null);
+  const [linkedCampaign, setLinkedCampaign] = useState<OutreachCampaign | null>(null);
+  const [cancellingFollowUp, setCancellingFollowUp] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -192,6 +200,39 @@ export default function CampaignDetailPage({
   const fetchData = async () => {
     await Promise.all([fetchStats(), fetchActivity(), fetchReplies(), fetchSendLogs()]);
     setLoading(false);
+  };
+
+  // Fetch linked campaign (parent or child) when campaign loads
+  useEffect(() => {
+    if (!campaign) return;
+    const linkedId = campaign.resend_campaign_id && campaign.resend_campaign_id !== campaign.id
+      ? campaign.resend_campaign_id
+      : campaign.parent_campaign_id || null;
+    if (linkedId) {
+      fetch(`/api/outreach/campaigns/${linkedId}`)
+        .then((res) => res.json())
+        .then((data) => { if (data.campaign) setLinkedCampaign(data.campaign); })
+        .catch(() => {});
+    }
+  }, [campaign?.id, campaign?.resend_campaign_id, campaign?.parent_campaign_id]);
+
+  const handleCancelFollowUp = async () => {
+    if (!confirm("Cancel the scheduled follow-up? This will disable auto-resend for this campaign.")) return;
+    setCancellingFollowUp(true);
+    try {
+      const res = await fetch(`/api/outreach/campaigns/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ auto_resend_enabled: false, resend_delay_hours: null, resend_subject: null }),
+      });
+      if (!res.ok) throw new Error("Failed to cancel follow-up");
+      toast.success("Follow-up cancelled");
+      await fetchStats();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to cancel");
+    } finally {
+      setCancellingFollowUp(false);
+    }
   };
 
   const fetchStats = async () => {
@@ -409,6 +450,18 @@ export default function CampaignDetailPage({
                 {status.icon}
                 {status.label}
               </Badge>
+              {campaign.parent_campaign_id && (
+                <Badge variant="outline" className="gap-1 text-blue-600 border-blue-200">
+                  <ArrowRight className="h-3 w-3" />
+                  Follow-up
+                </Badge>
+              )}
+              {campaign.auto_resend_enabled && !campaign.parent_campaign_id && !campaign.resend_campaign_id && (
+                <Badge variant="outline" className="gap-1 text-amber-600 border-amber-200">
+                  <Timer className="h-3 w-3" />
+                  Follow-up Scheduled
+                </Badge>
+              )}
               <span className="text-sm text-slate-500">
                 Created {formatDate(campaign.created_at)}
               </span>
@@ -717,6 +770,260 @@ export default function CampaignDetailPage({
               </div>
             </CardContent>
           </Card>
+
+          {/* Follow-up Tracking */}
+          {(campaign.auto_resend_enabled || campaign.parent_campaign_id) && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MailCheck className="h-5 w-5" />
+                  Follow-up Tracking
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* This is a child (follow-up) campaign */}
+                {campaign.parent_campaign_id && (
+                  <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <ArrowRight className="h-5 w-5 text-blue-600 shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-blue-900">This is a follow-up campaign</p>
+                      <p className="text-xs text-blue-700 mt-0.5">
+                        Sent to non-openers from the original campaign
+                        {campaign.resend_subject && (
+                          <> with subject: &quot;{campaign.resend_subject}&quot;</>
+                        )}
+                      </p>
+                    </div>
+                    <Link href={`/outreach/${campaign.parent_campaign_id}`}>
+                      <Button variant="outline" size="sm" className="gap-1">
+                        <ExternalLink className="h-3 w-3" />
+                        View Original
+                      </Button>
+                    </Link>
+                  </div>
+                )}
+
+                {/* This is a parent campaign with follow-up settings */}
+                {campaign.auto_resend_enabled && !campaign.parent_campaign_id && (
+                  <>
+                    {/* Follow-up config */}
+                    <div className="grid grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <p className="text-slate-500">Follow-up Subject</p>
+                        <p className="font-medium">{campaign.resend_subject || "-"}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-500">Delay After Completion</p>
+                        <p className="font-medium">
+                          {campaign.resend_delay_hours
+                            ? campaign.resend_delay_hours >= 24
+                              ? `${Math.round(campaign.resend_delay_hours / 24)} day${Math.round(campaign.resend_delay_hours / 24) !== 1 ? "s" : ""}`
+                              : `${campaign.resend_delay_hours} hour${campaign.resend_delay_hours !== 1 ? "s" : ""}`
+                            : "-"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-slate-500">Scheduled Send Time</p>
+                        <p className="font-medium">
+                          {campaign.completed_at && campaign.resend_delay_hours
+                            ? formatDate(
+                                new Date(
+                                  new Date(campaign.completed_at).getTime() +
+                                    campaign.resend_delay_hours * 60 * 60 * 1000
+                                ).toISOString()
+                              )
+                            : campaign.status === "completed" ? "Processing..." : "After campaign completes"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Follow-up status */}
+                    {(() => {
+                      // Already sent
+                      if (campaign.resend_campaign_id) {
+                        if (campaign.resend_campaign_id === campaign.id) {
+                          return (
+                            <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg border border-green-200">
+                              <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+                              <div>
+                                <p className="text-sm font-medium text-green-900">All recipients opened</p>
+                                <p className="text-xs text-green-700 mt-0.5">No follow-up was needed — everyone engaged with the original campaign</p>
+                              </div>
+                            </div>
+                          );
+                        }
+                        return (
+                          <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg border border-green-200">
+                            <MailCheck className="h-5 w-5 text-green-600 shrink-0" />
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-green-900">Follow-up campaign sent</p>
+                              {linkedCampaign && (
+                                <p className="text-xs text-green-700 mt-0.5">
+                                  {linkedCampaign.name} — {linkedCampaign.sent_count}/{linkedCampaign.total_recipients} sent
+                                  {linkedCampaign.opened_count > 0 && `, ${linkedCampaign.opened_count} opened`}
+                                </p>
+                              )}
+                            </div>
+                            <Link href={`/outreach/${campaign.resend_campaign_id}`}>
+                              <Button variant="outline" size="sm" className="gap-1">
+                                <ExternalLink className="h-3 w-3" />
+                                View Follow-up
+                              </Button>
+                            </Link>
+                          </div>
+                        );
+                      }
+
+                      // Waiting for delay
+                      if (campaign.status === "completed" && campaign.completed_at && campaign.resend_delay_hours) {
+                        const completedAt = new Date(campaign.completed_at);
+                        const resendAt = new Date(completedAt.getTime() + campaign.resend_delay_hours * 60 * 60 * 1000);
+                        const diff = resendAt.getTime() - Date.now();
+
+                        if (diff > 0) {
+                          const hours = Math.floor(diff / (1000 * 60 * 60));
+                          const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                          return (
+                            <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                              <Timer className="h-5 w-5 text-amber-600 shrink-0" />
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-amber-900">
+                                  Follow-up scheduled — {hours > 0 ? `${hours}h ${mins}m` : `${mins}m`} remaining
+                                </p>
+                                <p className="text-xs text-amber-700 mt-0.5">
+                                  Will send to non-openers at {formatDate(resendAt.toISOString())}
+                                </p>
+                              </div>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                onClick={handleCancelFollowUp}
+                                disabled={cancellingFollowUp}
+                              >
+                                {cancellingFollowUp ? <Loader2 className="h-3 w-3 animate-spin" /> : <Ban className="h-3 w-3" />}
+                                Cancel
+                              </Button>
+                            </div>
+                          );
+                        }
+
+                        // Delay elapsed, cron hasn't processed
+                        return (
+                          <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                            <Clock className="h-5 w-5 text-amber-600 shrink-0" />
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-amber-900">Follow-up pending</p>
+                              <p className="text-xs text-amber-700 mt-0.5">Delay has elapsed — will be processed on the next cron run (every 15 minutes)</p>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      // Campaign not yet completed
+                      return (
+                        <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                          <MailCheck className="h-5 w-5 text-slate-500 shrink-0" />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-slate-700">Follow-up enabled</p>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              Will send to non-openers {campaign.resend_delay_hours
+                                ? campaign.resend_delay_hours >= 24
+                                  ? `${Math.round(campaign.resend_delay_hours / 24)} day${Math.round(campaign.resend_delay_hours / 24) !== 1 ? "s" : ""}`
+                                  : `${campaign.resend_delay_hours} hour${campaign.resend_delay_hours !== 1 ? "s" : ""}`
+                                : ""} after campaign completes
+                            </p>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={handleCancelFollowUp}
+                            disabled={cancellingFollowUp}
+                          >
+                            {cancellingFollowUp ? <Loader2 className="h-3 w-3 animate-spin" /> : <Ban className="h-3 w-3" />}
+                            Cancel
+                          </Button>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Performance comparison when child exists */}
+                    {linkedCampaign && campaign.resend_campaign_id && campaign.resend_campaign_id !== campaign.id && (
+                      <div className="mt-4">
+                        <p className="text-sm font-medium mb-3">Original vs Follow-up Performance</p>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="p-3 bg-slate-50 rounded-lg border">
+                            <p className="text-xs text-slate-500 mb-2">Original Campaign</p>
+                            <div className="grid grid-cols-3 gap-2 text-center">
+                              <div>
+                                <p className="text-lg font-bold">{campaign.sent_count}</p>
+                                <p className="text-xs text-slate-500">Sent</p>
+                              </div>
+                              <div>
+                                <p className="text-lg font-bold">{campaign.opened_count}</p>
+                                <p className="text-xs text-slate-500">Opened</p>
+                              </div>
+                              <div>
+                                <p className="text-lg font-bold">
+                                  {campaign.delivered_count > 0
+                                    ? `${((campaign.opened_count / campaign.delivered_count) * 100).toFixed(1)}%`
+                                    : "-"}
+                                </p>
+                                <p className="text-xs text-slate-500">Open Rate</p>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                            <p className="text-xs text-blue-600 mb-2">Follow-up Campaign</p>
+                            <div className="grid grid-cols-3 gap-2 text-center">
+                              <div>
+                                <p className="text-lg font-bold">{linkedCampaign.sent_count}</p>
+                                <p className="text-xs text-slate-500">Sent</p>
+                              </div>
+                              <div>
+                                <p className="text-lg font-bold">{linkedCampaign.opened_count}</p>
+                                <p className="text-xs text-slate-500">Opened</p>
+                              </div>
+                              <div>
+                                <p className="text-lg font-bold">
+                                  {linkedCampaign.delivered_count > 0
+                                    ? `${((linkedCampaign.opened_count / linkedCampaign.delivered_count) * 100).toFixed(1)}%`
+                                    : "-"}
+                                </p>
+                                <p className="text-xs text-slate-500">Open Rate</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        {/* Combined total */}
+                        <div className="mt-3 p-3 bg-green-50 rounded-lg border border-green-200">
+                          <div className="grid grid-cols-3 gap-2 text-center">
+                            <div>
+                              <p className="text-lg font-bold">{campaign.sent_count + linkedCampaign.sent_count}</p>
+                              <p className="text-xs text-green-700">Total Sent</p>
+                            </div>
+                            <div>
+                              <p className="text-lg font-bold">{campaign.opened_count + linkedCampaign.opened_count}</p>
+                              <p className="text-xs text-green-700">Total Opened</p>
+                            </div>
+                            <div>
+                              <p className="text-lg font-bold">
+                                {(campaign.delivered_count + linkedCampaign.delivered_count) > 0
+                                  ? `${(((campaign.opened_count + linkedCampaign.opened_count) / (campaign.delivered_count + linkedCampaign.delivered_count)) * 100).toFixed(1)}%`
+                                  : "-"}
+                              </p>
+                              <p className="text-xs text-green-700">Combined Open Rate</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* Send Logs Tab */}

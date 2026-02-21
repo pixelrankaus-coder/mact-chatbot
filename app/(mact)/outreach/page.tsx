@@ -48,6 +48,10 @@ import {
   Archive,
   Copy,
   Eye,
+  MailCheck,
+  Timer,
+  ArrowRight,
+  Link2,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { OutreachCampaign } from "@/types/outreach";
@@ -275,6 +279,63 @@ export default function OutreachPage() {
   const getCampaignType = (name: string) => {
     const parts = name.split("_");
     return parts.length >= 3 ? parts[parts.length - 1] : null;
+  };
+
+  // Compute follow-up status for a campaign
+  const getFollowUpStatus = (campaign: OutreachCampaign) => {
+    // This is a follow-up child campaign
+    if (campaign.parent_campaign_id) {
+      const parent = campaigns.find((c) => c.id === campaign.parent_campaign_id);
+      return {
+        type: "child" as const,
+        label: "Follow-up",
+        parentName: parent?.name,
+        parentId: campaign.parent_campaign_id,
+      };
+    }
+
+    // No auto-resend configured
+    if (!campaign.auto_resend_enabled) {
+      return { type: "none" as const };
+    }
+
+    // Follow-up already sent
+    if (campaign.resend_campaign_id) {
+      // Self-reference means all opened, no follow-up needed
+      if (campaign.resend_campaign_id === campaign.id) {
+        return { type: "all_opened" as const, label: "All Opened" };
+      }
+      const child = campaigns.find((c) => c.id === campaign.resend_campaign_id);
+      return {
+        type: "sent" as const,
+        label: "Follow-up Sent",
+        childName: child?.name,
+        childId: campaign.resend_campaign_id,
+        childStatus: child?.status,
+      };
+    }
+
+    // Enabled but not yet triggered — compute countdown
+    if (campaign.status === "completed" && campaign.completed_at && campaign.resend_delay_hours) {
+      const completedAt = new Date(campaign.completed_at);
+      const resendAt = new Date(completedAt.getTime() + campaign.resend_delay_hours * 60 * 60 * 1000);
+      const nowMs = Date.now();
+      const diff = resendAt.getTime() - nowMs;
+      if (diff > 0) {
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        return {
+          type: "waiting" as const,
+          label: hours > 0 ? `Follow-up in ${hours}h ${mins}m` : `Follow-up in ${mins}m`,
+          resendAt: resendAt.toISOString(),
+        };
+      }
+      // Delay elapsed but cron hasn't run yet
+      return { type: "pending" as const, label: "Follow-up Pending" };
+    }
+
+    // Campaign still sending/in progress with resend enabled
+    return { type: "enabled" as const, label: "Follow-up Enabled" };
   };
 
   // Filter campaigns
@@ -511,6 +572,7 @@ export default function OutreachPage() {
                     <TableHead>Progress</TableHead>
                     <TableHead>Open Rate</TableHead>
                     <TableHead>Reply Rate</TableHead>
+                    <TableHead>Follow-up</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead className="w-12"></TableHead>
                   </TableRow>
@@ -530,12 +592,20 @@ export default function OutreachPage() {
                         </TableCell>
                         <TableCell>
                           <div>
-                            <Link
-                              href={`/outreach/${campaign.id}`}
-                              className="font-medium hover:text-primary"
-                            >
-                              {campaign.name}
-                            </Link>
+                            <div className="flex items-center gap-2">
+                              <Link
+                                href={`/outreach/${campaign.id}`}
+                                className="font-medium hover:text-primary"
+                              >
+                                {campaign.name}
+                              </Link>
+                              {campaign.parent_campaign_id && (
+                                <Badge variant="outline" className="text-xs gap-1 text-blue-600 border-blue-200">
+                                  <ArrowRight className="h-2.5 w-2.5" />
+                                  Follow-up
+                                </Badge>
+                              )}
+                            </div>
                             <p className="text-muted-foreground text-sm">
                               {campaign.segment} segment
                             </p>
@@ -580,6 +650,51 @@ export default function OutreachPage() {
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {getReplyRate(campaign)}
+                        </TableCell>
+                        <TableCell>
+                          {(() => {
+                            const fu = getFollowUpStatus(campaign);
+                            if (fu.type === "none") return <span className="text-muted-foreground text-sm">-</span>;
+                            if (fu.type === "child") return (
+                              <Link href={`/outreach/${fu.parentId}`} className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800">
+                                <Link2 className="h-3 w-3" />
+                                Parent
+                              </Link>
+                            );
+                            if (fu.type === "sent") return (
+                              <Link href={`/outreach/${fu.childId}`} className="inline-flex items-center gap-1">
+                                <Badge variant="success" className="gap-1 text-xs">
+                                  <MailCheck className="h-3 w-3" />
+                                  Sent
+                                </Badge>
+                              </Link>
+                            );
+                            if (fu.type === "all_opened") return (
+                              <Badge variant="secondary" className="gap-1 text-xs">
+                                <CheckCircle2 className="h-3 w-3" />
+                                All Opened
+                              </Badge>
+                            );
+                            if (fu.type === "waiting") return (
+                              <Badge variant="info" className="gap-1 text-xs">
+                                <Timer className="h-3 w-3" />
+                                {fu.label}
+                              </Badge>
+                            );
+                            if (fu.type === "pending") return (
+                              <Badge variant="warning" className="gap-1 text-xs">
+                                <Clock className="h-3 w-3" />
+                                Pending
+                              </Badge>
+                            );
+                            // enabled
+                            return (
+                              <Badge variant="secondary" className="gap-1 text-xs">
+                                <MailCheck className="h-3 w-3" />
+                                Enabled
+                              </Badge>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {formatDate(campaign.created_at)}

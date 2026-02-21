@@ -196,11 +196,37 @@ export async function sendSingleEmail(emailId: string): Promise<SendResult> {
       .replace(/&amp;/g, '&');
   };
 
+  // Append UTM parameters to all outbound links for campaign attribution
+  const addUtmParams = (url: string, campaignName: string, isFollowUp: boolean): string => {
+    try {
+      const parsed = new URL(url);
+      // Only add UTM to http/https links, skip mailto: tel: etc.
+      if (!parsed.protocol.startsWith("http")) return url;
+      // Don't overwrite existing UTM params
+      if (parsed.searchParams.has("utm_source")) return url;
+      parsed.searchParams.set("utm_source", "email");
+      parsed.searchParams.set("utm_medium", "outreach");
+      parsed.searchParams.set("utm_campaign", campaignName.toLowerCase().replace(/[^a-z0-9_-]/g, "-"));
+      if (isFollowUp) {
+        parsed.searchParams.set("utm_content", "followup");
+      }
+      return parsed.toString();
+    } catch {
+      return url; // Not a valid URL, return as-is
+    }
+  };
+
+  const isFollowUp = !!email.campaign.parent_campaign_id;
+  const utmCampaignName = email.campaign.name;
+
   // Add inline styles to links (email clients often strip <style> tags)
   const styleLinks = (html: string): string => {
     return html.replace(
       /<a\s+href="([^"]+)"[^>]*>([^<]+)<\/a>/gi,
-      '<a href="$1" style="color: #2563eb; text-decoration: underline;">$2</a>'
+      (_match, href, text) => {
+        const utmHref = addUtmParams(href, utmCampaignName, isFollowUp);
+        return `<a href="${utmHref}" style="color: #2563eb; text-decoration: underline;">${text}</a>`;
+      }
     );
   };
 
@@ -231,7 +257,10 @@ export async function sendSingleEmail(emailId: string): Promise<SendResult> {
 </html>`;
 
   // Create plain text version (strip HTML tags for email clients that prefer plain text)
-  const plainText = decodedBody.replace(/<a[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/gi, '$2 ($1)');
+  const plainText = decodedBody.replace(/<a[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/gi, (_m, href, text) => {
+    const utmHref = addUtmParams(href, utmCampaignName, isFollowUp);
+    return `${text} (${utmHref})`;
+  });
 
   // Prepare Resend payload
   const resendPayload = {
