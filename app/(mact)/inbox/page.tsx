@@ -49,6 +49,7 @@ import {
   ChevronDown,
   Archive,
   Trash2,
+  MailCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -603,6 +604,23 @@ export default function InboxPage() {
     return prechatData && Object.keys(prechatData).length > 0 ? prechatData : null;
   };
 
+  // Get follow-up email info from conversation metadata
+  const getFollowUpInfo = (conv: Conversation | undefined) => {
+    if (!conv) return null;
+    const meta = conv.metadata as {
+      followup_sent?: boolean;
+      followup_sent_at?: string;
+      followup_campaign_id?: string;
+      followup_reason?: string;
+    } | null;
+    if (!meta?.followup_sent) return null;
+    return {
+      sentAt: meta.followup_sent_at,
+      campaignId: meta.followup_campaign_id,
+      reason: meta.followup_reason,
+    };
+  };
+
   // Format page URL for display
   const formatPageUrl = (url: string): string => {
     try {
@@ -835,6 +853,15 @@ export default function InboxPage() {
                             <span className="text-xs font-medium">{conv.rating}</span>
                           </div>
                         )}
+                        {getFollowUpInfo(conv)?.reason === "sent" && (
+                          <Badge
+                            variant="outline"
+                            className="flex items-center gap-1 text-xs border-purple-200 bg-purple-50 text-purple-700"
+                          >
+                            <MailCheck className="h-3 w-3" />
+                            Follow-up
+                          </Badge>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -941,6 +968,15 @@ export default function InboxPage() {
                       {getStatusIcon(selectedConversation.status)}
                       {selectedConversation.status}
                     </Badge>
+                    {getFollowUpInfo(selectedConversation)?.reason === "sent" && (
+                      <Badge
+                        variant="outline"
+                        className="flex items-center gap-1 text-xs border-purple-200 bg-purple-50 text-purple-700"
+                      >
+                        <MailCheck className="h-3 w-3" />
+                        Follow-up Sent
+                      </Badge>
+                    )}
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {selectedConversation.visitor_email || "No email provided"}
@@ -1434,6 +1470,55 @@ export default function InboxPage() {
                           <p className="text-sm text-slate-600 italic border-l-2 border-amber-300 pl-2 mt-2">
                             &quot;{selectedConversation.rating_feedback}&quot;
                           </p>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Chat Follow-up Section */}
+                {getFollowUpInfo(selectedConversation) && (
+                  <>
+                    <Separator className="my-4" />
+                    <div className="mb-6">
+                      <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                        <MailCheck className="h-3 w-3" />
+                        Email Follow-up
+                      </h3>
+                      <div className="rounded-lg border bg-purple-50 p-3 space-y-2">
+                        {getFollowUpInfo(selectedConversation)!.reason === "sent" ? (
+                          <>
+                            <div className="flex items-center gap-2">
+                              <Badge className="bg-purple-600 text-white text-xs">Sent</Badge>
+                              <span className="text-xs text-slate-500">
+                                {getFollowUpInfo(selectedConversation)!.sentAt
+                                  ? new Date(getFollowUpInfo(selectedConversation)!.sentAt!).toLocaleDateString("en-AU", {
+                                      day: "numeric",
+                                      month: "short",
+                                      year: "numeric",
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })
+                                  : ""}
+                              </span>
+                            </div>
+                            {getFollowUpInfo(selectedConversation)!.campaignId && (
+                              <a
+                                href={`/outreach/${getFollowUpInfo(selectedConversation)!.campaignId}`}
+                                className="flex items-center gap-1 text-sm text-purple-600 hover:underline"
+                              >
+                                View campaign
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                            )}
+                          </>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-xs border-slate-300 text-slate-500">Skipped</Badge>
+                            <span className="text-xs text-slate-500 capitalize">
+                              {(getFollowUpInfo(selectedConversation)!.reason || "").replace(/_/g, " ")}
+                            </span>
+                          </div>
                         )}
                       </div>
                     </div>
