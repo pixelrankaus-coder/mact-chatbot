@@ -165,6 +165,10 @@ export interface PersonalizationData {
   days_since_order?: number;
   total_spent?: number;
   order_count?: number;
+  product_mentioned?: string;
+  chat_summary?: string;
+  discount_code?: string;
+  product_url?: string;
 }
 
 // Create/Update request types

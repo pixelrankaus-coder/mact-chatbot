@@ -34,6 +34,26 @@ export const TEMPLATE_VARIABLES = [
     description: "Coupon/discount code",
     example: "THANKYOU10",
   },
+  {
+    key: "product_mentioned",
+    description: "Product discussed in chat",
+    example: "MACt Rock Carve",
+  },
+  {
+    key: "chat_summary",
+    description: "Brief summary of chat conversation",
+    example: "You asked about our Rock Carve product and pricing",
+  },
+  {
+    key: "discount_code",
+    description: "Chat follow-up discount code",
+    example: "CHAT10",
+  },
+  {
+    key: "product_url",
+    description: "URL to the discussed product",
+    example: "https://mact.au/product/rock-carve/",
+  },
 ];
 
 // Fallback values for empty/missing personalization data
@@ -47,6 +67,10 @@ const FALLBACK_VALUES: Record<string, string> = {
   total_spent: "",
   order_count: "",
   coupon_code: "THANKYOU10",
+  product_mentioned: "our products",
+  chat_summary: "your recent conversation with us",
+  discount_code: "CHAT10",
+  product_url: "https://mact.au/shop/",
 };
 
 export function renderTemplate(
@@ -112,6 +136,10 @@ export function getSampleData(): Record<string, unknown> {
     total_spent: 36768.59,
     order_count: 6,
     coupon_code: "THANKYOU10",
+    product_mentioned: "MACt Rock Carve",
+    chat_summary: "You asked about our Rock Carve product and pricing",
+    discount_code: "CHAT10",
+    product_url: "https://mact.au/product/rock-carve/",
   };
 }
 
