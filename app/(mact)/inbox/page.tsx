@@ -612,12 +612,20 @@ export default function InboxPage() {
       followup_sent_at?: string;
       followup_campaign_id?: string;
       followup_reason?: string;
+      followup_log?: string[];
+      followup_error?: string;
+      followup_intent?: string;
+      followup_products?: string[];
     } | null;
     if (!meta?.followup_sent) return null;
     return {
       sentAt: meta.followup_sent_at,
       campaignId: meta.followup_campaign_id,
       reason: meta.followup_reason,
+      log: meta.followup_log || [],
+      error: meta.followup_error,
+      intent: meta.followup_intent,
+      products: meta.followup_products || [],
     };
   };
 
@@ -862,6 +870,15 @@ export default function InboxPage() {
                             Follow-up
                           </Badge>
                         )}
+                        {(getFollowUpInfo(conv)?.reason === "send_failed" || getFollowUpInfo(conv)?.reason === "error_fetching_messages") && (
+                          <Badge
+                            variant="outline"
+                            className="flex items-center gap-1 text-xs border-red-200 bg-red-50 text-red-700"
+                          >
+                            <AlertCircle className="h-3 w-3" />
+                            Follow-up Failed
+                          </Badge>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -975,6 +992,15 @@ export default function InboxPage() {
                       >
                         <MailCheck className="h-3 w-3" />
                         Follow-up Sent
+                      </Badge>
+                    )}
+                    {(getFollowUpInfo(selectedConversation)?.reason === "send_failed" || getFollowUpInfo(selectedConversation)?.reason === "error_fetching_messages") && (
+                      <Badge
+                        variant="outline"
+                        className="flex items-center gap-1 text-xs border-red-200 bg-red-50 text-red-700"
+                      >
+                        <AlertCircle className="h-3 w-3" />
+                        Follow-up Failed
                       </Badge>
                     )}
                   </div>
@@ -1477,7 +1503,11 @@ export default function InboxPage() {
                 )}
 
                 {/* Chat Follow-up Section */}
-                {getFollowUpInfo(selectedConversation) && (
+                {getFollowUpInfo(selectedConversation) && (() => {
+                  const info = getFollowUpInfo(selectedConversation)!;
+                  const isSent = info.reason === "sent";
+                  const isFailed = info.reason === "send_failed" || info.reason === "error_fetching_messages";
+                  return (
                   <>
                     <Separator className="my-4" />
                     <div className="mb-6">
@@ -1485,45 +1515,75 @@ export default function InboxPage() {
                         <MailCheck className="h-3 w-3" />
                         Email Follow-up
                       </h3>
-                      <div className="rounded-lg border bg-purple-50 p-3 space-y-2">
-                        {getFollowUpInfo(selectedConversation)!.reason === "sent" ? (
-                          <>
-                            <div className="flex items-center gap-2">
-                              <Badge className="bg-purple-600 text-white text-xs">Sent</Badge>
-                              <span className="text-xs text-slate-500">
-                                {getFollowUpInfo(selectedConversation)!.sentAt
-                                  ? new Date(getFollowUpInfo(selectedConversation)!.sentAt!).toLocaleDateString("en-AU", {
-                                      day: "numeric",
-                                      month: "short",
-                                      year: "numeric",
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    })
-                                  : ""}
-                              </span>
-                            </div>
-                            {getFollowUpInfo(selectedConversation)!.campaignId && (
-                              <a
-                                href={`/outreach/${getFollowUpInfo(selectedConversation)!.campaignId}`}
-                                className="flex items-center gap-1 text-sm text-purple-600 hover:underline"
-                              >
-                                View campaign
-                                <ExternalLink className="h-3 w-3" />
-                              </a>
-                            )}
-                          </>
-                        ) : (
-                          <div className="flex items-center gap-2">
+
+                      {/* Status badge row */}
+                      <div className={`rounded-lg border p-3 space-y-3 ${
+                        isSent ? "bg-purple-50 border-purple-200" :
+                        isFailed ? "bg-red-50 border-red-200" :
+                        "bg-slate-50 border-slate-200"
+                      }`}>
+                        <div className="flex items-center gap-2">
+                          {isSent ? (
+                            <Badge className="bg-purple-600 text-white text-xs">Sent</Badge>
+                          ) : isFailed ? (
+                            <Badge className="bg-red-600 text-white text-xs">Failed</Badge>
+                          ) : (
                             <Badge variant="outline" className="text-xs border-slate-300 text-slate-500">Skipped</Badge>
-                            <span className="text-xs text-slate-500 capitalize">
-                              {(getFollowUpInfo(selectedConversation)!.reason || "").replace(/_/g, " ")}
-                            </span>
+                          )}
+                          <span className="text-xs text-slate-500">
+                            {info.sentAt
+                              ? new Date(info.sentAt).toLocaleDateString("en-AU", {
+                                  day: "numeric",
+                                  month: "short",
+                                  year: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })
+                              : ""}
+                          </span>
+                        </div>
+
+                        {/* View campaign link */}
+                        {isSent && info.campaignId && (
+                          <a
+                            href={`/outreach/${info.campaignId}`}
+                            className="flex items-center gap-1 text-sm text-purple-600 hover:underline"
+                          >
+                            View campaign
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        )}
+
+                        {/* Error message for failed */}
+                        {isFailed && info.error && (
+                          <div className="flex items-start gap-2 rounded bg-red-100 p-2">
+                            <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-red-600" />
+                            <p className="text-xs text-red-700">{info.error}</p>
+                          </div>
+                        )}
+
+                        {/* Activity log */}
+                        {info.log.length > 0 && (
+                          <div className="space-y-1 border-t border-slate-200 pt-2">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Activity Log</p>
+                            {info.log.map((entry, i) => (
+                              <div key={i} className="flex items-start gap-2">
+                                <span className={`mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full ${
+                                  entry.startsWith("Failed") || entry.startsWith("Error") ? "bg-red-400" :
+                                  entry.startsWith("Follow-up email sent") ? "bg-green-400" :
+                                  entry.startsWith("Skipped") ? "bg-amber-400" :
+                                  "bg-slate-300"
+                                }`} />
+                                <span className="text-xs text-slate-600">{entry}</span>
+                              </div>
+                            ))}
                           </div>
                         )}
                       </div>
                     </div>
                   </>
-                )}
+                  );
+                })()}
 
                 <Separator className="my-4" />
 

@@ -135,7 +135,9 @@ export async function GET(request: NextRequest) {
           status: "skipped",
           error: "Too few messages",
         });
-        await markFollowUpSent(supabase, conversation.id, conversation.metadata, "too_few_messages");
+        await markFollowUpSent(supabase, conversation.id, conversation.metadata, "too_few_messages", {
+          messageCount: userMessages.length,
+        });
         continue;
       }
 
@@ -153,7 +155,12 @@ export async function GET(request: NextRequest) {
           status: "skipped",
           intent: "low",
         });
-        await markFollowUpSent(supabase, conversation.id, conversation.metadata, "low_intent");
+        await markFollowUpSent(supabase, conversation.id, conversation.metadata, "low_intent", {
+          intent: context.intent_level,
+          products: context.products_mentioned,
+          summary: context.summary,
+          messageCount: userMessages.length,
+        });
         continue;
       }
 
@@ -180,7 +187,13 @@ export async function GET(request: NextRequest) {
           campaign_id: result.campaignId,
           intent: context.intent_level,
         });
-        await markFollowUpSent(supabase, conversation.id, conversation.metadata, "sent", result.campaignId);
+        await markFollowUpSent(supabase, conversation.id, conversation.metadata, "sent", {
+          campaignId: result.campaignId,
+          intent: context.intent_level,
+          products: context.products_mentioned,
+          summary: context.summary,
+          messageCount: userMessages.length,
+        });
         processed++;
         console.log(
           `[Chat Followup] Sent follow-up to ${email} (intent: ${context.intent_level}, products: ${context.products_mentioned.join(", ")})`
@@ -192,7 +205,13 @@ export async function GET(request: NextRequest) {
           status: "failed",
           error: result.error,
         });
-        await markFollowUpSent(supabase, conversation.id, conversation.metadata, "send_failed");
+        await markFollowUpSent(supabase, conversation.id, conversation.metadata, "send_failed", {
+          error: result.error,
+          intent: context.intent_level,
+          products: context.products_mentioned,
+          summary: context.summary,
+          messageCount: userMessages.length,
+        });
         console.error(
           `[Chat Followup] Failed to send to ${email}: ${result.error}`
         );
@@ -223,24 +242,76 @@ export async function POST(request: NextRequest) {
   return GET(request);
 }
 
+interface FollowUpMetaExtra {
+  campaignId?: string;
+  error?: string;
+  intent?: string;
+  products?: string[];
+  summary?: string;
+  messageCount?: number;
+}
+
 /**
  * Marks a conversation with followup_sent in metadata to prevent re-processing.
- * Merges with existing metadata to avoid overwriting other fields.
+ * Stores a human-readable activity log so admins can see what happened.
  */
 async function markFollowUpSent(
   supabase: ReturnType<typeof createClient>,
   conversationId: string,
   existingMetadata: unknown,
   reason: string,
-  campaignId?: string
+  extra: FollowUpMetaExtra = {}
 ) {
   const meta = (existingMetadata as Record<string, unknown>) || {};
+
+  // Build human-readable log entries
+  const log: string[] = [];
+  const now = new Date();
+  const timeStr = now.toLocaleString("en-AU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+
+  if (extra.messageCount !== undefined) {
+    log.push(`Analyzed ${extra.messageCount} messages`);
+  }
+  if (extra.intent) {
+    log.push(`Intent: ${extra.intent}`);
+  }
+  if (extra.products && extra.products.length > 0) {
+    log.push(`Products: ${extra.products.join(", ")}`);
+  }
+  if (extra.summary) {
+    log.push(`Summary: ${extra.summary}`);
+  }
+
+  switch (reason) {
+    case "sent":
+      log.push(`Follow-up email sent at ${timeStr}`);
+      break;
+    case "send_failed":
+      log.push(`Failed to send: ${extra.error || "Unknown error"}`);
+      break;
+    case "low_intent":
+      log.push("Skipped — conversation was low intent (greetings/support only)");
+      break;
+    case "too_few_messages":
+      log.push(`Skipped — only ${extra.messageCount ?? 0} messages (minimum 2 required)`);
+      break;
+    case "error_fetching_messages":
+      log.push(`Error — could not load chat messages`);
+      break;
+    default:
+      log.push(`Status: ${reason}`);
+  }
+
   const updatedMetadata = {
     ...meta,
     followup_sent: true,
-    followup_sent_at: new Date().toISOString(),
+    followup_sent_at: now.toISOString(),
     followup_reason: reason,
-    ...(campaignId ? { followup_campaign_id: campaignId } : {}),
+    followup_log: log,
+    ...(extra.campaignId ? { followup_campaign_id: extra.campaignId } : {}),
+    ...(extra.error ? { followup_error: extra.error } : {}),
+    ...(extra.intent ? { followup_intent: extra.intent } : {}),
+    ...(extra.products && extra.products.length > 0 ? { followup_products: extra.products } : {}),
   };
 
   const { error } = await supabase
