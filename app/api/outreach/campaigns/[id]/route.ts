@@ -176,8 +176,16 @@ export async function DELETE(
       );
     }
 
-    // Delete associated emails first (cascade should handle this, but explicit is safer)
+    // Delete all associated data first (order matters for foreign keys)
+    await supabase.from("outreach_events").delete().eq("campaign_id", id);
+    await supabase.from("outreach_send_logs").delete().eq("campaign_id", id);
+    await supabase.from("outreach_replies").delete().eq("campaign_id", id);
     await supabase.from("outreach_emails").delete().eq("campaign_id", id);
+    // Clear parent reference on any child campaigns
+    await supabase
+      .from("outreach_campaigns")
+      .update({ parent_campaign_id: null })
+      .eq("parent_campaign_id", id);
 
     // Delete campaign
     const { error } = await supabase
