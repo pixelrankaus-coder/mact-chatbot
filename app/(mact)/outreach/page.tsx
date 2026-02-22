@@ -52,6 +52,7 @@ import {
   Timer,
   ArrowRight,
   Link2,
+  MessageSquare,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { OutreachCampaign } from "@/types/outreach";
@@ -277,6 +278,7 @@ export default function OutreachPage() {
 
   // Extract campaign type from name (suffix after last underscore)
   const getCampaignType = (name: string) => {
+    if (name.includes("chat-followup")) return "chat-followup";
     const parts = name.split("_");
     return parts.length >= 3 ? parts[parts.length - 1] : null;
   };
@@ -511,6 +513,7 @@ export default function OutreachPage() {
             <SelectItem value="newsletter">Newsletter</SelectItem>
             <SelectItem value="winback">Win-back</SelectItem>
             <SelectItem value="behavioral">Behavioral</SelectItem>
+            <SelectItem value="chat-followup">Chat Follow-up</SelectItem>
           </SelectContent>
         </Select>
         {selectedIds.size > 0 && (
@@ -603,6 +606,12 @@ export default function OutreachPage() {
                                 <Badge variant="outline" className="text-xs gap-1 text-blue-600 border-blue-200">
                                   <ArrowRight className="h-2.5 w-2.5" />
                                   Follow-up
+                                </Badge>
+                              )}
+                              {campaign.name.includes("chat-followup") && (
+                                <Badge variant="outline" className="text-xs gap-1 text-purple-600 border-purple-200 bg-purple-50">
+                                  <MessageSquare className="h-2.5 w-2.5" />
+                                  Chat Follow-up
                                 </Badge>
                               )}
                             </div>
