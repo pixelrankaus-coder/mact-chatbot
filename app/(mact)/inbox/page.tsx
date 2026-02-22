@@ -1532,12 +1532,13 @@ export default function InboxPage() {
                           )}
                           <span className="text-xs text-slate-500">
                             {info.sentAt
-                              ? new Date(info.sentAt).toLocaleDateString("en-AU", {
+                              ? new Date(info.sentAt).toLocaleString("en-AU", {
                                   day: "numeric",
                                   month: "short",
                                   year: "numeric",
                                   hour: "2-digit",
                                   minute: "2-digit",
+                                  timeZone: "Australia/Melbourne",
                                 })
                               : ""}
                           </span>

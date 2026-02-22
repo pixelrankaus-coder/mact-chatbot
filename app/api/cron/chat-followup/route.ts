@@ -310,7 +310,7 @@ async function markFollowUpSent(
   // Build human-readable log entries
   const log: string[] = [];
   const now = new Date();
-  const timeStr = now.toLocaleString("en-AU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  const timeStr = now.toLocaleString("en-AU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Australia/Melbourne" });
 
   if (extra.messageCount !== undefined) {
     log.push(`Analyzed ${extra.messageCount} messages`);
