@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/utils/supabase/server";
+import { createServiceClient } from "@/lib/supabase";
 
 // GET /api/changelog - List all changelog entries
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    const supabase = createServiceClient();
     const { searchParams } = new URL(request.url);
     const category = searchParams.get("category"); // "admin" | "widget" | null (all)
     const since = searchParams.get("since"); // ISO timestamp - for "What's New" badge
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
 // POST /api/changelog - Create a new changelog entry
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    const supabase = createServiceClient();
     const body = await request.json();
 
     const { version, date, type, category, title, description, details } = body;

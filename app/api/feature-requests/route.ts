@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/utils/supabase/server";
+import { createServiceClient } from "@/lib/supabase";
 
 // GET /api/feature-requests - List all feature requests
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    const supabase = createServiceClient();
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status"); // "new" | "planned" | "in_progress" | "completed" | "rejected"
 
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
 // POST /api/feature-requests - Create a new feature request
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    const supabase = createServiceClient();
     const body = await request.json();
 
     const { title, description, category, priority, submitted_by } = body;
