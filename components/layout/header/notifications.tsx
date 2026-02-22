@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { BellIcon, ClockIcon, AlertTriangleIcon, CheckCircleIcon, ServerCrashIcon } from "lucide-react";
+import { BellIcon, ClockIcon, AlertTriangleIcon, CheckCircleIcon, ServerCrashIcon, SparklesIcon, BugIcon, WrenchIcon } from "lucide-react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -27,15 +27,31 @@ interface ServiceAlert {
   notified?: boolean;
 }
 
+interface ChangelogEntry {
+  id: string;
+  version: string;
+  date: string;
+  type: string;
+  category: string;
+  title: string;
+  description: string;
+  created_at: string;
+}
+
 const POLL_INTERVAL = 60_000; // Check for new alerts every 60 seconds
 const HEALTH_CHECK_INTERVAL = 15 * 60_000; // Run health check every 15 minutes
+const CHANGELOG_STORAGE_KEY = "mact_last_changelog_seen";
 
 const Notifications = () => {
   const isMobile = useIsMobile();
   const [alerts, setAlerts] = useState<ServiceAlert[]>([]);
-  const [hasUnread, setHasUnread] = useState(false);
+  const [changelogEntries, setChangelogEntries] = useState<ChangelogEntry[]>([]);
+  const [hasUnreadAlerts, setHasUnreadAlerts] = useState(false);
+  const [hasUnreadChangelog, setHasUnreadChangelog] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const consecutiveErrors = useRef(0);
+
+  const hasUnread = hasUnreadAlerts || hasUnreadChangelog;
 
   // Fetch alerts from API
   const fetchAlerts = useCallback(async () => {
@@ -48,12 +64,32 @@ const Notifications = () => {
         const unread = (data.alerts || []).some(
           (a: ServiceAlert) => !a.notified && (a.current_status === "down" || a.current_status === "degraded")
         );
-        setHasUnread(unread);
+        setHasUnreadAlerts(unread);
       } else {
         consecutiveErrors.current++;
       }
     } catch {
       consecutiveErrors.current++;
+    }
+  }, []);
+
+  // Fetch latest changelog entries
+  const fetchChangelog = useCallback(async () => {
+    try {
+      const res = await fetch("/api/changelog");
+      if (res.ok) {
+        const data = await res.json();
+        const entries = (data.entries || []).slice(0, 5) as ChangelogEntry[];
+        setChangelogEntries(entries);
+
+        // Check for unread entries
+        const lastSeen = localStorage.getItem(CHANGELOG_STORAGE_KEY);
+        if (entries.length > 0 && (!lastSeen || new Date(entries[0].created_at) > new Date(lastSeen))) {
+          setHasUnreadChangelog(true);
+        }
+      }
+    } catch {
+      // Changelog table might not exist yet - silently ignore
     }
   }, []);
 
@@ -78,24 +114,34 @@ const Notifications = () => {
   // Mark alerts as read when dropdown is opened
   const handleOpenChange = useCallback(async (open: boolean) => {
     setIsOpen(open);
-    if (open && hasUnread) {
-      setHasUnread(false);
-      try {
-        await fetch("/api/infrastructure/alerts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "mark_read", before: new Date().toISOString() }),
-        });
-      } catch {
-        // Silently fail
+    if (open) {
+      // Mark changelog as seen
+      if (hasUnreadChangelog && changelogEntries.length > 0) {
+        localStorage.setItem(CHANGELOG_STORAGE_KEY, new Date().toISOString());
+        setHasUnreadChangelog(false);
+      }
+      // Mark service alerts as read
+      if (hasUnreadAlerts) {
+        setHasUnreadAlerts(false);
+        try {
+          await fetch("/api/infrastructure/alerts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "mark_read", before: new Date().toISOString() }),
+          });
+        } catch {
+          // Silently fail
+        }
       }
     }
-  }, [hasUnread]);
+  }, [hasUnreadAlerts, hasUnreadChangelog, changelogEntries]);
 
   // Initial load + polling
   useEffect(() => {
     // Run initial health check
     runHealthCheck();
+    // Fetch changelog
+    fetchChangelog();
 
     // Poll for new alerts
     const alertInterval = setInterval(fetchAlerts, POLL_INTERVAL);
@@ -103,9 +149,13 @@ const Notifications = () => {
     // Periodic health checks
     const healthInterval = setInterval(runHealthCheck, HEALTH_CHECK_INTERVAL);
 
+    // Check changelog less frequently (every 5 min)
+    const changelogInterval = setInterval(fetchChangelog, 5 * 60_000);
+
     return () => {
       clearInterval(alertInterval);
       clearInterval(healthInterval);
+      clearInterval(changelogInterval);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -135,22 +185,75 @@ const Notifications = () => {
     return alert.details || `Changed from ${alert.previous_status || "unknown"} to ${alert.current_status}`;
   };
 
+  const getChangelogIcon = (type: string) => {
+    if (type === "feature") return <SparklesIcon className="size-4 text-green-500" />;
+    if (type === "fix") return <BugIcon className="size-4 text-red-500" />;
+    if (type === "improvement") return <WrenchIcon className="size-4 text-blue-500" />;
+    return <SparklesIcon className="size-4 text-green-500" />;
+  };
+
   return (
     <DropdownMenu open={isOpen} onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger asChild>
         <Button size="icon-sm" variant="ghost" className="relative">
           <BellIcon className={cn(
-            hasUnread && "text-red-500"
+            hasUnread && (hasUnreadAlerts ? "text-red-500" : "text-blue-500")
           )} />
           {hasUnread && (
-            <span className="absolute end-0.5 top-0.5 block size-2 shrink-0 rounded-full bg-red-500 animate-pulse" />
+            <span className={cn(
+              "absolute end-0.5 top-0.5 block size-2 shrink-0 rounded-full animate-pulse",
+              hasUnreadAlerts ? "bg-red-500" : "bg-blue-500"
+            )} />
           )}
         </Button>
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align={isMobile ? "center" : "end"} className="ms-4 w-80 p-0">
+        {/* What's New Section */}
+        {changelogEntries.length > 0 && (
+          <>
+            <DropdownMenuLabel className="bg-background dark:bg-muted sticky top-0 z-10 p-0">
+              <div className="flex justify-between border-b px-6 py-3">
+                <div className="flex items-center gap-2 font-medium">
+                  <SparklesIcon className="size-4 text-blue-500" />
+                  What&apos;s New
+                </div>
+                <Button variant="link" className="h-auto p-0 text-xs" size="icon-sm" asChild>
+                  <Link href="/settings/changelog">View all</Link>
+                </Button>
+              </div>
+            </DropdownMenuLabel>
+
+            {changelogEntries.slice(0, 3).map((entry) => (
+              <DropdownMenuItem
+                key={entry.id}
+                className="group flex cursor-pointer items-start gap-3 rounded-none border-b px-4 py-3"
+                asChild>
+                <Link href="/settings/changelog">
+                  <div className="flex-none pt-0.5">
+                    {getChangelogIcon(entry.type)}
+                  </div>
+                  <div className="flex flex-1 flex-col gap-1">
+                    <div className="text-sm font-medium text-slate-800 dark:text-slate-200">
+                      v{entry.version}: {entry.title}
+                    </div>
+                    <div className="text-muted-foreground line-clamp-1 text-xs">
+                      {entry.description}
+                    </div>
+                    <div className="text-muted-foreground flex items-center gap-1 text-xs">
+                      <ClockIcon className="size-3!" />
+                      {formatDistanceToNow(new Date(entry.created_at), { addSuffix: true })}
+                    </div>
+                  </div>
+                </Link>
+              </DropdownMenuItem>
+            ))}
+          </>
+        )}
+
+        {/* Service Alerts Section */}
         <DropdownMenuLabel className="bg-background dark:bg-muted sticky top-0 z-10 p-0">
-          <div className="flex justify-between border-b px-6 py-4">
+          <div className="flex justify-between border-b px-6 py-3">
             <div className="font-medium">Service Alerts</div>
             <Button variant="link" className="h-auto p-0 text-xs" size="icon-sm" asChild>
               <Link href="/settings/infrastructure">View all</Link>
@@ -158,9 +261,9 @@ const Notifications = () => {
           </div>
         </DropdownMenuLabel>
 
-        <ScrollArea className="h-[350px]">
+        <ScrollArea className={cn(changelogEntries.length > 0 ? "h-[200px]" : "h-[350px]")}>
           {alerts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 px-4 py-12 text-center">
+            <div className="flex flex-col items-center justify-center gap-2 px-4 py-8 text-center">
               <CheckCircleIcon className="size-8 text-emerald-500" />
               <p className="text-sm font-medium">All systems operational</p>
               <p className="text-muted-foreground text-xs">No recent service alerts</p>

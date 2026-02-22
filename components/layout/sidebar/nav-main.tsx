@@ -33,6 +33,7 @@ import {
   PackageIcon,
   ServerIcon,
   ScrollTextIcon,
+  LightbulbIcon,
   type LucideIcon
 } from "lucide-react";
 import Link from "next/link";
@@ -196,6 +197,11 @@ export const navItems: NavGroup[] = [
         title: "Infrastructure",
         href: "/settings/infrastructure",
         icon: ServerIcon
+      },
+      {
+        title: "Feature Requests",
+        href: "/settings/feature-requests",
+        icon: LightbulbIcon
       },
       {
         title: "System Logs",

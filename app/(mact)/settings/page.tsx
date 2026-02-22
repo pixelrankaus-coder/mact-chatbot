@@ -19,6 +19,7 @@ import {
   Settings,
   Server,
   DollarSign,
+  Lightbulb,
 } from "lucide-react";
 import { ADMIN_VERSION, WIDGET_VERSION } from "@/lib/version";
 
@@ -161,6 +162,14 @@ const settingsSections: SettingsSection[] = [
         href: "/settings/changelog",
         icon: <History className="h-5 w-5" />,
         iconBg: "bg-slate-100 text-slate-600",
+      },
+      {
+        id: "feature-requests",
+        label: "Feature Requests",
+        description: "Track ideas and feature requests",
+        href: "/settings/feature-requests",
+        icon: <Lightbulb className="h-5 w-5" />,
+        iconBg: "bg-amber-100 text-amber-600",
       },
       {
         id: "infrastructure",
