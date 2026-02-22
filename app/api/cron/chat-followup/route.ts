@@ -36,45 +36,88 @@ export async function GET(request: NextRequest) {
   const now = new Date();
 
   try {
-    // Calculate cutoff: conversations idle for 3+ hours
-    const cutoff = new Date(now.getTime() - IDLE_HOURS * 60 * 60 * 1000);
+    // Support ?test_id=<conversation_id> to force-process a specific conversation (bypasses time check)
+    const { searchParams } = new URL(request.url);
+    const testConversationId = searchParams.get("test_id");
 
-    // Find eligible conversations:
-    // - Has visitor_email
-    // - Status is active or pending (not yet resolved)
-    // - Last updated 3+ hours ago
-    // - No followup_sent in metadata
-    const { data: conversations, error: fetchError } = await supabase
-      .from("conversations")
-      .select("id, visitor_name, visitor_email, metadata, updated_at")
-      .not("visitor_email", "is", null)
-      .neq("visitor_email", "")
-      .in("status", ["active", "pending", "resolved"])
-      .lt("updated_at", cutoff.toISOString())
-      .order("updated_at", { ascending: true })
-      .limit(MAX_PER_RUN * 2); // Fetch extra in case some get filtered out
+    let eligible: Array<{
+      id: string;
+      visitor_name: string | null;
+      visitor_email: string | null;
+      metadata: unknown;
+      updated_at: string;
+    }> = [];
 
-    if (fetchError) {
-      console.error("[Chat Followup] Failed to fetch conversations:", fetchError);
-      return NextResponse.json(
-        { error: "Database error", details: fetchError.message },
-        { status: 500 }
-      );
-    }
+    if (testConversationId) {
+      // Test mode: fetch specific conversation, skip idle time check
+      console.log(`[Chat Followup] Test mode: processing conversation ${testConversationId}`);
+      const { data: testConv, error: testErr } = await supabase
+        .from("conversations")
+        .select("id, visitor_name, visitor_email, metadata, updated_at")
+        .eq("id", testConversationId)
+        .single();
 
-    if (!conversations || conversations.length === 0) {
-      return NextResponse.json({
-        success: true,
-        message: "No eligible conversations for follow-up",
-        processed: 0,
+      if (testErr || !testConv) {
+        return NextResponse.json(
+          { error: "Conversation not found", details: testErr?.message },
+          { status: 404 }
+        );
+      }
+      if (!testConv.visitor_email) {
+        return NextResponse.json(
+          { error: "Conversation has no email address" },
+          { status: 400 }
+        );
+      }
+      // Clear followup_sent so we can re-test
+      const meta = (testConv.metadata as Record<string, unknown>) || {};
+      if (meta.followup_sent) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { followup_sent, followup_sent_at, followup_reason, followup_log, followup_error, followup_intent, followup_products, followup_campaign_id, ...cleanMeta } = meta;
+        await supabase
+          .from("conversations")
+          .update({ metadata: cleanMeta })
+          .eq("id", testConversationId);
+        testConv.metadata = cleanMeta;
+        console.log(`[Chat Followup] Cleared previous followup_sent flag for re-test`);
+      }
+      eligible = [testConv];
+    } else {
+      // Normal mode: find conversations idle 3+ hours
+      const cutoff = new Date(now.getTime() - IDLE_HOURS * 60 * 60 * 1000);
+
+      const { data: conversations, error: fetchError } = await supabase
+        .from("conversations")
+        .select("id, visitor_name, visitor_email, metadata, updated_at")
+        .not("visitor_email", "is", null)
+        .neq("visitor_email", "")
+        .in("status", ["active", "pending", "resolved"])
+        .lt("updated_at", cutoff.toISOString())
+        .order("updated_at", { ascending: true })
+        .limit(MAX_PER_RUN * 2);
+
+      if (fetchError) {
+        console.error("[Chat Followup] Failed to fetch conversations:", fetchError);
+        return NextResponse.json(
+          { error: "Database error", details: fetchError.message },
+          { status: 500 }
+        );
+      }
+
+      if (!conversations || conversations.length === 0) {
+        return NextResponse.json({
+          success: true,
+          message: "No eligible conversations for follow-up",
+          processed: 0,
+        });
+      }
+
+      // Filter out conversations that already have followup_sent
+      eligible = conversations.filter((c) => {
+        const meta = (c.metadata as Record<string, unknown>) || {};
+        return !meta.followup_sent;
       });
     }
-
-    // Filter out conversations that already have followup_sent
-    const eligible = conversations.filter((c) => {
-      const meta = (c.metadata as Record<string, unknown>) || {};
-      return !meta.followup_sent;
-    });
 
     console.log(
       `[Chat Followup] Found ${eligible.length} eligible conversations (from ${conversations.length} candidates)`
