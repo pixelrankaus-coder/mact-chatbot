@@ -97,6 +97,16 @@ export const navItems: NavGroup[] = [
         icon: MailIcon
       },
       {
+        title: "Templates",
+        href: "/outreach/templates",
+        icon: ScrollTextIcon
+      },
+      {
+        title: "Outreach Analytics",
+        href: "/outreach/analytics",
+        icon: BarChart3Icon
+      },
+      {
         title: "PPC Performance",
         href: "/ppc",
         icon: TrendingUpIcon,
