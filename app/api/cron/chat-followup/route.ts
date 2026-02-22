@@ -120,7 +120,7 @@ export async function GET(request: NextRequest) {
     }
 
     console.log(
-      `[Chat Followup] Found ${eligible.length} eligible conversations (from ${conversations.length} candidates)`
+      `[Chat Followup] Found ${eligible.length} eligible conversations${testConversationId ? " (test mode)" : ""}`
     );
 
     const results: Array<{
