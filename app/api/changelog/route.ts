@@ -26,8 +26,8 @@ export async function GET(request: NextRequest) {
     const { data: entries, error } = await query;
 
     if (error) {
-      // Table might not exist yet
-      if (error.code === "42P01") {
+      // Table might not exist yet (PGRST205 = PostgREST table not found, 42P01 = PostgreSQL)
+      if (error.code === "42P01" || error.code === "PGRST205") {
         return NextResponse.json({ entries: [], count: 0 });
       }
       console.error("Error fetching changelog:", error);
@@ -77,6 +77,12 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
+      if (error.code === "42P01" || error.code === "PGRST205") {
+        return NextResponse.json(
+          { error: "Table not found. Run the migration SQL in Supabase Dashboard first." },
+          { status: 503 }
+        );
+      }
       console.error("Error creating changelog entry:", error);
       return NextResponse.json(
         { error: "Failed to create entry" },

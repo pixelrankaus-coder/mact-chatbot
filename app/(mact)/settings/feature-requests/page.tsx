@@ -120,9 +120,12 @@ export default function FeatureRequestsPage() {
       if (res.ok) {
         const data = await res.json();
         setRequests(data.requests || []);
+      } else {
+        // API returned error (e.g. table doesn't exist) - show empty
+        setRequests([]);
       }
     } catch {
-      // Table might not exist yet
+      // Network error or table might not exist yet
     } finally {
       setLoading(false);
     }
@@ -153,6 +156,9 @@ export default function FeatureRequestsPage() {
         setDialogOpen(false);
         resetForm();
         fetchRequests();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || "Failed to save. Make sure the database tables have been created.");
       }
     } catch (error) {
       console.error("Failed to create request:", error);
