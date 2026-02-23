@@ -3,12 +3,14 @@ import { createServiceClient } from "@/lib/supabase";
 
 /**
  * GET /api/dashboard/sales/revenue
- * Returns revenue chart data for the dashboard
+ * Returns revenue chart data combining Cin7 + WooCommerce
  */
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
   const period = searchParams.get("period") || "28d";
-  const interval = searchParams.get("interval") || "daily";
+  const source = searchParams.get("source") || "all";
+  const includeCin7 = source === "all" || source === "cin7";
+  const includeWoo = source === "all" || source === "woocommerce";
 
   try {
     const supabase = createServiceClient();
@@ -18,50 +20,68 @@ export async function GET(req: NextRequest) {
     const daysBack = parseInt(period.replace("d", ""), 10) || 28;
     const startDate = new Date(now);
     startDate.setDate(startDate.getDate() - daysBack);
+    const startDateStr = startDate.toISOString().split("T")[0];
 
-    // Fetch orders in date range
-    const { data: orders, error } = await supabase
-      .from("cin7_orders")
-      .select("total, order_date, status")
-      .gte("order_date", startDate.toISOString().split("T")[0])
-      .order("order_date", { ascending: true });
+    // Fetch from sources based on filter
+    const [cin7Result, wooResult] = await Promise.all([
+      includeCin7
+        ? supabase.from("cin7_orders").select("total, order_date, status").gte("order_date", startDateStr).order("order_date", { ascending: true })
+        : Promise.resolve({ data: [], error: null }),
+      includeWoo
+        ? supabase.from("woo_orders").select("total, order_date, status").gte("order_date", startDateStr).order("order_date", { ascending: true })
+        : Promise.resolve({ data: [], error: null }),
+    ]);
 
-    if (error) {
-      console.error("Error fetching revenue data:", error);
-      throw error;
-    }
+    if (cin7Result.error) console.error("Cin7 revenue error:", cin7Result.error);
+    if (wooResult.error) console.error("Woo revenue error:", wooResult.error);
 
-    // Group by date
-    const revenueByDate: Record<string, { revenue: number; orders: number }> = {};
+    const cin7Orders = cin7Result.data || [];
+    const wooOrders = wooResult.data || [];
 
-    // Initialize all dates in range
+    // Group by date - initialize all dates in range
+    const revenueByDate: Record<string, { revenue: number; orders: number; cin7Revenue: number; wooRevenue: number }> = {};
     for (let d = new Date(startDate); d <= now; d.setDate(d.getDate() + 1)) {
       const dateKey = d.toISOString().split("T")[0];
-      revenueByDate[dateKey] = { revenue: 0, orders: 0 };
+      revenueByDate[dateKey] = { revenue: 0, orders: 0, cin7Revenue: 0, wooRevenue: 0 };
     }
 
-    // Aggregate orders by date
-    (orders || []).forEach((order) => {
+    // Aggregate Cin7 orders
+    cin7Orders.forEach((order) => {
       const dateKey = order.order_date?.split("T")[0];
       if (dateKey && revenueByDate[dateKey]) {
-        revenueByDate[dateKey].revenue += parseFloat(String(order.total)) || 0;
+        const amount = parseFloat(String(order.total)) || 0;
+        revenueByDate[dateKey].revenue += amount;
+        revenueByDate[dateKey].cin7Revenue += amount;
         revenueByDate[dateKey].orders += 1;
       }
     });
 
-    // Convert to array format for charts
+    // Aggregate WooCommerce orders
+    wooOrders.forEach((order) => {
+      const dateKey = order.order_date?.split("T")[0];
+      if (dateKey && revenueByDate[dateKey]) {
+        const amount = parseFloat(String(order.total)) || 0;
+        revenueByDate[dateKey].revenue += amount;
+        revenueByDate[dateKey].wooRevenue += amount;
+        revenueByDate[dateKey].orders += 1;
+      }
+    });
+
+    // Convert to chart array
     const chartData = Object.entries(revenueByDate)
       .map(([date, data]) => ({
         date,
         revenue: Math.round(data.revenue * 100) / 100,
         orders: data.orders,
+        cin7Revenue: Math.round(data.cin7Revenue * 100) / 100,
+        wooRevenue: Math.round(data.wooRevenue * 100) / 100,
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
     // Calculate totals
     const totalRevenue = chartData.reduce((sum, d) => sum + d.revenue, 0);
     const totalOrders = chartData.reduce((sum, d) => sum + d.orders, 0);
-    const avgDaily = totalRevenue / chartData.length;
+    const avgDaily = chartData.length > 0 ? totalRevenue / chartData.length : 0;
 
     // Find peak day
     const peakDay = chartData.reduce(
@@ -81,7 +101,7 @@ export async function GET(req: NextRequest) {
         },
       },
       period,
-      interval,
+      interval: "daily",
     });
   } catch (error) {
     console.error("Revenue chart error:", error);

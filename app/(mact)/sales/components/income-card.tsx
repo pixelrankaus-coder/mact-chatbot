@@ -21,7 +21,7 @@ export function IncomeCard() {
   }
 
   const value = data?.income?.value ?? 0;
-  const change = data?.revenue?.change ?? 0;
+  const change = data?.income?.change ?? data?.revenue?.change ?? 0;
   const isPositive = change >= 0;
 
   return (

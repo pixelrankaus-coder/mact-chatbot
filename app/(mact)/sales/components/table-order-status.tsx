@@ -44,6 +44,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ExportButton } from "@/components/CardActionMenus";
 import { useRecentOrders, useOrderStatus, type RecentOrder } from "@/hooks/use-dashboard-data";
+import { useDashboardSource, type DashboardSource } from "./dashboard-source-provider";
 
 type Order = {
   id: string;
@@ -89,17 +90,31 @@ const columns: ColumnDef<Order>[] = [
       const label = row.original.statusLabel || status;
 
       const statusMap: Record<string, "success" | "info" | "warning" | "destructive" | "default"> = {
+        // Cin7 statuses
         completed: "success",
         shipped: "success",
         invoiced: "success",
+        closed: "success",
+        credited: "success",
         ordering: "info",
+        ordered: "info",
         draft: "info",
+        estimated: "info",
+        estimating: "info",
         approved: "warning",
         picking: "warning",
         packed: "warning",
         backordered: "warning",
+        invoicing: "warning",
         cancelled: "destructive",
-        void: "destructive"
+        void: "destructive",
+        voided: "destructive",
+        // WooCommerce statuses
+        processing: "warning",
+        "on-hold": "warning",
+        pending: "info",
+        refunded: "destructive",
+        failed: "destructive",
       };
 
       const statusClass = statusMap[status] ?? "default";
@@ -113,9 +128,16 @@ const columns: ColumnDef<Order>[] = [
   }
 ];
 
+const sourceLabels: Record<DashboardSource, string> = {
+  all: "Cin7 and WooCommerce",
+  cin7: "Cin7",
+  woocommerce: "WooCommerce",
+};
+
 export function TableOrderStatus() {
-  const { orders, loading: ordersLoading } = useRecentOrders(20);
-  const { summary, loading: statusLoading } = useOrderStatus();
+  const { source } = useDashboardSource();
+  const { orders, loading: ordersLoading } = useRecentOrders(20, source);
+  const { summary, loading: statusLoading } = useOrderStatus(source);
 
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
@@ -178,7 +200,7 @@ export function TableOrderStatus() {
     <Card className="h-full">
       <CardHeader>
         <CardTitle>Track Order Status</CardTitle>
-        <CardDescription>Recent orders from Cin7 (last 30 days)</CardDescription>
+        <CardDescription>Recent orders from {sourceLabels[source]} (last 30 days)</CardDescription>
         <CardAction>
           <ExportButton />
         </CardAction>

@@ -22,7 +22,7 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: "https",
-        hostname: "p1x1.dev"
+        hostname: "www.mact.au"
       }
     ]
   },

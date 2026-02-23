@@ -1,13 +1,49 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase";
+
+// Cin7 status → category mapping
+const CIN7_STATUS_MAP: Record<string, string> = {
+  DRAFT: "new",
+  ESTIMATED: "new",
+  ESTIMATING: "new",
+  ORDERING: "new",
+  ORDERED: "in_progress",
+  APPROVED: "in_progress",
+  PICKING: "in_progress",
+  PACKED: "in_progress",
+  BACKORDERED: "in_progress",
+  INVOICING: "in_progress",
+  SHIPPED: "completed",
+  INVOICED: "completed",
+  COMPLETED: "completed",
+  CLOSED: "completed",
+  CREDITED: "completed",
+  CANCELLED: "cancelled",
+  VOID: "cancelled",
+  VOIDED: "cancelled",
+};
+
+// WooCommerce status → category mapping
+const WOO_STATUS_MAP: Record<string, string> = {
+  pending: "new",
+  processing: "in_progress",
+  "on-hold": "in_progress",
+  completed: "completed",
+  cancelled: "cancelled",
+  refunded: "cancelled",
+  failed: "cancelled",
+};
 
 /**
  * GET /api/dashboard/sales/orders/status
- * Returns order status distribution for the dashboard
+ * Returns order status distribution combining Cin7 + WooCommerce
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const supabase = createServiceClient();
+    const source = req.nextUrl.searchParams.get("source") || "all";
+    const includeCin7 = source === "all" || source === "cin7";
+    const includeWoo = source === "all" || source === "woocommerce";
 
     // Get date ranges for comparison
     const now = new Date();
@@ -16,104 +52,88 @@ export async function GET() {
     const sixtyDaysAgo = new Date(now);
     sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
 
-    // Current period orders by status
-    const { data: currentOrders, error: currentError } = await supabase
-      .from("cin7_orders")
-      .select("status")
-      .gte("order_date", thirtyDaysAgo.toISOString().split("T")[0]);
+    const currentDate = thirtyDaysAgo.toISOString().split("T")[0];
+    const previousDate = sixtyDaysAgo.toISOString().split("T")[0];
 
-    if (currentError) {
-      console.error("Error fetching current orders:", currentError);
-      throw currentError;
-    }
+    // Fetch current and previous period from selected sources
+    const [cin7Current, cin7Previous, wooCurrent, wooPrevious] = await Promise.all([
+      includeCin7 ? supabase.from("cin7_orders").select("status").gte("order_date", currentDate) : Promise.resolve({ data: [] }),
+      includeCin7 ? supabase.from("cin7_orders").select("status").gte("order_date", previousDate).lt("order_date", currentDate) : Promise.resolve({ data: [] }),
+      includeWoo ? supabase.from("woo_orders").select("status").gte("order_date", currentDate) : Promise.resolve({ data: [] }),
+      includeWoo ? supabase.from("woo_orders").select("status").gte("order_date", previousDate).lt("order_date", currentDate) : Promise.resolve({ data: [] }),
+    ]);
 
-    // Previous period for comparison
-    const { data: previousOrders, error: previousError } = await supabase
-      .from("cin7_orders")
-      .select("status")
-      .gte("order_date", sixtyDaysAgo.toISOString().split("T")[0])
-      .lt("order_date", thirtyDaysAgo.toISOString().split("T")[0]);
-
-    if (previousError) {
-      console.error("Error fetching previous orders:", previousError);
-    }
-
-    // Count by status - current period
-    const statusCounts: Record<string, number> = {};
-    (currentOrders || []).forEach((order) => {
-      const status = order.status || "UNKNOWN";
-      statusCounts[status] = (statusCounts[status] || 0) + 1;
-    });
-
-    // Count by status - previous period
-    const prevStatusCounts: Record<string, number> = {};
-    (previousOrders || []).forEach((order) => {
-      const status = order.status || "UNKNOWN";
-      prevStatusCounts[status] = (prevStatusCounts[status] || 0) + 1;
-    });
-
-    // Map to dashboard format with categories
-    const statusMapping: Record<string, { label: string; category: string }> = {
-      DRAFT: { label: "Draft", category: "new" },
-      ORDERING: { label: "New Order", category: "new" },
-      APPROVED: { label: "Approved", category: "in_progress" },
-      PICKING: { label: "Picking", category: "in_progress" },
-      PACKED: { label: "Packed", category: "in_progress" },
-      SHIPPED: { label: "Shipped", category: "completed" },
-      INVOICED: { label: "Invoiced", category: "completed" },
-      COMPLETED: { label: "Completed", category: "completed" },
-      CANCELLED: { label: "Cancelled", category: "cancelled" },
-      VOID: { label: "Void", category: "cancelled" },
-    };
-
-    // Aggregate by category
+    // Initialize categories
     const categories = {
-      new: { count: 0, prevCount: 0, label: "New Orders" },
+      new: { count: 0, prevCount: 0, label: "New Order" },
       in_progress: { count: 0, prevCount: 0, label: "In Progress" },
       completed: { count: 0, prevCount: 0, label: "Completed" },
-      cancelled: { count: 0, prevCount: 0, label: "Cancelled/Returns" },
+      cancelled: { count: 0, prevCount: 0, label: "Cancelled" },
     };
 
-    Object.entries(statusCounts).forEach(([status, count]) => {
-      const mapping = statusMapping[status];
-      if (mapping) {
-        const cat = mapping.category as keyof typeof categories;
-        categories[cat].count += count;
-      }
+    // Count Cin7 current
+    (cin7Current.data || []).forEach((o) => {
+      const cat = CIN7_STATUS_MAP[o.status] as keyof typeof categories;
+      if (cat && categories[cat]) categories[cat].count++;
     });
 
-    Object.entries(prevStatusCounts).forEach(([status, count]) => {
-      const mapping = statusMapping[status];
-      if (mapping) {
-        const cat = mapping.category as keyof typeof categories;
-        categories[cat].prevCount += count;
-      }
+    // Count Cin7 previous
+    (cin7Previous.data || []).forEach((o) => {
+      const cat = CIN7_STATUS_MAP[o.status] as keyof typeof categories;
+      if (cat && categories[cat]) categories[cat].prevCount++;
     });
 
-    // Calculate total and percentages
+    // Count WooCommerce current
+    (wooCurrent.data || []).forEach((o) => {
+      const cat = WOO_STATUS_MAP[o.status] as keyof typeof categories;
+      if (cat && categories[cat]) categories[cat].count++;
+    });
+
+    // Count WooCommerce previous
+    (wooPrevious.data || []).forEach((o) => {
+      const cat = WOO_STATUS_MAP[o.status] as keyof typeof categories;
+      if (cat && categories[cat]) categories[cat].prevCount++;
+    });
+
+    // Calculate total and build response
     const total = Object.values(categories).reduce((sum, c) => sum + c.count, 0);
 
     const statusDistribution = Object.entries(categories).map(([key, data]) => {
       const change = data.prevCount > 0
         ? ((data.count - data.prevCount) / data.prevCount) * 100
-        : 0;
+        : data.count > 0 ? 100 : 0;
 
       return {
         id: key,
         label: data.label,
         count: data.count,
-        percentage: total > 0 ? (data.count / total) * 100 : 0,
-        change: change,
+        percentage: total > 0 ? Math.round((data.count / total) * 1000) / 10 : 0,
+        change: Math.round(change * 10) / 10,
       };
     });
 
-    // Also return detailed status breakdown
-    const detailedStatus = Object.entries(statusCounts)
-      .map(([status, count]) => ({
+    // Detailed status breakdown (combined)
+    const detailedCounts: Record<string, { label: string; count: number }> = {};
+
+    (cin7Current.data || []).forEach((o) => {
+      const s = o.status || "UNKNOWN";
+      if (!detailedCounts[s]) detailedCounts[s] = { label: s, count: 0 };
+      detailedCounts[s].count++;
+    });
+
+    (wooCurrent.data || []).forEach((o) => {
+      const s = `woo:${o.status || "unknown"}`;
+      const label = o.status ? o.status.charAt(0).toUpperCase() + o.status.slice(1).replace("-", " ") : "Unknown";
+      if (!detailedCounts[s]) detailedCounts[s] = { label: `${label} (Woo)`, count: 0 };
+      detailedCounts[s].count++;
+    });
+
+    const detailedStatus = Object.entries(detailedCounts)
+      .map(([status, data]) => ({
         status,
-        label: statusMapping[status]?.label || status,
-        count,
-        percentage: total > 0 ? (count / total) * 100 : 0,
+        label: data.label,
+        count: data.count,
+        percentage: total > 0 ? Math.round((data.count / total) * 1000) / 10 : 0,
       }))
       .sort((a, b) => b.count - a.count);
 

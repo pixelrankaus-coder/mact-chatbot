@@ -19,6 +19,13 @@ import {
 } from "@/components/ui/chart";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRevenueData } from "@/hooks/use-dashboard-data";
+import { useDashboardSource, type DashboardSource } from "./dashboard-source-provider";
+
+const sourceLabels: Record<DashboardSource, string> = {
+  all: "Cin7 and WooCommerce",
+  cin7: "Cin7",
+  woocommerce: "WooCommerce",
+};
 
 const chartConfig = {
   views: {
@@ -35,7 +42,8 @@ const chartConfig = {
 } satisfies ChartConfig;
 
 export function RevenueChart() {
-  const { data, loading } = useRevenueData("28d");
+  const { source } = useDashboardSource();
+  const { data, loading } = useRevenueData("28d", source);
   const [activeChart, setActiveChart] = React.useState<"revenue" | "orders">("revenue");
 
   // Transform data for chart
@@ -74,7 +82,7 @@ export function RevenueChart() {
     <Card className="relative h-full overflow-hidden">
       <CardHeader>
         <CardTitle>Revenue Chart</CardTitle>
-        <CardDescription>Last 28 days from Cin7</CardDescription>
+        <CardDescription>Last 28 days from {sourceLabels[source]}</CardDescription>
         <CardAction className="col-start-auto row-start-auto justify-self-start md:col-start-2 md:row-start-1 md:justify-self-end">
           <div className="end-0 top-0 flex divide-x rounded-md border-s border-e border-t border-b md:absolute md:rounded-none md:rounded-bl-md md:border-e-transparent md:border-t-transparent">
             {(["revenue", "orders"] as const).map((key) => {

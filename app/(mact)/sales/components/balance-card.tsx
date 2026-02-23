@@ -21,7 +21,7 @@ export function BalanceCard() {
   }
 
   const value = data?.balance?.value ?? 0;
-  const change = data?.revenue?.change ?? 0;
+  const change = data?.balance?.change ?? data?.revenue?.change ?? 0;
   const isPositive = change >= 0;
 
   return (

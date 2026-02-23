@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 
+export type DashboardSource = "all" | "cin7" | "woocommerce";
+
 // Types for dashboard data
 export interface DashboardMetrics {
   revenue: {
@@ -19,10 +21,12 @@ export interface DashboardMetrics {
   };
   balance: {
     value: number;
+    change?: number;
     label: string;
   };
   income: {
     value: number;
+    change?: number;
     label: string;
   };
   expenses: {
@@ -47,7 +51,8 @@ export interface RecentOrder {
   statusLabel: string;
   date: string;
   tracking: string | null;
-  shippingStatus: string | null;
+  shippingStatus?: string | null;
+  source?: "cin7" | "woocommerce";
 }
 
 export interface OrderStatusSummary {
@@ -77,8 +82,14 @@ export interface RevenueData {
   };
 }
 
+// Helper to build URL with source param
+function withSource(url: string, source: DashboardSource): string {
+  const sep = url.includes("?") ? "&" : "?";
+  return source === "all" ? url : `${url}${sep}source=${source}`;
+}
+
 // Hook for dashboard metrics
-export function useDashboardMetrics() {
+export function useDashboardMetrics(source: DashboardSource = "all") {
   const [data, setData] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -86,7 +97,7 @@ export function useDashboardMetrics() {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch("/api/dashboard/sales/metrics");
+      const response = await fetch(withSource("/api/dashboard/sales/metrics", source));
       if (!response.ok) throw new Error("Failed to fetch metrics");
       const result = await response.json();
       setData(result);
@@ -95,7 +106,7 @@ export function useDashboardMetrics() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [source]);
 
   useEffect(() => {
     fetchData();
@@ -105,7 +116,7 @@ export function useDashboardMetrics() {
 }
 
 // Hook for recent orders
-export function useRecentOrders(limit: number = 20) {
+export function useRecentOrders(limit: number = 20, source: DashboardSource = "all") {
   const [orders, setOrders] = useState<RecentOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -113,7 +124,7 @@ export function useRecentOrders(limit: number = 20) {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/dashboard/sales/orders/recent?limit=${limit}`);
+      const response = await fetch(withSource(`/api/dashboard/sales/orders/recent?limit=${limit}`, source));
       if (!response.ok) throw new Error("Failed to fetch orders");
       const result = await response.json();
       setOrders(result.orders || []);
@@ -122,7 +133,7 @@ export function useRecentOrders(limit: number = 20) {
     } finally {
       setLoading(false);
     }
-  }, [limit]);
+  }, [limit, source]);
 
   useEffect(() => {
     fetchData();
@@ -132,7 +143,7 @@ export function useRecentOrders(limit: number = 20) {
 }
 
 // Hook for order status distribution
-export function useOrderStatus() {
+export function useOrderStatus(source: DashboardSource = "all") {
   const [summary, setSummary] = useState<OrderStatusSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -140,7 +151,7 @@ export function useOrderStatus() {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch("/api/dashboard/sales/orders/status");
+      const response = await fetch(withSource("/api/dashboard/sales/orders/status", source));
       if (!response.ok) throw new Error("Failed to fetch status");
       const result = await response.json();
       setSummary(result.summary || []);
@@ -149,7 +160,7 @@ export function useOrderStatus() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [source]);
 
   useEffect(() => {
     fetchData();
@@ -159,7 +170,7 @@ export function useOrderStatus() {
 }
 
 // Hook for revenue chart data
-export function useRevenueData(period: string = "28d") {
+export function useRevenueData(period: string = "28d", source: DashboardSource = "all") {
   const [data, setData] = useState<RevenueData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -167,7 +178,7 @@ export function useRevenueData(period: string = "28d") {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/dashboard/sales/revenue?period=${period}`);
+      const response = await fetch(withSource(`/api/dashboard/sales/revenue?period=${period}`, source));
       if (!response.ok) throw new Error("Failed to fetch revenue data");
       const result = await response.json();
       setData(result);
@@ -176,7 +187,7 @@ export function useRevenueData(period: string = "28d") {
     } finally {
       setLoading(false);
     }
-  }, [period]);
+  }, [period, source]);
 
   useEffect(() => {
     fetchData();

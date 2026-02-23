@@ -7,6 +7,7 @@ import {
   type DashboardMetrics,
   formatCurrency,
 } from "@/hooks/use-dashboard-data";
+import { useDashboardSource } from "./dashboard-source-provider";
 
 interface MetricsContextType {
   data: DashboardMetrics | null;
@@ -18,7 +19,8 @@ interface MetricsContextType {
 const MetricsContext = createContext<MetricsContextType | null>(null);
 
 export function MetricsProvider({ children }: { children: React.ReactNode }) {
-  const { data, loading, error } = useDashboardMetrics();
+  const { source } = useDashboardSource();
+  const { data, loading, error } = useDashboardMetrics(source);
 
   return (
     <MetricsContext.Provider
