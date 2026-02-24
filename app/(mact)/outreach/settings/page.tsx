@@ -38,6 +38,7 @@ import {
   Forward,
   FileSignature,
   X,
+  Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -179,6 +180,131 @@ const DEFAULT_SIGNATURE_DESIGN = {
   schemaVersion: 16,
 };
 
+// Default automation signature design for Lauren Born
+const DEFAULT_AUTOMATION_SIGNATURE_DESIGN = {
+  counters: { u_row: 4, u_column: 4, u_content_text: 4, u_content_image: 1 },
+  body: {
+    id: "signature",
+    rows: [
+      {
+        id: "row1",
+        cells: [1],
+        columns: [
+          {
+            id: "col1",
+            contents: [
+              {
+                id: "text1",
+                type: "text",
+                values: {
+                  containerPadding: "10px",
+                  textAlign: "left",
+                  lineHeight: "140%",
+                  text: '<p style="font-size: 14px; line-height: 140%; font-family: arial, helvetica, sans-serif;">Thanks,<br />Lauren</p>',
+                },
+              },
+            ],
+            values: { backgroundColor: "", padding: "0px" },
+          },
+        ],
+        values: { padding: "0px" },
+      },
+      {
+        id: "row2",
+        cells: [1, 2],
+        columns: [
+          {
+            id: "col2",
+            contents: [
+              {
+                id: "image1",
+                type: "image",
+                values: {
+                  containerPadding: "20px",
+                  src: { url: "https://mact.au/wp-content/uploads/mact-logo-white.png", width: 120, height: 40 },
+                  textAlign: "center",
+                  altText: "MACt",
+                },
+              },
+            ],
+            values: { backgroundColor: "#1a1a1a", padding: "10px", borderRadius: "8px 0 0 8px" },
+          },
+          {
+            id: "col3",
+            contents: [
+              {
+                id: "text2",
+                type: "text",
+                values: {
+                  containerPadding: "20px",
+                  textAlign: "left",
+                  lineHeight: "160%",
+                  text: `<p style="font-size: 13px; line-height: 160%; color: #ffffff; font-family: arial, helvetica, sans-serif;"><strong style="font-size: 15px;">Lauren Born</strong><br /><span style="color: #999999;">Administration</span><br /><br />Office 07 3111 4047<br /><a rel="noopener" href="mailto:admin@mact.au" target="_blank" style="color: #00b4b4;">admin@mact.au</a><br />Unit 3C, 919-925 Nudgee Road,<br />Banyo, QLD 4014</p>`,
+                },
+              },
+            ],
+            values: { backgroundColor: "#1a1a1a", padding: "10px", borderRadius: "0 8px 8px 0" },
+          },
+        ],
+        values: { padding: "10px 0" },
+      },
+      {
+        id: "row3",
+        cells: [1],
+        columns: [
+          {
+            id: "col4",
+            contents: [
+              {
+                id: "text3",
+                type: "text",
+                values: {
+                  containerPadding: "15px 0",
+                  textAlign: "left",
+                  lineHeight: "140%",
+                  text: `<p style="font-size: 14px; line-height: 140%; font-family: arial, helvetica, sans-serif;"><a rel="noopener" href="https://mact.au" target="_blank" style="color: #00b4b4; font-weight: bold; text-decoration: none;">mact.au</a>&nbsp;&nbsp;<span style="background: #00b4b4; color: white; padding: 4px 10px; border-radius: 3px; font-size: 12px;">GFRC</span>&nbsp;<span style="background: #00b4b4; color: white; padding: 4px 10px; border-radius: 3px; font-size: 12px;">Mining</span>&nbsp;<span style="background: #00b4b4; color: white; padding: 4px 10px; border-radius: 3px; font-size: 12px;">Admixtures</span>&nbsp;<span style="background: #00b4b4; color: white; padding: 4px 10px; border-radius: 3px; font-size: 12px;">Concrete Chemicals</span>&nbsp;<span style="background: #00b4b4; color: white; padding: 4px 10px; border-radius: 3px; font-size: 12px;">Consulting</span></p>`,
+                },
+              },
+            ],
+            values: { padding: "0px" },
+          },
+        ],
+        values: { padding: "0px" },
+      },
+      {
+        id: "row4",
+        cells: [1],
+        columns: [
+          {
+            id: "col5",
+            contents: [
+              {
+                id: "text4",
+                type: "text",
+                values: {
+                  containerPadding: "20px 0 0 0",
+                  textAlign: "left",
+                  lineHeight: "150%",
+                  text: `<p style="font-size: 10px; line-height: 150%; color: #999999; font-family: arial, helvetica, sans-serif;">Copyright 2023 by Mining and Cement Technology Pty Ltd. All rights reserved. This email may contain privileged/confidential information intended for the addressee. Attached materials remain the exclusive property of Mining and Cement Technology Pty Ltd, potentially constituting legally protected intellectual property. If you're not the intended recipient or responsible for delivery, don't copy or distribute this email. If received in error, notify us by phone. Mining and Cement Technology Pty Ltd isn't liable for unauthorized use. Company email traffic may be monitored. Thank you.</p>`,
+                },
+              },
+            ],
+            values: { padding: "0px" },
+          },
+        ],
+        values: { padding: "0px" },
+      },
+    ],
+    values: {
+      contentWidth: "600px",
+      fontFamily: { label: "Arial", value: "arial,helvetica,sans-serif" },
+      textColor: "#000000",
+      backgroundColor: "#ffffff",
+    },
+  },
+  schemaVersion: 16,
+};
+
 interface OutreachSettings {
   id: string;
   default_from_name: string;
@@ -192,6 +318,8 @@ interface OutreachSettings {
   timezone: string;
   signature_html: string;
   signature_json: Record<string, unknown> | null;
+  automation_signature_html: string;
+  automation_signature_json: Record<string, unknown> | null;
 }
 
 const TIMEZONE_OPTIONS = [
@@ -220,6 +348,8 @@ const defaultSettings: Omit<OutreachSettings, "id"> = {
   timezone: "Australia/Melbourne",
   signature_html: "",
   signature_json: null,
+  automation_signature_html: "",
+  automation_signature_json: null,
 };
 
 interface EditorRef {
@@ -228,6 +358,8 @@ interface EditorRef {
     exportHtml: (callback: (data: { design: Record<string, unknown>; html: string }) => void) => void;
   };
 }
+
+type SignatureType = "default" | "automation";
 
 export default function OutreachSettingsPage() {
   const emailEditorRef = useRef<EditorRef>(null);
@@ -238,6 +370,9 @@ export default function OutreachSettingsPage() {
   const [previewHtml, setPreviewHtml] = useState<string>("");
   const [showPreview, setShowPreview] = useState(false);
   const [activeTab, setActiveTab] = useState("general");
+  const [activeSigType, setActiveSigType] = useState<SignatureType>("default");
+  // Cache for the design that's NOT currently in the editor
+  const cachedDesignRef = useRef<{ type: SignatureType; design: Record<string, unknown> | null }>({ type: "automation", design: null });
 
   useEffect(() => {
     fetchSettings();
@@ -245,9 +380,19 @@ export default function OutreachSettingsPage() {
 
   useEffect(() => {
     if (editorReady && settings && emailEditorRef.current?.editor) {
-      const design = settings.signature_json || DEFAULT_SIGNATURE_DESIGN;
-      emailEditorRef.current.editor.loadDesign(design);
+      if (activeSigType === "default") {
+        const design = settings.signature_json || DEFAULT_SIGNATURE_DESIGN;
+        emailEditorRef.current.editor.loadDesign(design);
+        // Cache the automation design
+        cachedDesignRef.current = { type: "automation", design: settings.automation_signature_json || DEFAULT_AUTOMATION_SIGNATURE_DESIGN };
+      } else {
+        const design = settings.automation_signature_json || DEFAULT_AUTOMATION_SIGNATURE_DESIGN;
+        emailEditorRef.current.editor.loadDesign(design);
+        // Cache the default design
+        cachedDesignRef.current = { type: "default", design: settings.signature_json || DEFAULT_SIGNATURE_DESIGN };
+      }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editorReady, settings]);
 
   const fetchSettings = async () => {
@@ -273,17 +418,22 @@ export default function OutreachSettingsPage() {
 
     setSaving(true);
 
-    // If signature editor is available, export the design
+    // If signature editor is available, export the active design
     if (emailEditorRef.current?.editor) {
-      // Wrap the callback-based exportHtml in a promise
       await new Promise<void>((resolve) => {
         emailEditorRef.current!.editor!.exportHtml(async (data) => {
           const { design, html } = data;
-          await saveSettings({
-            ...settings,
-            signature_json: design,
-            signature_html: html,
-          });
+          const updatedSettings = { ...settings };
+
+          if (activeSigType === "default") {
+            updatedSettings.signature_json = design;
+            updatedSettings.signature_html = html;
+          } else {
+            updatedSettings.automation_signature_json = design;
+            updatedSettings.automation_signature_html = html;
+          }
+
+          await saveSettings(updatedSettings);
           resolve();
         });
       });
@@ -328,10 +478,44 @@ export default function OutreachSettingsPage() {
     setEditorReady(true);
   };
 
+  const handleSwitchSignature = (newType: SignatureType) => {
+    if (newType === activeSigType || !emailEditorRef.current?.editor) return;
+
+    // Export current editor design and cache it
+    emailEditorRef.current.editor.exportHtml((data) => {
+      const { design, html } = data;
+
+      // Save current design to settings state
+      if (activeSigType === "default") {
+        setSettings((prev) => prev ? { ...prev, signature_json: design, signature_html: html } : prev);
+      } else {
+        setSettings((prev) => prev ? { ...prev, automation_signature_json: design, automation_signature_html: html } : prev);
+      }
+
+      // Cache the current design
+      cachedDesignRef.current = { type: activeSigType, design };
+
+      // Load the other design
+      const otherDesign = newType === "default"
+        ? (settings?.signature_json || DEFAULT_SIGNATURE_DESIGN)
+        : (settings?.automation_signature_json || DEFAULT_AUTOMATION_SIGNATURE_DESIGN);
+
+      emailEditorRef.current?.editor?.loadDesign(
+        cachedDesignRef.current.type === newType && cachedDesignRef.current.design
+          ? cachedDesignRef.current.design
+          : otherDesign
+      );
+
+      setActiveSigType(newType);
+    });
+  };
+
   const handleResetSignature = () => {
-    if (confirm("Reset signature to default? This will discard your changes.")) {
-      emailEditorRef.current?.editor?.loadDesign(DEFAULT_SIGNATURE_DESIGN);
-      toast.info("Signature reset to default");
+    const label = activeSigType === "default" ? "default" : "automation";
+    if (confirm(`Reset ${label} signature to default? This will discard your changes.`)) {
+      const design = activeSigType === "default" ? DEFAULT_SIGNATURE_DESIGN : DEFAULT_AUTOMATION_SIGNATURE_DESIGN;
+      emailEditorRef.current?.editor?.loadDesign(design);
+      toast.info(`${activeSigType === "default" ? "Default" : "Automation"} signature reset`);
     }
   };
 
@@ -589,7 +773,9 @@ export default function OutreachSettingsPage() {
               <div>
                 <h2 className="text-lg font-semibold">Email Signature</h2>
                 <p className="text-sm text-slate-500">
-                  Design the signature appended to all outreach emails
+                  {activeSigType === "default"
+                    ? "Default signature for outreach campaigns (Chris)"
+                    : "Automation signature for order follow-ups (Lauren)"}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -602,6 +788,28 @@ export default function OutreachSettingsPage() {
                   Preview
                 </Button>
               </div>
+            </div>
+
+            {/* Signature Type Switcher */}
+            <div className="flex gap-2">
+              <Button
+                variant={activeSigType === "default" ? "default" : "outline"}
+                size="sm"
+                onClick={() => handleSwitchSignature("default")}
+                className="gap-2"
+              >
+                <Mail className="h-4 w-4" />
+                Default (Chris)
+              </Button>
+              <Button
+                variant={activeSigType === "automation" ? "default" : "outline"}
+                size="sm"
+                onClick={() => handleSwitchSignature("automation")}
+                className="gap-2"
+              >
+                <Zap className="h-4 w-4" />
+                Automation (Lauren)
+              </Button>
             </div>
 
             <Card>

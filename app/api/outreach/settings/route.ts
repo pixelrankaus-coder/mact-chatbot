@@ -25,6 +25,8 @@ const DEFAULT_SETTINGS = {
   track_clicks: true,
   signature_json: null,
   signature_html: "",
+  automation_signature_json: null,
+  automation_signature_html: "",
 };
 
 // GET /api/outreach/settings - Fetch outreach settings (create if not exists)

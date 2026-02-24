@@ -98,12 +98,16 @@ export async function GET(
     }
 
     // Get signature from outreach_settings
+    // Use automation signature for order follow-up campaigns
+    const useAutomationSig = !!(campaign.metadata as Record<string, unknown>)?.use_automation_signature;
     const { data: settings } = await supabase
       .from("outreach_settings")
-      .select("signature_html")
+      .select("signature_html, automation_signature_html")
       .single();
 
-    const signatureHtml = settings?.signature_html || "";
+    const signatureHtml = useAutomationSig
+      ? (settings?.automation_signature_html || settings?.signature_html || "")
+      : (settings?.signature_html || "");
 
     // Check if emails are already queued
     const { count: existingCount } = await supabase

@@ -363,6 +363,10 @@ export async function processDueAutomations(maxPerRun: number = 10): Promise<{
           total_recipients: 1,
           is_dry_run: false,
           auto_resend_enabled: false,
+          from_name: "Lauren Born",
+          from_email: "admin@mact.au",
+          reply_to: "admin@mact.au",
+          metadata: { use_automation_signature: true },
         })
         .select("id")
         .single();

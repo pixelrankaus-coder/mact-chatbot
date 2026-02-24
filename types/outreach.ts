@@ -137,6 +137,8 @@ export interface OutreachSettings {
   track_clicks: boolean;
   signature_json: Record<string, unknown> | null;
   signature_html: string;
+  automation_signature_json: Record<string, unknown> | null;
+  automation_signature_html: string;
   updated_at: string;
 }
 

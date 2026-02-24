@@ -152,12 +152,16 @@ export async function sendSingleEmail(emailId: string): Promise<SendResult> {
   }, ctx);
 
   // Fetch signature from outreach_settings
+  // Use automation signature if campaign metadata flags it (order follow-ups use Lauren's signature)
+  const useAutomationSig = !!(email.campaign.metadata as Record<string, unknown>)?.use_automation_signature;
   const { data: settings } = await supabase
     .from("outreach_settings")
-    .select("signature_html")
+    .select("signature_html, automation_signature_html")
     .single();
 
-  const signatureHtml = settings?.signature_html || "";
+  const signatureHtml = useAutomationSig
+    ? (settings?.automation_signature_html || settings?.signature_html || "")
+    : (settings?.signature_html || "");
 
   // Render template
   await logToDb("info", "render_template", "Rendering email template...", null, ctx);
