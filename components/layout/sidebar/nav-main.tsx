@@ -34,6 +34,7 @@ import {
   ServerIcon,
   ScrollTextIcon,
   LightbulbIcon,
+  ZapIcon,
   type LucideIcon
 } from "lucide-react";
 import Link from "next/link";
@@ -132,6 +133,12 @@ export const navItems: NavGroup[] = [
         title: "Products",
         href: "/products",
         icon: PackageIcon
+      },
+      {
+        title: "Automations",
+        href: "/automations",
+        icon: ZapIcon,
+        isNew: true
       },
       {
         title: "CRM",

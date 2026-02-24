@@ -54,6 +54,27 @@ export const TEMPLATE_VARIABLES = [
     description: "URL to the discussed product",
     example: "https://mact.au/product/rock-carve/",
   },
+  // Order automation variables
+  {
+    key: "order_number",
+    description: "Cin7 order/quote number",
+    example: "SO-05172",
+  },
+  {
+    key: "invoice_number",
+    description: "Invoice number",
+    example: "INV-12345",
+  },
+  {
+    key: "invoice_total",
+    description: "Invoice total amount",
+    example: "$1,585.00",
+  },
+  {
+    key: "quote_total",
+    description: "Quote total amount",
+    example: "$1,585.00",
+  },
 ];
 
 // Fallback values for empty/missing personalization data
@@ -71,6 +92,10 @@ const FALLBACK_VALUES: Record<string, string> = {
   chat_summary: "your recent conversation with us",
   discount_code: "CHAT10",
   product_url: "https://mact.au/shop/",
+  order_number: "your order",
+  invoice_number: "your invoice",
+  invoice_total: "",
+  quote_total: "",
 };
 
 export function renderTemplate(
@@ -89,7 +114,7 @@ export function renderTemplate(
       }
 
       // Format special values
-      if (key === "total_spent" && typeof value === "number") {
+      if ((key === "total_spent" || key === "invoice_total" || key === "quote_total") && typeof value === "number") {
         return new Intl.NumberFormat("en-AU", {
           style: "currency",
           currency: "AUD",
@@ -140,6 +165,10 @@ export function getSampleData(): Record<string, unknown> {
     chat_summary: "You asked about our Rock Carve product and pricing",
     discount_code: "CHAT10",
     product_url: "https://mact.au/product/rock-carve/",
+    order_number: "SO-05172",
+    invoice_number: "INV-12345",
+    invoice_total: 1585.0,
+    quote_total: 1585.0,
   };
 }
 

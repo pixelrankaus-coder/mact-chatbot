@@ -34,6 +34,44 @@ async function rateLimitedBatch<T, R>(
   return results;
 }
 
+// Extract invoice payment data from full sale data
+function extractInvoiceData(sale: Cin7Sale | null): {
+  invoice_total: number | null;
+  invoice_paid: number | null;
+  invoice_due_date: string | null;
+  invoice_status: string | null;
+} {
+  if (!sale?.Invoices || sale.Invoices.length === 0) {
+    return { invoice_total: null, invoice_paid: null, invoice_due_date: null, invoice_status: null };
+  }
+
+  // Sum across all invoices for the sale
+  let totalAmount = 0;
+  let totalPaid = 0;
+  let latestDueDate: string | null = null;
+  let overallStatus = "PAID";
+
+  for (const inv of sale.Invoices) {
+    totalAmount += inv.Total || 0;
+    totalPaid += inv.Paid || 0;
+    // Track the latest invoice date as due date (Cin7 doesn't expose explicit due date)
+    if (inv.InvoiceDate && (!latestDueDate || inv.InvoiceDate > latestDueDate)) {
+      latestDueDate = inv.InvoiceDate;
+    }
+    // If any invoice is not fully paid, mark as unpaid
+    if ((inv.Paid || 0) < (inv.Total || 0)) {
+      overallStatus = "UNPAID";
+    }
+  }
+
+  return {
+    invoice_total: totalAmount || null,
+    invoice_paid: totalPaid,
+    invoice_due_date: latestDueDate,
+    invoice_status: totalAmount > 0 ? overallStatus : null,
+  };
+}
+
 // Extract line items from full sale data
 function extractLineItems(sale: Cin7Sale | null): Array<{ name: string; sku?: string; quantity: number; price: number }> {
   if (!sale) return [];
@@ -130,10 +168,21 @@ export async function syncCin7Orders(): Promise<SyncResult> {
 
     console.log(`Fetched details for ${saleDetails.filter(d => d.sale).length} orders`);
 
+    // Fetch customer payment terms for cross-referencing
+    const { data: customerTerms } = await supabase
+      .from("cin7_customers")
+      .select("cin7_id, payment_term")
+      .not("payment_term", "is", null);
+    const paymentTermMap = new Map<string, string>();
+    if (customerTerms) {
+      for (const c of customerTerms) paymentTermMap.set(c.cin7_id, c.payment_term);
+    }
+
     // Transform to database format
     const records = orders.map((order: Cin7SaleListItem) => {
       const saleDetail = saleDetailsMap.get(order.SaleID);
       const lineItems = extractLineItems(saleDetail);
+      const invoiceData = extractInvoiceData(saleDetail);
 
       return {
         cin7_id: order.SaleID,
@@ -150,6 +199,11 @@ export async function syncCin7Orders(): Promise<SyncResult> {
         shipping_status: order.CombinedShippingStatus || null,
         invoice_number: order.InvoiceNumber || null,
         line_items: lineItems, // Now populated with actual product data
+        invoice_total: invoiceData.invoice_total,
+        invoice_paid: invoiceData.invoice_paid,
+        invoice_due_date: invoiceData.invoice_due_date,
+        invoice_status: invoiceData.invoice_status,
+        payment_term: paymentTermMap.get(order.CustomerID) || null,
         raw_data: order,
         updated_at: new Date().toISOString(),
       };
