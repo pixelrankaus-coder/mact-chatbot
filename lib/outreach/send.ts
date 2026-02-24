@@ -151,17 +151,43 @@ export async function sendSingleEmail(emailId: string): Promise<SendResult> {
     replyTo: email.campaign.reply_to,
   }, ctx);
 
-  // Fetch signature from outreach_settings
-  // Use automation signature if campaign metadata flags it (order follow-ups use Lauren's signature)
-  const useAutomationSig = !!(email.campaign.metadata as Record<string, unknown>)?.use_automation_signature;
-  const { data: settings } = await supabase
-    .from("outreach_settings")
-    .select("signature_html, automation_signature_html")
-    .single();
+  // Fetch signature: campaign-level → automation default → campaign default → legacy columns
+  let signatureHtml = "";
 
-  const signatureHtml = useAutomationSig
-    ? (settings?.automation_signature_html || settings?.signature_html || "")
-    : (settings?.signature_html || "");
+  if (email.campaign.signature_id) {
+    const { data: sig } = await supabase
+      .from("outreach_signatures")
+      .select("signature_html")
+      .eq("id", email.campaign.signature_id)
+      .single();
+    signatureHtml = sig?.signature_html || "";
+  } else {
+    const useAutomationSig = !!(email.campaign.metadata as Record<string, unknown>)?.use_automation_signature;
+    const { data: settings } = await supabase
+      .from("outreach_settings")
+      .select("default_signature_id, automation_signature_id, signature_html, automation_signature_html")
+      .single();
+
+    const targetSigId = useAutomationSig
+      ? (settings?.automation_signature_id || settings?.default_signature_id)
+      : settings?.default_signature_id;
+
+    if (targetSigId) {
+      const { data: sig } = await supabase
+        .from("outreach_signatures")
+        .select("signature_html")
+        .eq("id", targetSigId)
+        .single();
+      signatureHtml = sig?.signature_html || "";
+    }
+
+    // Legacy fallback
+    if (!signatureHtml) {
+      signatureHtml = useAutomationSig
+        ? (settings?.automation_signature_html || settings?.signature_html || "")
+        : (settings?.signature_html || "");
+    }
+  }
 
   // Render template
   await logToDb("info", "render_template", "Rendering email template...", null, ctx);

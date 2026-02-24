@@ -1,12 +1,13 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -38,7 +39,9 @@ import {
   Forward,
   FileSignature,
   X,
-  Zap,
+  Plus,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -55,9 +58,9 @@ const EmailEditor = dynamic(
   }
 );
 
-// Default signature design matching Chris's Outlook signature
-const DEFAULT_SIGNATURE_DESIGN = {
-  counters: { u_row: 4, u_column: 4, u_content_text: 4, u_content_image: 1 },
+// Default blank signature design
+const BLANK_SIGNATURE_DESIGN = {
+  counters: { u_row: 2, u_column: 2, u_content_text: 2, u_content_image: 1 },
   body: {
     id: "signature",
     rows: [
@@ -75,7 +78,7 @@ const DEFAULT_SIGNATURE_DESIGN = {
                   containerPadding: "10px",
                   textAlign: "left",
                   lineHeight: "140%",
-                  text: '<p style="font-size: 14px; line-height: 140%; font-family: arial, helvetica, sans-serif;">Cheers,<br />Chris</p>',
+                  text: '<p style="font-size: 14px; line-height: 140%; font-family: arial, helvetica, sans-serif;">Cheers,<br />Name</p>',
                 },
               },
             ],
@@ -114,7 +117,7 @@ const DEFAULT_SIGNATURE_DESIGN = {
                   containerPadding: "20px",
                   textAlign: "left",
                   lineHeight: "160%",
-                  text: `<p style="font-size: 13px; line-height: 160%; color: #ffffff; font-family: arial, helvetica, sans-serif;"><strong style="font-size: 15px;">Chris Born</strong><br /><span style="color: #999999;">Technical Director / Founder</span><br /><br />Mobile 0405 606 234<br />Office 0466 334 630<br /><a rel="noopener" href="mailto:c.born@mact.au" target="_blank" style="color: #00b4b4;">c.born@mact.au</a><br />Unit 3C, 919-925 Nudgee Road,<br />Banyo, QLD 4014</p>`,
+                  text: `<p style="font-size: 13px; line-height: 160%; color: #ffffff; font-family: arial, helvetica, sans-serif;"><strong style="font-size: 15px;">Full Name</strong><br /><span style="color: #999999;">Title</span><br /><br />Office 07 3111 4047<br /><a rel="noopener" href="mailto:email@mact.au" target="_blank" style="color: #00b4b4;">email@mact.au</a><br />Unit 3C, 919-925 Nudgee Road,<br />Banyo, QLD 4014</p>`,
                 },
               },
             ],
@@ -122,177 +125,6 @@ const DEFAULT_SIGNATURE_DESIGN = {
           },
         ],
         values: { padding: "10px 0" },
-      },
-      {
-        id: "row3",
-        cells: [1],
-        columns: [
-          {
-            id: "col4",
-            contents: [
-              {
-                id: "text3",
-                type: "text",
-                values: {
-                  containerPadding: "15px 0",
-                  textAlign: "left",
-                  lineHeight: "140%",
-                  text: `<p style="font-size: 14px; line-height: 140%; font-family: arial, helvetica, sans-serif;"><a rel="noopener" href="https://mact.au" target="_blank" style="color: #00b4b4; font-weight: bold; text-decoration: none;">mact.au</a>&nbsp;&nbsp;<span style="background: #00b4b4; color: white; padding: 4px 10px; border-radius: 3px; font-size: 12px;">GFRC</span>&nbsp;<span style="background: #00b4b4; color: white; padding: 4px 10px; border-radius: 3px; font-size: 12px;">Mining</span>&nbsp;<span style="background: #00b4b4; color: white; padding: 4px 10px; border-radius: 3px; font-size: 12px;">Admixtures</span></p>`,
-                },
-              },
-            ],
-            values: { padding: "0px" },
-          },
-        ],
-        values: { padding: "0px" },
-      },
-      {
-        id: "row4",
-        cells: [1],
-        columns: [
-          {
-            id: "col5",
-            contents: [
-              {
-                id: "text4",
-                type: "text",
-                values: {
-                  containerPadding: "20px 0 0 0",
-                  textAlign: "left",
-                  lineHeight: "150%",
-                  text: `<p style="font-size: 10px; line-height: 150%; color: #999999; font-family: arial, helvetica, sans-serif;">Copyright 2023 by Mining and Cement Technology Pty Ltd. All rights reserved. This email may contain privileged/confidential information.</p>`,
-                },
-              },
-            ],
-            values: { padding: "0px" },
-          },
-        ],
-        values: { padding: "0px" },
-      },
-    ],
-    values: {
-      contentWidth: "600px",
-      fontFamily: { label: "Arial", value: "arial,helvetica,sans-serif" },
-      textColor: "#000000",
-      backgroundColor: "#ffffff",
-    },
-  },
-  schemaVersion: 16,
-};
-
-// Default automation signature design for Lauren Born
-const DEFAULT_AUTOMATION_SIGNATURE_DESIGN = {
-  counters: { u_row: 4, u_column: 4, u_content_text: 4, u_content_image: 1 },
-  body: {
-    id: "signature",
-    rows: [
-      {
-        id: "row1",
-        cells: [1],
-        columns: [
-          {
-            id: "col1",
-            contents: [
-              {
-                id: "text1",
-                type: "text",
-                values: {
-                  containerPadding: "10px",
-                  textAlign: "left",
-                  lineHeight: "140%",
-                  text: '<p style="font-size: 14px; line-height: 140%; font-family: arial, helvetica, sans-serif;">Thanks,<br />Lauren</p>',
-                },
-              },
-            ],
-            values: { backgroundColor: "", padding: "0px" },
-          },
-        ],
-        values: { padding: "0px" },
-      },
-      {
-        id: "row2",
-        cells: [1, 2],
-        columns: [
-          {
-            id: "col2",
-            contents: [
-              {
-                id: "image1",
-                type: "image",
-                values: {
-                  containerPadding: "20px",
-                  src: { url: "https://mact.au/wp-content/uploads/mact-logo-white.png", width: 120, height: 40 },
-                  textAlign: "center",
-                  altText: "MACt",
-                },
-              },
-            ],
-            values: { backgroundColor: "#1a1a1a", padding: "10px", borderRadius: "8px 0 0 8px" },
-          },
-          {
-            id: "col3",
-            contents: [
-              {
-                id: "text2",
-                type: "text",
-                values: {
-                  containerPadding: "20px",
-                  textAlign: "left",
-                  lineHeight: "160%",
-                  text: `<p style="font-size: 13px; line-height: 160%; color: #ffffff; font-family: arial, helvetica, sans-serif;"><strong style="font-size: 15px;">Lauren Born</strong><br /><span style="color: #999999;">Administration</span><br /><br />Office 07 3111 4047<br /><a rel="noopener" href="mailto:admin@mact.au" target="_blank" style="color: #00b4b4;">admin@mact.au</a><br />Unit 3C, 919-925 Nudgee Road,<br />Banyo, QLD 4014</p>`,
-                },
-              },
-            ],
-            values: { backgroundColor: "#1a1a1a", padding: "10px", borderRadius: "0 8px 8px 0" },
-          },
-        ],
-        values: { padding: "10px 0" },
-      },
-      {
-        id: "row3",
-        cells: [1],
-        columns: [
-          {
-            id: "col4",
-            contents: [
-              {
-                id: "text3",
-                type: "text",
-                values: {
-                  containerPadding: "15px 0",
-                  textAlign: "left",
-                  lineHeight: "140%",
-                  text: `<p style="font-size: 14px; line-height: 140%; font-family: arial, helvetica, sans-serif;"><a rel="noopener" href="https://mact.au" target="_blank" style="color: #00b4b4; font-weight: bold; text-decoration: none;">mact.au</a>&nbsp;&nbsp;<span style="background: #00b4b4; color: white; padding: 4px 10px; border-radius: 3px; font-size: 12px;">GFRC</span>&nbsp;<span style="background: #00b4b4; color: white; padding: 4px 10px; border-radius: 3px; font-size: 12px;">Mining</span>&nbsp;<span style="background: #00b4b4; color: white; padding: 4px 10px; border-radius: 3px; font-size: 12px;">Admixtures</span>&nbsp;<span style="background: #00b4b4; color: white; padding: 4px 10px; border-radius: 3px; font-size: 12px;">Concrete Chemicals</span>&nbsp;<span style="background: #00b4b4; color: white; padding: 4px 10px; border-radius: 3px; font-size: 12px;">Consulting</span></p>`,
-                },
-              },
-            ],
-            values: { padding: "0px" },
-          },
-        ],
-        values: { padding: "0px" },
-      },
-      {
-        id: "row4",
-        cells: [1],
-        columns: [
-          {
-            id: "col5",
-            contents: [
-              {
-                id: "text4",
-                type: "text",
-                values: {
-                  containerPadding: "20px 0 0 0",
-                  textAlign: "left",
-                  lineHeight: "150%",
-                  text: `<p style="font-size: 10px; line-height: 150%; color: #999999; font-family: arial, helvetica, sans-serif;">Copyright 2023 by Mining and Cement Technology Pty Ltd. All rights reserved. This email may contain privileged/confidential information intended for the addressee. Attached materials remain the exclusive property of Mining and Cement Technology Pty Ltd, potentially constituting legally protected intellectual property. If you're not the intended recipient or responsible for delivery, don't copy or distribute this email. If received in error, notify us by phone. Mining and Cement Technology Pty Ltd isn't liable for unauthorized use. Company email traffic may be monitored. Thank you.</p>`,
-                },
-              },
-            ],
-            values: { padding: "0px" },
-          },
-        ],
-        values: { padding: "0px" },
       },
     ],
     values: {
@@ -320,6 +152,17 @@ interface OutreachSettings {
   signature_json: Record<string, unknown> | null;
   automation_signature_html: string;
   automation_signature_json: Record<string, unknown> | null;
+  default_signature_id?: string | null;
+  automation_signature_id?: string | null;
+}
+
+interface Signature {
+  id: string;
+  name: string;
+  signature_html: string;
+  signature_json: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
 }
 
 const TIMEZONE_OPTIONS = [
@@ -359,8 +202,6 @@ interface EditorRef {
   };
 }
 
-type SignatureType = "default" | "automation";
-
 export default function OutreachSettingsPage() {
   const emailEditorRef = useRef<EditorRef>(null);
   const [settings, setSettings] = useState<OutreachSettings | null>(null);
@@ -370,30 +211,28 @@ export default function OutreachSettingsPage() {
   const [previewHtml, setPreviewHtml] = useState<string>("");
   const [showPreview, setShowPreview] = useState(false);
   const [activeTab, setActiveTab] = useState("general");
-  const [activeSigType, setActiveSigType] = useState<SignatureType>("default");
-  // Cache for the design that's NOT currently in the editor
-  const cachedDesignRef = useRef<{ type: SignatureType; design: Record<string, unknown> | null }>({ type: "automation", design: null });
+
+  // Signature library state
+  const [signatures, setSignatures] = useState<Signature[]>([]);
+  const [editingSignature, setEditingSignature] = useState<Signature | null>(null);
+  const [defaultSigId, setDefaultSigId] = useState<string | null>(null);
+  const [automationSigId, setAutomationSigId] = useState<string | null>(null);
+  const [sigSaving, setSigSaving] = useState(false);
+  const [sigDeleting, setSigDeleting] = useState<string | null>(null);
+  const [newSigName, setNewSigName] = useState("");
+  const [showNewSigForm, setShowNewSigForm] = useState(false);
 
   useEffect(() => {
     fetchSettings();
   }, []);
 
+  // Load signature design into editor when editing changes
   useEffect(() => {
-    if (editorReady && settings && emailEditorRef.current?.editor) {
-      if (activeSigType === "default") {
-        const design = settings.signature_json || DEFAULT_SIGNATURE_DESIGN;
-        emailEditorRef.current.editor.loadDesign(design);
-        // Cache the automation design
-        cachedDesignRef.current = { type: "automation", design: settings.automation_signature_json || DEFAULT_AUTOMATION_SIGNATURE_DESIGN };
-      } else {
-        const design = settings.automation_signature_json || DEFAULT_AUTOMATION_SIGNATURE_DESIGN;
-        emailEditorRef.current.editor.loadDesign(design);
-        // Cache the default design
-        cachedDesignRef.current = { type: "default", design: settings.signature_json || DEFAULT_SIGNATURE_DESIGN };
-      }
+    if (editorReady && editingSignature && emailEditorRef.current?.editor) {
+      const design = editingSignature.signature_json || BLANK_SIGNATURE_DESIGN;
+      emailEditorRef.current.editor.loadDesign(design);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editorReady, settings]);
+  }, [editorReady, editingSignature]);
 
   const fetchSettings = async () => {
     try {
@@ -401,6 +240,8 @@ export default function OutreachSettingsPage() {
       if (res.ok) {
         const data = await res.json();
         setSettings({ ...defaultSettings, ...data });
+        setDefaultSigId(data.default_signature_id || null);
+        setAutomationSigId(data.automation_signature_id || null);
       } else {
         setSettings({ id: "", ...defaultSettings });
       }
@@ -411,45 +252,33 @@ export default function OutreachSettingsPage() {
     } finally {
       setLoading(false);
     }
+    // Also fetch signatures
+    fetchSignatures();
   };
 
-  const handleSave = async () => {
-    if (!settings) return;
-
-    setSaving(true);
-
-    // If signature editor is available, export the active design
-    if (emailEditorRef.current?.editor) {
-      await new Promise<void>((resolve) => {
-        emailEditorRef.current!.editor!.exportHtml(async (data) => {
-          const { design, html } = data;
-          const updatedSettings = { ...settings };
-
-          if (activeSigType === "default") {
-            updatedSettings.signature_json = design;
-            updatedSettings.signature_html = html;
-          } else {
-            updatedSettings.automation_signature_json = design;
-            updatedSettings.automation_signature_html = html;
-          }
-
-          await saveSettings(updatedSettings);
-          resolve();
-        });
-      });
-    } else {
-      await saveSettings(settings);
+  const fetchSignatures = useCallback(async () => {
+    try {
+      const res = await fetch("/api/outreach/signatures");
+      if (res.ok) {
+        const data = await res.json();
+        setSignatures(data.signatures || []);
+        if (data.default_signature_id) setDefaultSigId(data.default_signature_id);
+        if (data.automation_signature_id) setAutomationSigId(data.automation_signature_id);
+      }
+    } catch (error) {
+      console.error("Failed to fetch signatures:", error);
     }
-  };
+  }, []);
 
-  const saveSettings = async (settingsToSave: OutreachSettings) => {
+  const handleSaveSettings = async () => {
+    if (!settings) return;
+    setSaving(true);
     try {
       const res = await fetch("/api/outreach/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(settingsToSave),
+        body: JSON.stringify(settings),
       });
-
       if (res.ok) {
         const data = await res.json();
         setSettings(data);
@@ -478,45 +307,125 @@ export default function OutreachSettingsPage() {
     setEditorReady(true);
   };
 
-  const handleSwitchSignature = (newType: SignatureType) => {
-    if (newType === activeSigType || !emailEditorRef.current?.editor) return;
+  // --- Signature CRUD ---
 
-    // Export current editor design and cache it
-    emailEditorRef.current.editor.exportHtml((data) => {
-      const { design, html } = data;
-
-      // Save current design to settings state
-      if (activeSigType === "default") {
-        setSettings((prev) => prev ? { ...prev, signature_json: design, signature_html: html } : prev);
+  const handleCreateSignature = async () => {
+    if (!newSigName.trim()) {
+      toast.error("Please enter a name");
+      return;
+    }
+    setSigSaving(true);
+    try {
+      const res = await fetch("/api/outreach/signatures", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newSigName.trim(),
+          signature_html: "",
+          signature_json: BLANK_SIGNATURE_DESIGN,
+        }),
+      });
+      if (res.ok) {
+        const sig = await res.json();
+        setSignatures((prev) => [...prev, sig]);
+        setNewSigName("");
+        setShowNewSigForm(false);
+        // Auto-open the editor for the new signature
+        setEditingSignature(sig);
+        toast.success(`Signature "${sig.name}" created`);
       } else {
-        setSettings((prev) => prev ? { ...prev, automation_signature_json: design, automation_signature_html: html } : prev);
+        const err = await res.json();
+        toast.error(err.error || "Failed to create signature");
       }
+    } catch {
+      toast.error("Failed to create signature");
+    } finally {
+      setSigSaving(false);
+    }
+  };
 
-      // Cache the current design
-      cachedDesignRef.current = { type: activeSigType, design };
+  const handleSaveSignature = async () => {
+    if (!editingSignature || !emailEditorRef.current?.editor) return;
+    setSigSaving(true);
 
-      // Load the other design
-      const otherDesign = newType === "default"
-        ? (settings?.signature_json || DEFAULT_SIGNATURE_DESIGN)
-        : (settings?.automation_signature_json || DEFAULT_AUTOMATION_SIGNATURE_DESIGN);
-
-      emailEditorRef.current?.editor?.loadDesign(
-        cachedDesignRef.current.type === newType && cachedDesignRef.current.design
-          ? cachedDesignRef.current.design
-          : otherDesign
-      );
-
-      setActiveSigType(newType);
+    emailEditorRef.current.editor.exportHtml(async (data) => {
+      const { design, html } = data;
+      try {
+        const res = await fetch(`/api/outreach/signatures/${editingSignature.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            signature_html: html,
+            signature_json: design,
+          }),
+        });
+        if (res.ok) {
+          const updated = await res.json();
+          setSignatures((prev) => prev.map((s) => s.id === updated.id ? updated : s));
+          setEditingSignature(updated);
+          toast.success("Signature saved");
+        } else {
+          const err = await res.json();
+          toast.error(err.error || "Failed to save signature");
+        }
+      } catch {
+        toast.error("Failed to save signature");
+      } finally {
+        setSigSaving(false);
+      }
     });
   };
 
-  const handleResetSignature = () => {
-    const label = activeSigType === "default" ? "default" : "automation";
-    if (confirm(`Reset ${label} signature to default? This will discard your changes.`)) {
-      const design = activeSigType === "default" ? DEFAULT_SIGNATURE_DESIGN : DEFAULT_AUTOMATION_SIGNATURE_DESIGN;
-      emailEditorRef.current?.editor?.loadDesign(design);
-      toast.info(`${activeSigType === "default" ? "Default" : "Automation"} signature reset`);
+  const handleDeleteSignature = async (id: string) => {
+    const sig = signatures.find((s) => s.id === id);
+    if (!confirm(`Delete signature "${sig?.name}"? This cannot be undone.`)) return;
+    setSigDeleting(id);
+    try {
+      const res = await fetch(`/api/outreach/signatures/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setSignatures((prev) => prev.filter((s) => s.id !== id));
+        if (editingSignature?.id === id) setEditingSignature(null);
+        toast.success("Signature deleted");
+      } else {
+        const err = await res.json();
+        toast.error(err.error || "Failed to delete signature");
+      }
+    } catch {
+      toast.error("Failed to delete signature");
+    } finally {
+      setSigDeleting(null);
     }
+  };
+
+  const handleSetDefault = async (sigId: string, type: "default" | "automation") => {
+    try {
+      const update: Record<string, unknown> = {};
+      if (type === "default") {
+        update.default_signature_id = sigId;
+        setDefaultSigId(sigId);
+      } else {
+        update.automation_signature_id = sigId;
+        setAutomationSigId(sigId);
+      }
+
+      const res = await fetch("/api/outreach/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(update),
+      });
+      if (res.ok) {
+        toast.success(`${type === "default" ? "Campaign" : "Automation"} default updated`);
+      } else {
+        toast.error("Failed to update default");
+      }
+    } catch {
+      toast.error("Failed to update default");
+    }
+  };
+
+  const handleEditSignature = (sig: Signature) => {
+    // If currently editing another, just switch
+    setEditingSignature(sig);
   };
 
   const handlePreview = () => {
@@ -524,6 +433,13 @@ export default function OutreachSettingsPage() {
       setPreviewHtml(data.html);
       setShowPreview(true);
     });
+  };
+
+  const handleResetSignature = () => {
+    if (confirm("Reset signature to blank template? This will discard unsaved changes.")) {
+      emailEditorRef.current?.editor?.loadDesign(BLANK_SIGNATURE_DESIGN);
+      toast.info("Signature reset to blank template");
+    }
   };
 
   if (loading) {
@@ -562,14 +478,16 @@ export default function OutreachSettingsPage() {
               </p>
             </div>
           </div>
-          <Button onClick={handleSave} disabled={saving} className="gap-2">
-            {saving ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Save className="h-4 w-4" />
-            )}
-            Save Settings
-          </Button>
+          {activeTab === "general" && (
+            <Button onClick={handleSaveSettings} disabled={saving} className="gap-2">
+              {saving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              Save Settings
+            </Button>
+          )}
         </div>
       </div>
 
@@ -583,7 +501,7 @@ export default function OutreachSettingsPage() {
             </TabsTrigger>
             <TabsTrigger value="signature" className="gap-2">
               <FileSignature className="h-4 w-4" />
-              Signature
+              Signatures
             </TabsTrigger>
           </TabsList>
 
@@ -767,88 +685,227 @@ export default function OutreachSettingsPage() {
             </Card>
           </TabsContent>
 
-          {/* Signature Tab */}
-          <TabsContent value="signature" className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold">Email Signature</h2>
-                <p className="text-sm text-slate-500">
-                  {activeSigType === "default"
-                    ? "Default signature for outreach campaigns (Chris)"
-                    : "Automation signature for order follow-ups (Lauren)"}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" onClick={handleResetSignature} className="gap-2">
-                  <RotateCcw className="h-4 w-4" />
-                  Reset to Default
-                </Button>
-                <Button variant="outline" onClick={handlePreview} className="gap-2">
-                  <Eye className="h-4 w-4" />
-                  Preview
-                </Button>
-              </div>
-            </div>
-
-            {/* Signature Type Switcher */}
-            <div className="flex gap-2">
-              <Button
-                variant={activeSigType === "default" ? "default" : "outline"}
-                size="sm"
-                onClick={() => handleSwitchSignature("default")}
-                className="gap-2"
-              >
-                <Mail className="h-4 w-4" />
-                Default (Chris)
-              </Button>
-              <Button
-                variant={activeSigType === "automation" ? "default" : "outline"}
-                size="sm"
-                onClick={() => handleSwitchSignature("automation")}
-                className="gap-2"
-              >
-                <Zap className="h-4 w-4" />
-                Automation (Lauren)
-              </Button>
-            </div>
-
+          {/* Signatures Tab */}
+          <TabsContent value="signature" className="space-y-6">
+            {/* Signature Library */}
             <Card>
-              <CardContent className="p-0">
-                <div className="border rounded-lg overflow-hidden">
-                  <EmailEditor
-                    ref={emailEditorRef}
-                    onReady={onEditorReady}
-                    minHeight="550px"
-                    options={{
-                      displayMode: "email",
-                      features: {
-                        textEditor: {
-                          spellChecker: true,
-                        },
-                      },
-                      appearance: {
-                        theme: "light",
-                        panels: {
-                          tools: {
-                            dock: "left",
-                          },
-                        },
-                      },
-                    }}
-                  />
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg">Signature Library</CardTitle>
+                    <CardDescription>
+                      Create and manage email signatures. Assign them to campaigns or automations.
+                    </CardDescription>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => setShowNewSigForm(true)}
+                    className="gap-2"
+                  >
+                    <Plus className="h-4 w-4" />
+                    New Signature
+                  </Button>
                 </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* New signature form */}
+                {showNewSigForm && (
+                  <div className="flex items-center gap-2 p-3 border rounded-lg bg-slate-50">
+                    <Input
+                      placeholder="Signature name (e.g. Chris Born, Sales Team)"
+                      value={newSigName}
+                      onChange={(e) => setNewSigName(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleCreateSignature()}
+                      className="flex-1"
+                      autoFocus
+                    />
+                    <Button size="sm" onClick={handleCreateSignature} disabled={sigSaving}>
+                      {sigSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create"}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => { setShowNewSigForm(false); setNewSigName(""); }}>
+                      Cancel
+                    </Button>
+                  </div>
+                )}
+
+                {/* Signature list */}
+                {signatures.length === 0 ? (
+                  <div className="text-center py-8 text-slate-500">
+                    <FileSignature className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                    <p className="text-sm">No signatures yet. Create one to get started.</p>
+                  </div>
+                ) : (
+                  <div className="divide-y rounded-lg border">
+                    {signatures.map((sig) => (
+                      <div
+                        key={sig.id}
+                        className={`flex items-center justify-between p-3 ${
+                          editingSignature?.id === sig.id ? "bg-blue-50" : "hover:bg-slate-50"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-sm">{sig.name}</span>
+                              {defaultSigId === sig.id && (
+                                <Badge variant="outline" className="text-xs border-blue-200 bg-blue-50 text-blue-700">
+                                  Campaign Default
+                                </Badge>
+                              )}
+                              {automationSigId === sig.id && (
+                                <Badge variant="outline" className="text-xs border-purple-200 bg-purple-50 text-purple-700">
+                                  Automation Default
+                                </Badge>
+                              )}
+                            </div>
+                            <span className="text-xs text-slate-400">
+                              Updated {new Date(sig.updated_at).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="sm"
+                            variant={editingSignature?.id === sig.id ? "default" : "outline"}
+                            onClick={() => handleEditSignature(sig)}
+                            className="gap-1"
+                          >
+                            <Pencil className="h-3 w-3" />
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDeleteSignature(sig.id)}
+                            disabled={sigDeleting === sig.id}
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          >
+                            {sigDeleting === sig.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-3 w-3" />
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Default assignments */}
+                {signatures.length > 0 && (
+                  <div className="grid grid-cols-2 gap-4 pt-2">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                        Campaign Default
+                      </Label>
+                      <Select
+                        value={defaultSigId || ""}
+                        onValueChange={(v) => handleSetDefault(v, "default")}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select default signature" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {signatures.map((sig) => (
+                            <SelectItem key={sig.id} value={sig.id}>{sig.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-slate-400">Used for outreach campaigns</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                        Automation Default
+                      </Label>
+                      <Select
+                        value={automationSigId || ""}
+                        onValueChange={(v) => handleSetDefault(v, "automation")}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select automation signature" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {signatures.map((sig) => (
+                            <SelectItem key={sig.id} value={sig.id}>{sig.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-slate-400">Used for order follow-up emails</p>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
-            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <h3 className="font-medium text-blue-900 mb-2">Tips:</h3>
-              <ul className="text-sm text-blue-800 space-y-1">
-                <li>• Drag blocks from the left panel to build your signature</li>
-                <li>• Click any element to edit its content and styling</li>
-                <li>• Use the Image block to add your logo</li>
-                <li>• Click Preview to see how it will look in emails</li>
-              </ul>
-            </div>
+            {/* Signature Editor */}
+            {editingSignature && (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-lg">
+                        Editing: {editingSignature.name}
+                      </CardTitle>
+                      <CardDescription>
+                        Design your signature using the visual editor below
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={handleResetSignature} className="gap-1">
+                        <RotateCcw className="h-3 w-3" />
+                        Reset
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={handlePreview} className="gap-1">
+                        <Eye className="h-3 w-3" />
+                        Preview
+                      </Button>
+                      <Button size="sm" onClick={handleSaveSignature} disabled={sigSaving} className="gap-1">
+                        {sigSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                        Save Signature
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="border rounded-lg overflow-hidden">
+                    <EmailEditor
+                      ref={emailEditorRef}
+                      onReady={onEditorReady}
+                      minHeight="550px"
+                      options={{
+                        displayMode: "email",
+                        features: {
+                          textEditor: {
+                            spellChecker: true,
+                          },
+                        },
+                        appearance: {
+                          theme: "light",
+                          panels: {
+                            tools: {
+                              dock: "left",
+                            },
+                          },
+                        },
+                      }}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {!editingSignature && signatures.length > 0 && (
+              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <h3 className="font-medium text-blue-900 mb-2">Tips:</h3>
+                <ul className="text-sm text-blue-800 space-y-1">
+                  <li>Click <strong>Edit</strong> on a signature to open the visual editor</li>
+                  <li>Set <strong>Campaign Default</strong> for outreach campaigns</li>
+                  <li>Set <strong>Automation Default</strong> for order follow-up emails</li>
+                  <li>You can override the signature per-campaign when creating a new campaign</li>
+                </ul>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>
@@ -858,7 +915,7 @@ export default function OutreachSettingsPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
             <div className="flex items-center justify-between p-4 border-b">
-              <h2 className="font-semibold">Email Preview</h2>
+              <h2 className="font-semibold">Signature Preview</h2>
               <Button
                 variant="ghost"
                 size="icon"
@@ -876,11 +933,7 @@ export default function OutreachSettingsPage() {
                 <div className="bg-white p-4 rounded border">
                   <p className="mb-4">Hi Drew,</p>
                   <p className="mb-4">
-                    It&apos;s been a while since you grabbed that product. I&apos;d love
-                    to know how that project turned out!
-                  </p>
-                  <p className="mb-4">
-                    Still working with GFRC? Happy to help if you need anything.
+                    Just checking in on your recent order. Let me know if you need anything!
                   </p>
                   <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
                 </div>

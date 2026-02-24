@@ -275,6 +275,13 @@ export async function processDueAutomations(maxPerRun: number = 10): Promise<{
   let sent = 0;
   let failed = 0;
   let completed = 0;
+
+  // Fetch automation signature ID from settings
+  const { data: outreachSettings } = await supabase
+    .from("outreach_settings")
+    .select("automation_signature_id, default_signature_id")
+    .single();
+  const automationSignatureId = outreachSettings?.automation_signature_id || outreachSettings?.default_signature_id || null;
   const results: Array<{ id: string; order_number: string; type: string; status: string; error?: string }> = [];
 
   // Fetch due automations
@@ -366,6 +373,7 @@ export async function processDueAutomations(maxPerRun: number = 10): Promise<{
           from_name: "Lauren Born",
           from_email: "admin@mact.au",
           reply_to: "admin@mact.au",
+          signature_id: automationSignatureId,
           metadata: { use_automation_signature: true },
         })
         .select("id")

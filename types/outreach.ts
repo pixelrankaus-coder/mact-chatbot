@@ -1,5 +1,14 @@
 // MACt Outreach Module - TypeScript Types
 
+export interface OutreachSignature {
+  id: string;
+  name: string;
+  signature_html: string;
+  signature_json: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface OutreachTemplate {
   id: string;
   name: string;
@@ -47,11 +56,14 @@ export interface OutreachCampaign {
   resend_subject?: string;
   resend_campaign_id?: string;
   parent_campaign_id?: string;
+  signature_id?: string | null;
+  metadata?: Record<string, unknown>;
   created_at: string;
   updated_at: string;
   created_by?: string;
   // Joined
   template?: OutreachTemplate;
+  signature?: OutreachSignature;
 }
 
 export interface OutreachEmail {
@@ -139,6 +151,8 @@ export interface OutreachSettings {
   signature_html: string;
   automation_signature_json: Record<string, unknown> | null;
   automation_signature_html: string;
+  default_signature_id?: string | null;
+  automation_signature_id?: string | null;
   updated_at: string;
 }
 

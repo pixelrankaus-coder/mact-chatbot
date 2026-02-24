@@ -97,17 +97,42 @@ export async function GET(
       );
     }
 
-    // Get signature from outreach_settings
-    // Use automation signature for order follow-up campaigns
-    const useAutomationSig = !!(campaign.metadata as Record<string, unknown>)?.use_automation_signature;
-    const { data: settings } = await supabase
-      .from("outreach_settings")
-      .select("signature_html, automation_signature_html")
-      .single();
+    // Fetch signature: campaign-level → automation default → campaign default → legacy
+    let signatureHtml = "";
 
-    const signatureHtml = useAutomationSig
-      ? (settings?.automation_signature_html || settings?.signature_html || "")
-      : (settings?.signature_html || "");
+    if (campaign.signature_id) {
+      const { data: sig } = await supabase
+        .from("outreach_signatures")
+        .select("signature_html")
+        .eq("id", campaign.signature_id)
+        .single();
+      signatureHtml = sig?.signature_html || "";
+    } else {
+      const useAutomationSig = !!(campaign.metadata as Record<string, unknown>)?.use_automation_signature;
+      const { data: settings } = await supabase
+        .from("outreach_settings")
+        .select("default_signature_id, automation_signature_id, signature_html, automation_signature_html")
+        .single();
+
+      const targetSigId = useAutomationSig
+        ? (settings?.automation_signature_id || settings?.default_signature_id)
+        : settings?.default_signature_id;
+
+      if (targetSigId) {
+        const { data: sig } = await supabase
+          .from("outreach_signatures")
+          .select("signature_html")
+          .eq("id", targetSigId)
+          .single();
+        signatureHtml = sig?.signature_html || "";
+      }
+
+      if (!signatureHtml) {
+        signatureHtml = useAutomationSig
+          ? (settings?.automation_signature_html || settings?.signature_html || "")
+          : (settings?.signature_html || "");
+      }
+    }
 
     // Check if emails are already queued
     const { count: existingCount } = await supabase

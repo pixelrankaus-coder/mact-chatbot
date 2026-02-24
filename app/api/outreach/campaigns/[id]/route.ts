@@ -106,6 +106,7 @@ export async function PUT(
       "auto_resend_enabled",
       "resend_delay_hours",
       "resend_subject",
+      "signature_id",
     ];
 
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };

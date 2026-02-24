@@ -70,6 +70,7 @@ export async function POST(request: NextRequest) {
       auto_resend_enabled = false,
       resend_delay_hours,
       resend_subject,
+      signature_id,
     } = body;
 
     if (!name || !template_id || !segment) {
@@ -134,6 +135,7 @@ export async function POST(request: NextRequest) {
         auto_resend_enabled,
         resend_delay_hours: resend_delay_hours || null,
         resend_subject: resend_subject || null,
+        signature_id: signature_id || null,
       })
       .select()
       .single();

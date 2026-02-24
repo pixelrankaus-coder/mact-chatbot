@@ -34,7 +34,7 @@ import {
   RefreshCcw,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { OutreachTemplate } from "@/types/outreach";
+import type { OutreachTemplate, OutreachSignature } from "@/types/outreach";
 
 interface Segment {
   id: string;
@@ -116,6 +116,10 @@ export default function NewCampaignPage() {
   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
   const [loadingTemplates, setLoadingTemplates] = useState(true);
 
+  // Signatures
+  const [signatures, setSignatures] = useState<OutreachSignature[]>([]);
+  const [selectedSignatureId, setSelectedSignatureId] = useState<string>("");
+
   // Step 3: Preview
   const [campaignDesc, setCampaignDesc] = useState("");
   const [campaignType, setCampaignType] = useState("product");
@@ -145,11 +149,12 @@ export default function NewCampaignPage() {
   const [resendDelayHours, setResendDelayHours] = useState(72);
   const [resendSubject, setResendSubject] = useState("");
 
-  // Fetch segments, templates, and settings on mount
+  // Fetch segments, templates, settings, and signatures on mount
   useEffect(() => {
     fetchSegments();
     fetchTemplates();
     fetchSettings();
+    fetchSignatures();
   }, []);
 
   const fetchSettings = async () => {
@@ -161,13 +166,26 @@ export default function NewCampaignPage() {
         setFromEmail(data.default_from_email || "c.born@mact.au");
         setReplyTo(data.default_reply_to || "c.born@reply.mact.au");
         setSendRate(data.max_emails_per_hour || 50);
+        // Pre-select campaign default signature
+        if (data.default_signature_id) {
+          setSelectedSignatureId(data.default_signature_id);
+        }
       }
     } catch (error) {
       console.error("Failed to fetch settings:", error);
-      // Use fallback defaults
       setFromName("Chris Born");
       setFromEmail("c.born@mact.au");
       setReplyTo("c.born@reply.mact.au");
+    }
+  };
+
+  const fetchSignatures = async () => {
+    try {
+      const res = await fetch("/api/outreach/signatures");
+      const data = await res.json();
+      setSignatures(data.signatures || []);
+    } catch (error) {
+      console.error("Failed to fetch signatures:", error);
     }
   };
 
@@ -267,6 +285,7 @@ export default function NewCampaignPage() {
             reply_to: replyTo,
             send_rate: sendRate,
             is_dry_run: isDryRun,
+            signature_id: selectedSignatureId || null,
           }),
         });
 
@@ -342,6 +361,7 @@ export default function NewCampaignPage() {
           auto_resend_enabled: autoResendEnabled,
           resend_delay_hours: autoResendEnabled ? resendDelayHours : null,
           resend_subject: autoResendEnabled ? resendSubject : null,
+          signature_id: selectedSignatureId || null,
         }),
       });
 
@@ -693,6 +713,34 @@ export default function NewCampaignPage() {
                 </div>
               </div>
 
+              {/* Signature Selector */}
+              {signatures.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Email Signature</Label>
+                  <Select
+                    value={selectedSignatureId}
+                    onValueChange={setSelectedSignatureId}
+                  >
+                    <SelectTrigger className="w-72">
+                      <SelectValue placeholder="No signature" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {signatures.map((sig) => (
+                        <SelectItem key={sig.id} value={sig.id}>
+                          {sig.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-slate-500">
+                    Manage signatures in{" "}
+                    <Link href="/outreach/settings" className="text-blue-600 hover:underline">
+                      Outreach Settings
+                    </Link>
+                  </p>
+                </div>
+              )}
+
               {/* Summary Bar */}
               <div className="flex items-center gap-6 bg-slate-50 rounded-lg p-3 text-sm">
                 <div>
@@ -1000,6 +1048,12 @@ export default function NewCampaignPage() {
                       <p className="text-slate-500">From</p>
                       <p className="font-medium">
                         {fromName} &lt;{fromEmail}&gt;
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500">Signature</p>
+                      <p className="font-medium">
+                        {signatures.find(s => s.id === selectedSignatureId)?.name || "Default"}
                       </p>
                     </div>
                     <div>

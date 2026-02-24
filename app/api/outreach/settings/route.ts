@@ -27,6 +27,8 @@ const DEFAULT_SETTINGS = {
   signature_html: "",
   automation_signature_json: null,
   automation_signature_html: "",
+  default_signature_id: null,
+  automation_signature_id: null,
 };
 
 // GET /api/outreach/settings - Fetch outreach settings (create if not exists)
@@ -63,6 +65,46 @@ export async function GET() {
     if (error) {
       console.error("Error fetching settings:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Auto-migrate: if default_signature_id is not set, migrate existing signatures to outreach_signatures table
+    if (data && !data.default_signature_id && (data.signature_html || data.signature_json)) {
+      try {
+        const { data: sig1 } = await supabase
+          .from("outreach_signatures")
+          .insert({
+            name: "Default (Chris)",
+            signature_html: data.signature_html || "",
+            signature_json: data.signature_json || null,
+          })
+          .select("id")
+          .single();
+
+        let sig2Id = null;
+        if (data.automation_signature_html || data.automation_signature_json) {
+          const { data: sig2 } = await supabase
+            .from("outreach_signatures")
+            .insert({
+              name: "Automation (Lauren)",
+              signature_html: data.automation_signature_html || "",
+              signature_json: data.automation_signature_json || null,
+            })
+            .select("id")
+            .single();
+          sig2Id = sig2?.id || null;
+        }
+
+        if (sig1?.id) {
+          const updateObj: Record<string, unknown> = { default_signature_id: sig1.id };
+          if (sig2Id) updateObj.automation_signature_id = sig2Id;
+          await supabase.from("outreach_settings").update(updateObj).eq("id", data.id);
+          data.default_signature_id = sig1.id;
+          data.automation_signature_id = sig2Id;
+        }
+        console.log("[Settings] Auto-migrated signatures to outreach_signatures table");
+      } catch (migErr) {
+        console.error("[Settings] Signature migration failed (non-fatal):", migErr);
+      }
     }
 
     return NextResponse.json(data);
