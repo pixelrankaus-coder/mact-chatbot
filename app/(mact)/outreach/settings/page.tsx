@@ -42,6 +42,7 @@ import {
   Plus,
   Pencil,
   Trash2,
+  Copy,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -428,6 +429,34 @@ export default function OutreachSettingsPage() {
     setEditingSignature(sig);
   };
 
+  const handleCloneSignature = async (sig: Signature) => {
+    setSigSaving(true);
+    try {
+      const res = await fetch("/api/outreach/signatures", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: `${sig.name} (Copy)`,
+          signature_html: sig.signature_html || "",
+          signature_json: sig.signature_json || BLANK_SIGNATURE_DESIGN,
+        }),
+      });
+      if (res.ok) {
+        const cloned = await res.json();
+        setSignatures((prev) => [...prev, cloned]);
+        setEditingSignature(cloned);
+        toast.success(`Cloned as "${cloned.name}"`);
+      } else {
+        const err = await res.json();
+        toast.error(err.error || "Failed to clone signature");
+      }
+    } catch {
+      toast.error("Failed to clone signature");
+    } finally {
+      setSigSaving(false);
+    }
+  };
+
   const handlePreview = () => {
     emailEditorRef.current?.editor?.exportHtml((data) => {
       setPreviewHtml(data.html);
@@ -772,6 +801,17 @@ export default function OutreachSettingsPage() {
                           >
                             <Pencil className="h-3 w-3" />
                             Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCloneSignature(sig)}
+                            disabled={sigSaving}
+                            className="gap-1"
+                            title="Clone signature"
+                          >
+                            <Copy className="h-3 w-3" />
+                            Clone
                           </Button>
                           <Button
                             size="sm"
