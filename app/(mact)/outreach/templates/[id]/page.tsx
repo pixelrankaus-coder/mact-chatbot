@@ -30,7 +30,7 @@ import {
   renderTemplate,
   getSampleData,
 } from "@/lib/outreach/templates";
-import type { OutreachTemplate } from "@/types/outreach";
+import type { OutreachTemplate, OutreachSignature } from "@/types/outreach";
 
 export default function EditTemplatePage({
   params,
@@ -46,6 +46,10 @@ export default function EditTemplatePage({
   const [name, setName] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
+
+  // Signature preview
+  const [signatures, setSignatures] = useState<(OutreachSignature & { signature_html: string })[]>([]);
+  const [previewSignatureId, setPreviewSignatureId] = useState<string>("");
 
   // Link dialog state
   const [showLinkDialog, setShowLinkDialog] = useState(false);
@@ -84,6 +88,7 @@ export default function EditTemplatePage({
 
   useEffect(() => {
     fetchTemplate();
+    fetchSignatures();
   }, [id]);
 
   const fetchTemplate = async () => {
@@ -106,6 +111,22 @@ export default function EditTemplatePage({
       setLoading(false);
     }
   };
+
+  const fetchSignatures = async () => {
+    try {
+      const res = await fetch("/api/outreach/signatures");
+      const data = await res.json();
+      setSignatures(data.signatures || []);
+      // Pre-select the default signature for preview
+      if (data.default_signature_id) {
+        setPreviewSignatureId(data.default_signature_id);
+      }
+    } catch (error) {
+      console.error("Failed to fetch signatures:", error);
+    }
+  };
+
+  const selectedSignatureHtml = signatures.find(s => s.id === previewSignatureId)?.signature_html || "";
 
   const insertVariable = (variable: string) => {
     const textarea = document.getElementById("body") as HTMLTextAreaElement;
@@ -302,6 +323,31 @@ export default function EditTemplatePage({
                 />
               </div>
 
+              {/* Signature Preview Selector */}
+              {signatures.length > 0 && (
+                <div className="space-y-2 pt-2 border-t">
+                  <Label>Signature Preview</Label>
+                  <Select
+                    value={previewSignatureId}
+                    onValueChange={setPreviewSignatureId}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="No signature" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {signatures.map((sig) => (
+                        <SelectItem key={sig.id} value={sig.id}>
+                          {sig.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-slate-500">
+                    For preview only. Signature is selected when creating a campaign.
+                  </p>
+                </div>
+              )}
+
               <div className="flex gap-2 pt-4">
                 <Button type="submit" disabled={saving} className="gap-2">
                   {saving ? (
@@ -368,6 +414,17 @@ export default function EditTemplatePage({
                       </div>
                     )}
                   </div>
+                  {selectedSignatureHtml && (
+                    <div>
+                      <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">
+                        Signature
+                      </p>
+                      <div
+                        className="text-sm"
+                        dangerouslySetInnerHTML={{ __html: selectedSignatureHtml }}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-4 pt-4 border-t">

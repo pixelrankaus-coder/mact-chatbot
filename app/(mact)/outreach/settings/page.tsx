@@ -222,6 +222,7 @@ export default function OutreachSettingsPage() {
   const [sigDeleting, setSigDeleting] = useState<string | null>(null);
   const [newSigName, setNewSigName] = useState("");
   const [showNewSigForm, setShowNewSigForm] = useState(false);
+  const [editingSigName, setEditingSigName] = useState("");
 
   useEffect(() => {
     fetchSettings();
@@ -333,6 +334,7 @@ export default function OutreachSettingsPage() {
         setShowNewSigForm(false);
         // Auto-open the editor for the new signature
         setEditingSignature(sig);
+        setEditingSigName(sig.name);
         toast.success(`Signature "${sig.name}" created`);
       } else {
         const err = await res.json();
@@ -347,6 +349,10 @@ export default function OutreachSettingsPage() {
 
   const handleSaveSignature = async () => {
     if (!editingSignature || !emailEditorRef.current?.editor) return;
+    if (!editingSigName.trim()) {
+      toast.error("Please enter a signature name");
+      return;
+    }
     setSigSaving(true);
 
     emailEditorRef.current.editor.exportHtml(async (data) => {
@@ -356,6 +362,7 @@ export default function OutreachSettingsPage() {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            name: editingSigName.trim(),
             signature_html: html,
             signature_json: design,
           }),
@@ -425,8 +432,8 @@ export default function OutreachSettingsPage() {
   };
 
   const handleEditSignature = (sig: Signature) => {
-    // If currently editing another, just switch
     setEditingSignature(sig);
+    setEditingSigName(sig.name);
   };
 
   const handleCloneSignature = async (sig: Signature) => {
@@ -445,6 +452,7 @@ export default function OutreachSettingsPage() {
         const cloned = await res.json();
         setSignatures((prev) => [...prev, cloned]);
         setEditingSignature(cloned);
+        setEditingSigName(cloned.name);
         toast.success(`Cloned as "${cloned.name}"`);
       } else {
         const err = await res.json();
@@ -883,10 +891,17 @@ export default function OutreachSettingsPage() {
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-lg">
-                        Editing: {editingSignature.name}
-                      </CardTitle>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="sigName" className="text-sm text-slate-500 whitespace-nowrap">Name:</Label>
+                        <Input
+                          id="sigName"
+                          value={editingSigName}
+                          onChange={(e) => setEditingSigName(e.target.value)}
+                          className="h-8 text-base font-semibold max-w-xs"
+                          placeholder="Signature name"
+                        />
+                      </div>
                       <CardDescription>
                         Design your signature using the visual editor below
                       </CardDescription>
