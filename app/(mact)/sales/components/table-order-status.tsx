@@ -50,6 +50,7 @@ type Order = {
   id: string;
   orderNumber: string;
   customerName: string;
+  date: string;
   items: number;
   amount: number;
   status: string;
@@ -61,6 +62,19 @@ const columns: ColumnDef<Order>[] = [
     accessorKey: "orderNumber",
     header: "Order #",
     size: 100
+  },
+  {
+    accessorKey: "date",
+    header: "Date",
+    cell: ({ row }) => {
+      const date = row.getValue("date") as string;
+      if (!date) return "-";
+      return new Date(date).toLocaleDateString("en-AU", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+    }
   },
   {
     accessorKey: "customerName",
@@ -150,6 +164,7 @@ export function TableOrderStatus() {
       id: order.id,
       orderNumber: order.orderNumber,
       customerName: order.customer,
+      date: order.date,
       items: order.items,
       amount: order.amount,
       status: order.status,
