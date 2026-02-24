@@ -140,6 +140,17 @@ async function starshipitFetch<T>(
   }
 }
 
+// ── Origin (MACt warehouse) ──────────────────────────────────────
+
+const MACT_ORIGIN: StarshipitAddress = {
+  street: "Unit 3C, 919-925 Nudgee Road",
+  suburb: "Banyo",
+  city: "Banyo",
+  state: "QLD",
+  post_code: "4014",
+  country_code: "AU",
+};
+
 // ── Public API ────────────────────────────────────────────────────
 
 /**
@@ -165,7 +176,7 @@ export async function getRates(
   }
 
   try {
-    const body = { destination, packages };
+    const body = { sender: MACT_ORIGIN, destination, packages };
     const data = await starshipitFetch<{
       success: boolean;
       rates?: Array<{
