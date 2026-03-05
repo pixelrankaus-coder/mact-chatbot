@@ -127,25 +127,12 @@ export async function GET(request: NextRequest) {
 
   // Skip entirely if nothing should sync
   if (!cin7ShouldSync && !wooShouldSync) {
-    logInfo("cron", "Data sync skipped — not due yet", { path: "/api/cron/data-sync", method: "GET" });
     return NextResponse.json({
       skipped: true,
       reason: "Not due yet based on frequency settings",
-      cin7: {
-        frequency: cin7Config?.settings?.sync_frequency || "1hour",
-        lastSync: cin7Config?.settings?.last_sync_at || null,
-        shouldSync: cin7ShouldSync,
-      },
-      woo: {
-        frequency: wooConfig?.settings?.sync_frequency || "1hour",
-        lastSync: wooConfig?.settings?.last_sync_at || null,
-        shouldSync: wooShouldSync,
-      },
     });
   }
 
-  const syncParts = [cin7ShouldSync && "Cin7", wooShouldSync && "WooCommerce"].filter(Boolean).join(" + ");
-  logInfo("sync", `Data sync started (${syncParts})`, { path: "/api/cron/data-sync", method: "GET" });
   const startTime = Date.now();
 
   const results = {
@@ -275,10 +262,17 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    logInfo("sync", `Data sync completed — Cin7: ${cin7OrderCount} orders, ${cin7CustCount} customers | Woo: ${wooOrderCount} orders, ${wooCustCount} customers (${totalDuration}ms)`, {
-      path: "/api/cron/data-sync", method: "GET", status_code: 200, duration_ms: totalDuration,
-      metadata: { cin7OrderCount, cin7CustCount, wooOrderCount, wooCustCount },
-    });
+    // Only log when something actually changed — skip noise on no-change runs
+    const totalChanged = cin7OrderCount + cin7CustCount + wooOrderCount + wooCustCount;
+    if (totalChanged > 0) {
+      const parts: string[] = [];
+      if (cin7ShouldSync) parts.push(`Cin7: ${cin7OrderCount} orders, ${cin7CustCount} customers`);
+      if (wooShouldSync) parts.push(`Woo: ${wooOrderCount} orders, ${wooCustCount} customers`);
+      logInfo("sync", `Sync complete — ${parts.join(" | ")} (${totalDuration}ms)`, {
+        path: "/api/cron/data-sync", method: "GET", status_code: 200, duration_ms: totalDuration,
+        metadata: { cin7OrderCount, cin7CustCount, wooOrderCount, wooCustCount },
+      });
+    }
 
     return NextResponse.json({
       success: true,

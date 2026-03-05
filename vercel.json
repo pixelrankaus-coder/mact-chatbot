@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/data-sync",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 */4 * * *"
     },
     {
       "path": "/api/cron/auto-resend",
