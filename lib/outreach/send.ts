@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { renderTemplate } from "./templates";
+import { bodyToEmailHtml } from "./body-to-html";
 
 // Lazy-load Resend client to avoid build-time errors
 let resendClient: Resend | null = null;
@@ -216,58 +217,13 @@ export async function sendSingleEmail(emailId: string): Promise<SendResult> {
   }, ctx);
 
   // Convert body to HTML and append signature
-  // Decode any HTML entities that might have been double-encoded (e.g., &lt; -> <)
-  const decodeHtmlEntities = (text: string): string => {
-    return text
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'")
-      .replace(/&amp;/g, '&');
-  };
-
-  // Append UTM parameters to all outbound links for campaign attribution
-  const addUtmParams = (url: string, campaignName: string, isFollowUp: boolean): string => {
-    try {
-      const parsed = new URL(url);
-      // Only add UTM to http/https links, skip mailto: tel: etc.
-      if (!parsed.protocol.startsWith("http")) return url;
-      // Don't overwrite existing UTM params
-      if (parsed.searchParams.has("utm_source")) return url;
-      parsed.searchParams.set("utm_source", "email");
-      parsed.searchParams.set("utm_medium", "outreach");
-      parsed.searchParams.set("utm_campaign", campaignName.toLowerCase().replace(/[^a-z0-9_-]/g, "-"));
-      if (isFollowUp) {
-        parsed.searchParams.set("utm_content", "followup");
-      }
-      return parsed.toString();
-    } catch {
-      return url; // Not a valid URL, return as-is
-    }
-  };
-
   const isFollowUp = !!email.campaign.parent_campaign_id;
   const utmCampaignName = email.campaign.name;
 
-  // Add inline styles to links (email clients often strip <style> tags)
-  const styleLinks = (html: string): string => {
-    return html.replace(
-      /<a\s+href="([^"]+)"[^>]*>([^<]+)<\/a>/gi,
-      (_match, href, text) => {
-        const utmHref = addUtmParams(href, utmCampaignName, isFollowUp);
-        return `<a href="${utmHref}" style="color: #2563eb; text-decoration: underline;">${text}</a>`;
-      }
-    );
-  };
-
-  const decodedBody = decodeHtmlEntities(body);
-  const bodyHtml = decodedBody
-    .split("\n")
-    .map((line) => {
-      const styledLine = styleLinks(line);
-      return `<p style="margin: 0 0 10px 0;">${styledLine || "&nbsp;"}</p>`;
-    })
-    .join("");
+  const bodyHtml = bodyToEmailHtml(body, {
+    campaignName: utmCampaignName,
+    isFollowUp,
+  });
 
   const htmlEmail = `<!DOCTYPE html>
 <html>

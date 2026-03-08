@@ -5,6 +5,7 @@ import {
   buildPersonalizationData,
 } from "@/lib/outreach/segments";
 import { renderTemplate } from "@/lib/outreach/templates";
+import { bodyToEmailHtml } from "@/lib/outreach/body-to-html";
 
 function getSupabase() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -14,34 +15,9 @@ function getSupabase() {
   return createClient(supabaseUrl, supabaseKey);
 }
 
-// Decode any HTML entities that might have been double-encoded
-function decodeHtmlEntities(text: string): string {
-  return text
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, '&');
-}
-
-// Add inline styles to links (email clients often strip <style> tags)
-function styleLinks(html: string): string {
-  return html.replace(
-    /<a\s+href="([^"]+)"[^>]*>([^<]+)<\/a>/gi,
-    '<a href="$1" style="color: #2563eb; text-decoration: underline;">$2</a>'
-  );
-}
-
 // Build full HTML email exactly as it will be sent
 function buildHtmlEmail(body: string, signatureHtml: string): string {
-  const decodedBody = decodeHtmlEntities(body);
-  const bodyHtml = decodedBody
-    .split("\n")
-    .map((line) => {
-      const styledLine = styleLinks(line);
-      return `<p style="margin: 0 0 10px 0;">${styledLine || "&nbsp;"}</p>`;
-    })
-    .join("");
+  const bodyHtml = bodyToEmailHtml(body);
 
   return `<!DOCTYPE html>
 <html>

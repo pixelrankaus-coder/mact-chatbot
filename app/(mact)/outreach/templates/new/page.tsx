@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -15,21 +14,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { ArrowLeft, Save, Loader2, Eye, Variable, Link2 } from "lucide-react";
+import { ArrowLeft, Save, Loader2, Eye } from "lucide-react";
 import { toast } from "sonner";
 import {
-  TEMPLATE_VARIABLES,
   renderTemplate,
   getSampleData,
 } from "@/lib/outreach/templates";
+import { bodyToEmailHtml } from "@/lib/outreach/body-to-html";
+import { TemplateEditor } from "@/components/outreach/template-editor";
+import type { OutreachSignature } from "@/types/outreach";
 
 export default function NewTemplatePage() {
   const router = useRouter();
@@ -40,107 +33,32 @@ export default function NewTemplatePage() {
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
 
-  // Link dialog state
-  const [showLinkDialog, setShowLinkDialog] = useState(false);
-  const [linkUrl, setLinkUrl] = useState("");
-  const [linkText, setLinkText] = useState("");
-  const [selectedText, setSelectedText] = useState({ start: 0, end: 0, text: "" });
+  // Signature preview
+  const [signatures, setSignatures] = useState<(OutreachSignature & { signature_html: string })[]>([]);
+  const [previewSignatureId, setPreviewSignatureId] = useState<string>("");
 
   const sampleData = getSampleData();
   const preview = renderTemplate({ subject, body }, sampleData);
+  const previewBodyHtml = bodyToEmailHtml(preview.body);
 
-  // Decode HTML entities and style links (same as email rendering)
-  const decodeHtmlEntities = (text: string): string => {
-    return text
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'")
-      .replace(/&amp;/g, '&');
-  };
+  useEffect(() => {
+    fetchSignatures();
+  }, []);
 
-  const styleLinks = (html: string): string => {
-    return html.replace(
-      /<a\s+href="([^"]+)"[^>]*>([^<]+)<\/a>/gi,
-      '<a href="$1" style="color: #2563eb; text-decoration: underline;">$2</a>'
-    );
-  };
-
-  const decodedBody = decodeHtmlEntities(preview.body);
-  const bodyAsHtml = decodedBody
-    .split("\n")
-    .map((line) => {
-      const styledLine = styleLinks(line);
-      return `<p style="margin: 0 0 10px 0;">${styledLine || "&nbsp;"}</p>`;
-    })
-    .join("");
-
-  const insertVariable = (variable: string) => {
-    const textarea = document.getElementById("body") as HTMLTextAreaElement;
-    if (textarea) {
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const newBody =
-        body.substring(0, start) + `{{${variable}}}` + body.substring(end);
-      setBody(newBody);
-
-      // Reset cursor position after React re-render
-      setTimeout(() => {
-        textarea.focus();
-        textarea.selectionStart = textarea.selectionEnd =
-          start + variable.length + 4;
-      }, 0);
-    } else {
-      setBody(body + `{{${variable}}}`);
-    }
-  };
-
-  const openLinkDialog = () => {
-    const textarea = document.getElementById("body") as HTMLTextAreaElement;
-    if (textarea) {
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const text = body.substring(start, end);
-      setSelectedText({ start, end, text });
-      setLinkText(text || "");
-      setLinkUrl("");
-    }
-    setShowLinkDialog(true);
-  };
-
-  const insertLink = () => {
-    if (!linkUrl) {
-      toast.error("Please enter a URL");
-      return;
-    }
-
-    // Add https:// if no protocol specified
-    let url = linkUrl;
-    if (!url.match(/^https?:\/\//)) {
-      url = "https://" + url;
-    }
-
-    const text = linkText || url;
-    const linkHtml = `<a href="${url}">${text}</a>`;
-
-    const textarea = document.getElementById("body") as HTMLTextAreaElement;
-    const start = selectedText.start;
-    const end = selectedText.end;
-
-    const newBody = body.substring(0, start) + linkHtml + body.substring(end);
-    setBody(newBody);
-
-    setShowLinkDialog(false);
-    setLinkUrl("");
-    setLinkText("");
-
-    setTimeout(() => {
-      if (textarea) {
-        textarea.focus();
-        textarea.selectionStart = textarea.selectionEnd = start + linkHtml.length;
+  const fetchSignatures = async () => {
+    try {
+      const res = await fetch("/api/outreach/signatures");
+      const data = await res.json();
+      setSignatures(data.signatures || []);
+      if (data.default_signature_id) {
+        setPreviewSignatureId(data.default_signature_id);
       }
-    }, 0);
+    } catch (error) {
+      console.error("Failed to fetch signatures:", error);
+    }
   };
+
+  const selectedSignatureHtml = signatures.find(s => s.id === previewSignatureId)?.signature_html || "";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -217,49 +135,33 @@ export default function NewTemplatePage() {
                 />
               </div>
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="body">Email Body</Label>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-8 text-sm gap-2"
-                      onClick={openLinkDialog}
-                    >
-                      <Link2 className="h-4 w-4" />
-                      Insert Link
-                    </Button>
-                    <Select onValueChange={insertVariable}>
-                      <SelectTrigger className="w-[180px] h-8 text-sm">
-                        <Variable className="h-4 w-4 mr-2" />
-                        <SelectValue placeholder="Insert Variable" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {TEMPLATE_VARIABLES.map((v) => (
-                          <SelectItem key={v.key} value={v.key}>
-                            <span className="font-mono text-sm">
-                              {`{{${v.key}}}`}
-                            </span>
-                            <span className="text-slate-400 ml-2 text-xs">
-                              {v.example}
-                            </span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+              {/* WYSIWYG Editor */}
+              <TemplateEditor body={body} onChange={setBody} />
+
+              {/* Signature Preview Selector */}
+              {signatures.length > 0 && (
+                <div className="space-y-2 pt-2 border-t">
+                  <Label>Signature Preview</Label>
+                  <Select
+                    value={previewSignatureId}
+                    onValueChange={setPreviewSignatureId}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="No signature" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {signatures.map((sig) => (
+                        <SelectItem key={sig.id} value={sig.id}>
+                          {sig.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-slate-500">
+                    For preview only. Signature is selected when creating a campaign.
+                  </p>
                 </div>
-                <Textarea
-                  id="body"
-                  value={body}
-                  onChange={(e) => setBody(e.target.value)}
-                  placeholder={`Hi {{first_name}},\n\nIt's been a while since you grabbed that {{last_product}}. I'd love to know how that project turned out!\n\nCheers,\nChris`}
-                  className="min-h-[300px] font-mono text-sm"
-                  required
-                />
-              </div>
+              )}
 
               <div className="flex gap-2 pt-4">
                 <Button type="submit" disabled={saving} className="gap-2">
@@ -319,7 +221,7 @@ export default function NewTemplatePage() {
                     {preview.body ? (
                       <div
                         className="text-sm [&_a]:text-blue-600 [&_a]:underline"
-                        dangerouslySetInnerHTML={{ __html: bodyAsHtml }}
+                        dangerouslySetInnerHTML={{ __html: previewBodyHtml }}
                       />
                     ) : (
                       <div className="text-sm text-slate-400">
@@ -327,6 +229,17 @@ export default function NewTemplatePage() {
                       </div>
                     )}
                   </div>
+                  {selectedSignatureHtml && (
+                    <div>
+                      <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">
+                        Signature
+                      </p>
+                      <div
+                        className="text-sm"
+                        dangerouslySetInnerHTML={{ __html: selectedSignatureHtml }}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-4 pt-4 border-t">
@@ -347,54 +260,6 @@ export default function NewTemplatePage() {
           </Card>
         </div>
       </form>
-
-      {/* Insert Link Dialog */}
-      <Dialog open={showLinkDialog} onOpenChange={setShowLinkDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Insert Link</DialogTitle>
-            <DialogDescription>
-              Add a clickable hyperlink to your email template.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="linkUrl">URL</Label>
-              <Input
-                id="linkUrl"
-                value={linkUrl}
-                onChange={(e) => setLinkUrl(e.target.value)}
-                placeholder="https://example.com"
-                autoFocus
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="linkText">Link Text</Label>
-              <Input
-                id="linkText"
-                value={linkText}
-                onChange={(e) => setLinkText(e.target.value)}
-                placeholder="Click here"
-              />
-              <p className="text-xs text-slate-500">
-                Leave blank to use the URL as the text
-              </p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setShowLinkDialog(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="button" onClick={insertLink}>
-              Insert Link
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
