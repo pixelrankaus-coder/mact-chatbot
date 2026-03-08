@@ -12,6 +12,7 @@ type SupabaseAny = any;
 const SYNC_INTERVALS: Record<string, number> = {
   "15min": 15 * 60 * 1000,
   "1hour": 60 * 60 * 1000,
+  "4hours": 4 * 60 * 60 * 1000,
   "6hours": 6 * 60 * 60 * 1000,
   "daily": 24 * 60 * 60 * 1000,
   "manual": Infinity, // Never auto-sync

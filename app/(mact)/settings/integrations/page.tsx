@@ -1201,6 +1201,7 @@ export default function IntegrationsSettings() {
                       >
                         <option value="15min">Every 15 minutes</option>
                         <option value="1hour">Every hour</option>
+                        <option value="4hours">Every 4 hours</option>
                         <option value="6hours">Every 6 hours</option>
                         <option value="daily">Daily</option>
                         <option value="manual">Manual only</option>
