@@ -47,10 +47,13 @@ export async function GET() {
         consumer_secret: "",
         is_enabled: false,
         has_credentials: false,
+        sync_frequency: "4hours",
+        last_sync_at: null,
       });
     }
 
-    const settings = data.settings as WooCommerceSettings;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const settings = data.settings as WooCommerceSettings & Record<string, any>;
 
     // Return settings with secrets masked
     return NextResponse.json({
@@ -59,6 +62,8 @@ export async function GET() {
       consumer_secret: settings.consumer_secret ? "••••••••" + settings.consumer_secret.slice(-4) : "",
       is_enabled: data.is_enabled,
       has_credentials: !!(settings.url && settings.consumer_key && settings.consumer_secret),
+      sync_frequency: settings.sync_frequency || "4hours",
+      last_sync_at: settings.last_sync_at || null,
       updated_at: data.updated_at,
     });
   } catch (error) {
@@ -79,7 +84,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { action, url, consumer_key, consumer_secret, is_enabled } = body;
+    const { action, url, consumer_key, consumer_secret, is_enabled, sync_frequency } = body;
 
     // Handle test connection action
     if (action === "test") {
@@ -104,7 +109,9 @@ export async function POST(request: NextRequest) {
     const existingSettings = (existing?.settings || {}) as WooCommerceSettings;
 
     // Build new settings - only update secrets if new ones are provided
-    const newSettings: WooCommerceSettings = {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const existingFull = (existing?.settings || {}) as Record<string, any>;
+    const newSettings = {
       url: normalizeUrl(url),
       consumer_key: consumer_key && !consumer_key.includes("••••")
         ? consumer_key
@@ -112,6 +119,8 @@ export async function POST(request: NextRequest) {
       consumer_secret: consumer_secret && !consumer_secret.includes("••••")
         ? consumer_secret
         : existingSettings.consumer_secret || "",
+      sync_frequency: sync_frequency || existingFull.sync_frequency || "4hours",
+      last_sync_at: existingFull.last_sync_at || null,
     };
 
     // Upsert settings

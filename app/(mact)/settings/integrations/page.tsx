@@ -69,6 +69,8 @@ interface WooConfig {
   consumer_secret: string;
   is_enabled: boolean;
   has_credentials: boolean;
+  sync_frequency: string;
+  last_sync_at: string | null;
 }
 
 interface Cin7Config {
@@ -122,6 +124,8 @@ export default function IntegrationsSettings() {
     consumer_secret: "",
     is_enabled: false,
     has_credentials: false,
+    sync_frequency: "4hours",
+    last_sync_at: null,
   });
   const [wooConfigLoading, setWooConfigLoading] = useState(true);
   const [wooSaving, setWooSaving] = useState(false);
@@ -1497,6 +1501,45 @@ export default function IntegrationsSettings() {
                       </p>
                     </div>
                   )}
+
+                  {/* Auto-sync Frequency */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-slate-600 mb-1">Auto-sync Frequency</label>
+                    <div className="flex items-center gap-3">
+                      <select
+                        className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm"
+                        value={wooConfig.sync_frequency}
+                        onChange={(e) => {
+                          setWooConfig((prev) => ({ ...prev, sync_frequency: e.target.value }));
+                          // Save frequency immediately
+                          fetch("/api/settings/integrations/woocommerce", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              url: wooConfig.url,
+                              consumer_key: wooConfig.consumer_key,
+                              consumer_secret: wooConfig.consumer_secret,
+                              is_enabled: wooConfig.is_enabled,
+                              sync_frequency: e.target.value,
+                            }),
+                          }).then(() => toast.success("Sync frequency updated"));
+                        }}
+                        disabled={!wooConfig.is_enabled}
+                      >
+                        <option value="15min">Every 15 minutes</option>
+                        <option value="1hour">Every hour</option>
+                        <option value="4hours">Every 4 hours</option>
+                        <option value="6hours">Every 6 hours</option>
+                        <option value="daily">Daily</option>
+                        <option value="manual">Manual only</option>
+                      </select>
+                      {wooConfig.last_sync_at && (
+                        <span className="text-xs text-slate-400">
+                          Last: {formatDistanceToNow(new Date(wooConfig.last_sync_at), { addSuffix: true })}
+                        </span>
+                      )}
+                    </div>
+                  </div>
 
                   <div className="grid gap-4 md:grid-cols-2">
                     {/* WooCommerce Orders Sync */}
