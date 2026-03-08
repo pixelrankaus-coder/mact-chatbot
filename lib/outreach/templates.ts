@@ -75,6 +75,32 @@ export const TEMPLATE_VARIABLES = [
     description: "Quote total amount",
     example: "$1,585.00",
   },
+  // Payment / invoice variables
+  {
+    key: "amount_due",
+    description: "Outstanding amount (total - paid)",
+    example: "$18,327.87",
+  },
+  {
+    key: "invoice_due_date",
+    description: "Invoice payment due date",
+    example: "11 April 2026",
+  },
+  {
+    key: "payment_term",
+    description: "Payment terms (COD, NET 30, etc.)",
+    example: "COD",
+  },
+  {
+    key: "days_overdue",
+    description: "Days since invoice due date",
+    example: "14",
+  },
+  {
+    key: "payment_link",
+    description: "Bpoint credit card payment URL",
+    example: "https://www.bpoint.com.au/pay/MININGANDCEMENTT?ref=INV-12345",
+  },
 ];
 
 // Fallback values for empty/missing personalization data
@@ -96,6 +122,11 @@ const FALLBACK_VALUES: Record<string, string> = {
   invoice_number: "your invoice",
   invoice_total: "",
   quote_total: "",
+  amount_due: "",
+  invoice_due_date: "",
+  payment_term: "",
+  days_overdue: "",
+  payment_link: "",
 };
 
 export function renderTemplate(
@@ -114,13 +145,13 @@ export function renderTemplate(
       }
 
       // Format special values
-      if ((key === "total_spent" || key === "invoice_total" || key === "quote_total") && typeof value === "number") {
+      if ((key === "total_spent" || key === "invoice_total" || key === "quote_total" || key === "amount_due") && typeof value === "number") {
         return new Intl.NumberFormat("en-AU", {
           style: "currency",
           currency: "AUD",
         }).format(value);
       }
-      if (key === "last_order_date" && value) {
+      if ((key === "last_order_date" || key === "invoice_due_date") && value) {
         return new Date(value as string).toLocaleDateString("en-AU", {
           day: "numeric",
           month: "long",
@@ -167,8 +198,13 @@ export function getSampleData(): Record<string, unknown> {
     product_url: "https://mact.au/product/rock-carve/",
     order_number: "SO-05172",
     invoice_number: "INV-12345",
-    invoice_total: 1585.0,
-    quote_total: 1585.0,
+    invoice_total: 18327.87,
+    quote_total: 18327.87,
+    amount_due: 18327.87,
+    invoice_due_date: "2026-04-11",
+    payment_term: "COD",
+    days_overdue: 14,
+    payment_link: "https://www.bpoint.com.au/pay/MININGANDCEMENTT?ref=INV-05008",
   };
 }
 

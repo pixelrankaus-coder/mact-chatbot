@@ -2,6 +2,7 @@ import { Resend } from "resend";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { renderTemplate } from "./templates";
 import { bodyToEmailHtml } from "./body-to-html";
+import { buildPaymentBlock } from "./payment-block";
 
 // Lazy-load Resend client to avoid build-time errors
 let resendClient: Resend | null = null;
@@ -225,6 +226,18 @@ export async function sendSingleEmail(emailId: string): Promise<SendResult> {
     isFollowUp,
   });
 
+  // Append payment block for COD reminder emails
+  let paymentBlockHtml = "";
+  const campaignMeta = (email.campaign.metadata || {}) as Record<string, unknown>;
+  if (campaignMeta.include_payment_block) {
+    const personalization = (email.personalization || {}) as Record<string, unknown>;
+    const invoiceNumber = String(personalization.invoice_number || "");
+    const amountDue = parseFloat(String(personalization.amount_due || 0));
+    if (invoiceNumber || amountDue > 0) {
+      paymentBlockHtml = buildPaymentBlock({ invoiceNumber, amountDue });
+    }
+  }
+
   const htmlEmail = `<!DOCTYPE html>
 <html>
 <head>
@@ -237,16 +250,23 @@ export async function sendSingleEmail(emailId: string): Promise<SendResult> {
 <body style="font-family: Arial, sans-serif; font-size: 14px; color: #333; line-height: 1.6; margin: 0; padding: 20px;">
   <div style="max-width: 600px;">
     ${bodyHtml}
+    ${paymentBlockHtml}
     ${signatureHtml}
   </div>
 </body>
 </html>`;
 
   // Create plain text version (strip HTML tags for email clients that prefer plain text)
-  const plainText = decodedBody.replace(/<a[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/gi, (_m, href, text) => {
-    const utmHref = addUtmParams(href, utmCampaignName, isFollowUp);
-    return `${text} (${utmHref})`;
-  });
+  const plainText = body
+    .replace(/<a[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/gi, '$2 ($1)')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .trim();
 
   // Prepare Resend payload
   const resendPayload = {

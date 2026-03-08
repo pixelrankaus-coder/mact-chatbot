@@ -10,6 +10,7 @@
 
 import { createServiceClient } from "@/lib/supabase";
 import { processCampaignBatch } from "@/lib/outreach/send";
+import { buildPaymentLink } from "@/lib/outreach/payment-block";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseAny = any;
@@ -332,7 +333,7 @@ export async function processDueAutomations(maxPerRun: number = 10): Promise<{
       // Fetch order data for personalization
       const { data: order } = await supabase
         .from("cin7_orders")
-        .select("order_number, total, invoice_number, invoice_total, invoice_paid, line_items, customer_name")
+        .select("order_number, total, invoice_number, invoice_total, invoice_paid, invoice_due_date, payment_term, line_items, customer_name")
         .eq("cin7_id", auto.order_cin7_id)
         .single();
 
@@ -341,15 +342,33 @@ export async function processDueAutomations(maxPerRun: number = 10): Promise<{
       const firstLineItem = Array.isArray(order?.line_items) && order.line_items.length > 0
         ? order.line_items[0].name : "";
 
+      const invoiceTotal = parseFloat(String(order?.invoice_total || (auto.metadata as Record<string, unknown>)?.invoice_total || 0));
+      const invoicePaid = parseFloat(String(order?.invoice_paid || 0));
+      const amountDue = Math.max(0, invoiceTotal - invoicePaid);
+      const invoiceNumber = order?.invoice_number || String((auto.metadata as Record<string, unknown>)?.invoice_number || "");
+
+      // Calculate days overdue
+      let daysOverdue = 0;
+      if (order?.invoice_due_date) {
+        const dueDate = new Date(order.invoice_due_date);
+        const diffMs = now.getTime() - dueDate.getTime();
+        daysOverdue = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+      }
+
       const personalization = {
         first_name: nameParts[0] || "",
         last_name: nameParts.slice(1).join(" ") || "",
         company: auto.customer_name || "",
         order_number: auto.order_number || "",
         last_product: firstLineItem,
-        invoice_number: order?.invoice_number || (auto.metadata as Record<string, unknown>)?.invoice_number || "",
-        invoice_total: parseFloat(String(order?.invoice_total || (auto.metadata as Record<string, unknown>)?.invoice_total || 0)),
+        invoice_number: invoiceNumber,
+        invoice_total: invoiceTotal,
         quote_total: parseFloat(String(order?.total || 0)),
+        amount_due: amountDue,
+        invoice_due_date: order?.invoice_due_date || "",
+        payment_term: order?.payment_term || (auto.metadata as Record<string, unknown>)?.payment_term || "",
+        days_overdue: daysOverdue,
+        payment_link: buildPaymentLink(invoiceNumber),
         total_spent: 0,
         order_count: 0,
       };
@@ -374,7 +393,10 @@ export async function processDueAutomations(maxPerRun: number = 10): Promise<{
           from_email: "admin@mact.au",
           reply_to: "admin@mact.au",
           signature_id: automationSignatureId,
-          metadata: { use_automation_signature: true },
+          metadata: {
+            use_automation_signature: true,
+            include_payment_block: auto.automation_type === "cod_followup",
+          },
         })
         .select("id")
         .single();

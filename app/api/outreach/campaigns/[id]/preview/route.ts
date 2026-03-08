@@ -6,6 +6,7 @@ import {
 } from "@/lib/outreach/segments";
 import { renderTemplate } from "@/lib/outreach/templates";
 import { bodyToEmailHtml } from "@/lib/outreach/body-to-html";
+import { buildPaymentBlock } from "@/lib/outreach/payment-block";
 
 function getSupabase() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -16,8 +17,20 @@ function getSupabase() {
 }
 
 // Build full HTML email exactly as it will be sent
-function buildHtmlEmail(body: string, signatureHtml: string): string {
+function buildHtmlEmail(
+  body: string,
+  signatureHtml: string,
+  options?: { includePaymentBlock?: boolean; invoiceNumber?: string; amountDue?: number }
+): string {
   const bodyHtml = bodyToEmailHtml(body);
+
+  let paymentBlockHtml = "";
+  if (options?.includePaymentBlock) {
+    paymentBlockHtml = buildPaymentBlock({
+      invoiceNumber: options.invoiceNumber || "",
+      amountDue: options.amountDue || 0,
+    });
+  }
 
   return `<!DOCTYPE html>
 <html>
@@ -31,6 +44,7 @@ function buildHtmlEmail(body: string, signatureHtml: string): string {
 <body style="font-family: Arial, sans-serif; font-size: 14px; color: #333; line-height: 1.6; margin: 0; padding: 20px;">
   <div style="max-width: 600px;">
     ${bodyHtml}
+    ${paymentBlockHtml}
     ${signatureHtml}
   </div>
 </body>
@@ -173,16 +187,23 @@ export async function GET(
     // Build previews for ALL recipients with full HTML
     const allRecipients = recipients.map((recipient) => {
       const personalization = buildPersonalizationData(recipient as Parameters<typeof buildPersonalizationData>[0]);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const personalizationAny = personalization as Record<string, any>;
       const preview = renderTemplate(
         {
           subject: campaign.template.subject,
           body: campaign.template.body,
         },
-        personalization
+        personalizationAny
       );
 
       // Build full HTML email exactly as it will be sent
-      const htmlPreview = buildHtmlEmail(preview.body, signatureHtml);
+      const campaignMeta = (campaign.metadata || {}) as Record<string, unknown>;
+      const htmlPreview = buildHtmlEmail(preview.body, signatureHtml, {
+        includePaymentBlock: !!campaignMeta.include_payment_block,
+        invoiceNumber: String(personalizationAny.invoice_number || ""),
+        amountDue: parseFloat(String(personalizationAny.amount_due || 0)),
+      });
 
       return {
         email: recipient.email,
