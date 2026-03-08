@@ -200,7 +200,7 @@ export async function GET(
       // Build full HTML email exactly as it will be sent
       const campaignMeta = (campaign.metadata || {}) as Record<string, unknown>;
       const htmlPreview = buildHtmlEmail(preview.body, signatureHtml, {
-        includePaymentBlock: !!campaignMeta.include_payment_block,
+        includePaymentBlock: !!(campaignMeta.include_payment_block || campaign.template?.include_payment_block),
         invoiceNumber: String(personalizationAny.invoice_number || ""),
         amountDue: parseFloat(String(personalizationAny.amount_due || 0)),
       });

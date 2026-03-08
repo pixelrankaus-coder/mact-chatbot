@@ -15,6 +15,7 @@ export interface OutreachTemplate {
   subject: string;
   body: string;
   variables: string[];
+  include_payment_block?: boolean;
   created_at: string;
   updated_at: string;
   created_by?: string;

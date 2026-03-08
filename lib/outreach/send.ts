@@ -226,10 +226,12 @@ export async function sendSingleEmail(emailId: string): Promise<SendResult> {
     isFollowUp,
   });
 
-  // Append payment block for COD reminder emails
+  // Append payment block if enabled on template or campaign
   let paymentBlockHtml = "";
   const campaignMeta = (email.campaign.metadata || {}) as Record<string, unknown>;
-  if (campaignMeta.include_payment_block) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const templateData = email.campaign.template as Record<string, any>;
+  if (campaignMeta.include_payment_block || templateData?.include_payment_block) {
     const personalization = (email.personalization || {}) as Record<string, unknown>;
     const invoiceNumber = String(personalization.invoice_number || "");
     const amountDue = parseFloat(String(personalization.amount_due || 0));

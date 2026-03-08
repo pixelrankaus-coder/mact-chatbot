@@ -14,13 +14,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Save, Loader2, Eye } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { ArrowLeft, Save, Loader2, Eye, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import {
   renderTemplate,
   getSampleData,
 } from "@/lib/outreach/templates";
 import { bodyToEmailHtml } from "@/lib/outreach/body-to-html";
+import { buildPaymentBlock } from "@/lib/outreach/payment-block";
 import { TemplateEditor } from "@/components/outreach/template-editor";
 import type { OutreachSignature } from "@/types/outreach";
 
@@ -32,6 +34,7 @@ export default function NewTemplatePage() {
   const [name, setName] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
+  const [includePaymentBlock, setIncludePaymentBlock] = useState(false);
 
   // Signature preview
   const [signatures, setSignatures] = useState<(OutreachSignature & { signature_html: string })[]>([]);
@@ -68,7 +71,7 @@ export default function NewTemplatePage() {
       const res = await fetch("/api/outreach/templates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, subject, body }),
+        body: JSON.stringify({ name, subject, body, include_payment_block: includePaymentBlock }),
       });
 
       const data = await res.json();
@@ -137,6 +140,26 @@ export default function NewTemplatePage() {
 
               {/* WYSIWYG Editor */}
               <TemplateEditor body={body} onChange={setBody} />
+
+              {/* Payment Block Toggle */}
+              <div className="flex items-center justify-between pt-2 border-t">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="h-4 w-4 text-slate-500" />
+                  <div>
+                    <Label htmlFor="paymentBlock" className="text-sm font-medium">
+                      Include Payment Details
+                    </Label>
+                    <p className="text-xs text-slate-500">
+                      Adds Bpoint link &amp; bank transfer details to the email
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  id="paymentBlock"
+                  checked={includePaymentBlock}
+                  onCheckedChange={setIncludePaymentBlock}
+                />
+              </div>
 
               {/* Signature Preview Selector */}
               {signatures.length > 0 && (
@@ -229,6 +252,22 @@ export default function NewTemplatePage() {
                       </div>
                     )}
                   </div>
+                  {includePaymentBlock && (
+                    <div>
+                      <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">
+                        Payment Details
+                      </p>
+                      <div
+                        className="text-sm"
+                        dangerouslySetInnerHTML={{
+                          __html: buildPaymentBlock({
+                            invoiceNumber: String(sampleData.invoice_number),
+                            amountDue: sampleData.amount_due as number,
+                          }),
+                        }}
+                      />
+                    </div>
+                  )}
                   {selectedSignatureHtml && (
                     <div>
                       <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">
