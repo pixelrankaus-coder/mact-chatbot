@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     const supabase = createServiceClient();
     const body = await request.json();
 
-    const { title, description, category, priority, submitted_by } = body;
+    const { title, description, category, priority, submitted_by, affected_area, attachments } = body;
 
     if (!title) {
       return NextResponse.json(
@@ -64,6 +64,8 @@ export async function POST(request: NextRequest) {
         category: category || "feature",
         priority: priority || "normal",
         submitted_by: (submitted_by || "").trim(),
+        affected_area: (affected_area || "").trim() || null,
+        attachments: attachments || [],
         status: "new",
       })
       .select()

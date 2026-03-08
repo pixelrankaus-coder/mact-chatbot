@@ -18,6 +18,8 @@ export async function PATCH(
     if (body.status !== undefined) updates.status = body.status;
     if (body.priority !== undefined) updates.priority = body.priority;
     if (body.admin_notes !== undefined) updates.admin_notes = body.admin_notes.trim();
+    if (body.affected_area !== undefined) updates.affected_area = body.affected_area;
+    if (body.attachments !== undefined) updates.attachments = body.attachments;
     updates.updated_at = new Date().toISOString();
 
     const { data: featureRequest, error } = await supabase

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -34,7 +35,18 @@ import {
   CircleDot,
   Loader2,
   StickyNote,
+  ImageIcon,
+  Upload,
+  X,
+  Paperclip,
 } from "lucide-react";
+
+interface Attachment {
+  url: string;
+  filename: string;
+  size: number;
+  type: string;
+}
 
 interface FeatureRequest {
   id: string;
@@ -44,6 +56,8 @@ interface FeatureRequest {
   status: string;
   priority: string;
   submitted_by: string;
+  affected_area: string | null;
+  attachments: Attachment[];
   admin_notes: string;
   created_at: string;
   updated_at: string;
@@ -88,9 +102,23 @@ const priorityConfig: Record<string, { label: string; color: string }> = {
 
 const categoryOptions = [
   { value: "feature", label: "Feature" },
+  { value: "bug", label: "Bug Fix" },
   { value: "ui", label: "UI/UX" },
   { value: "integration", label: "Integration" },
   { value: "performance", label: "Performance" },
+  { value: "other", label: "Other" },
+];
+
+const areaOptions = [
+  { value: "", label: "Select area..." },
+  { value: "dashboard", label: "Dashboard" },
+  { value: "orders", label: "Orders" },
+  { value: "customers", label: "Customers" },
+  { value: "outreach", label: "Outreach / Email" },
+  { value: "chat", label: "Live Chat" },
+  { value: "settings", label: "Settings" },
+  { value: "integrations", label: "Integrations" },
+  { value: "shipping", label: "Shipping" },
   { value: "other", label: "Other" },
 ];
 
@@ -109,6 +137,11 @@ export default function FeatureRequestsPage() {
   const [formCategory, setFormCategory] = useState("feature");
   const [formPriority, setFormPriority] = useState("normal");
   const [formSubmittedBy, setFormSubmittedBy] = useState("");
+  const [formAffectedArea, setFormAffectedArea] = useState("");
+  const [formAttachments, setFormAttachments] = useState<Attachment[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const dropZoneRef = useRef<HTMLDivElement>(null);
 
   const fetchRequests = useCallback(async () => {
     try {
@@ -121,7 +154,6 @@ export default function FeatureRequestsPage() {
         const data = await res.json();
         setRequests(data.requests || []);
       } else {
-        // API returned error (e.g. table doesn't exist) - show empty
         setRequests([]);
       }
     } catch {
@@ -134,6 +166,75 @@ export default function FeatureRequestsPage() {
   useEffect(() => {
     fetchRequests();
   }, [fetchRequests]);
+
+  // Upload a file and return the attachment info
+  const uploadFile = async (file: File): Promise<Attachment | null> => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch("/api/feature-requests/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || "Upload failed");
+        return null;
+      }
+
+      return await res.json();
+    } catch {
+      alert("Upload failed — check your connection");
+      return null;
+    }
+  };
+
+  const handleFilesSelected = async (files: FileList | File[]) => {
+    const fileArray = Array.from(files);
+    if (fileArray.length === 0) return;
+
+    setUploading(true);
+    for (const file of fileArray) {
+      const attachment = await uploadFile(file);
+      if (attachment) {
+        setFormAttachments((prev) => [...prev, attachment]);
+      }
+    }
+    setUploading(false);
+  };
+
+  const handleRemoveAttachment = (index: number) => {
+    setFormAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // Handle paste event for screenshots
+  useEffect(() => {
+    if (!dialogOpen) return;
+
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      const imageFiles: File[] = [];
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith("image/")) {
+          const file = item.getAsFile();
+          if (file) imageFiles.push(file);
+        }
+      }
+
+      if (imageFiles.length > 0) {
+        e.preventDefault();
+        handleFilesSelected(imageFiles);
+      }
+    };
+
+    document.addEventListener("paste", handlePaste);
+    return () => document.removeEventListener("paste", handlePaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dialogOpen]);
 
   const handleSubmit = async () => {
     if (!formTitle) return;
@@ -149,6 +250,8 @@ export default function FeatureRequestsPage() {
           category: formCategory,
           priority: formPriority,
           submitted_by: formSubmittedBy,
+          affected_area: formAffectedArea || null,
+          attachments: formAttachments,
         }),
       });
 
@@ -233,6 +336,8 @@ export default function FeatureRequestsPage() {
     setFormCategory("feature");
     setFormPriority("normal");
     setFormSubmittedBy("");
+    setFormAffectedArea("");
+    setFormAttachments([]);
   };
 
   // Stats
@@ -270,38 +375,138 @@ export default function FeatureRequestsPage() {
                 New Request
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>New Feature Request</DialogTitle>
+                <DialogTitle className="text-lg">New Feature Request</DialogTitle>
                 <DialogDescription>
-                  Submit an idea or feature request for the team.
+                  Submit an idea, bug report, or feature request for the team.
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4 pt-2">
+              <div className="space-y-5 pt-2">
+                {/* Title */}
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Title
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    Title <span className="text-red-500">*</span>
                   </label>
                   <Input
                     placeholder="e.g. Add bulk email import from CSV"
                     value={formTitle}
                     onChange={(e) => setFormTitle(e.target.value)}
+                    className="text-base"
                   />
                 </div>
+
+                {/* Description */}
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
                     Description
                   </label>
                   <Textarea
-                    placeholder="Describe the feature, why it's needed, and any implementation ideas..."
+                    placeholder="Describe the feature, why it's needed, steps to reproduce (for bugs), and any implementation ideas..."
                     value={formDescription}
                     onChange={(e) => setFormDescription(e.target.value)}
-                    rows={4}
+                    rows={8}
+                    className="text-sm"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+
+                {/* Screenshots / Attachments */}
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    Screenshots
+                  </label>
+
+                  {/* Upload zone */}
+                  <div
+                    ref={dropZoneRef}
+                    className="relative rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-6 text-center transition-colors hover:border-slate-400"
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.currentTarget.classList.add("border-blue-400", "bg-blue-50");
+                    }}
+                    onDragLeave={(e) => {
+                      e.currentTarget.classList.remove("border-blue-400", "bg-blue-50");
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.currentTarget.classList.remove("border-blue-400", "bg-blue-50");
+                      if (e.dataTransfer.files.length > 0) {
+                        handleFilesSelected(e.dataTransfer.files);
+                      }
+                    }}
+                  >
+                    {uploading ? (
+                      <div className="flex items-center justify-center gap-2 text-sm text-slate-500">
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        Uploading...
+                      </div>
+                    ) : (
+                      <>
+                        <Upload className="mx-auto h-8 w-8 text-slate-400" />
+                        <p className="mt-2 text-sm text-slate-600">
+                          Drag & drop images here, or{" "}
+                          <button
+                            type="button"
+                            className="font-medium text-blue-600 hover:text-blue-700"
+                            onClick={() => fileInputRef.current?.click()}
+                          >
+                            browse files
+                          </button>
+                        </p>
+                        <p className="mt-1 text-xs text-slate-400">
+                          PNG, JPG, GIF, WebP up to 5MB. You can also paste screenshots (Ctrl+V).
+                        </p>
+                      </>
+                    )}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/gif,image/webp"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        if (e.target.files) handleFilesSelected(e.target.files);
+                        e.target.value = "";
+                      }}
+                    />
+                  </div>
+
+                  {/* Attachment previews */}
+                  {formAttachments.length > 0 && (
+                    <div className="mt-3 grid grid-cols-3 gap-3">
+                      {formAttachments.map((att, i) => (
+                        <div
+                          key={i}
+                          className="group relative overflow-hidden rounded-lg border border-slate-200 bg-white"
+                        >
+                          <Image
+                            src={att.url}
+                            alt={att.filename}
+                            width={200}
+                            height={150}
+                            className="h-32 w-full object-cover"
+                            unoptimized
+                          />
+                          <button
+                            type="button"
+                            className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                            onClick={() => handleRemoveAttachment(i)}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                          <p className="truncate px-2 py-1 text-xs text-slate-500">
+                            {att.filename}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Category + Priority + Area */}
+                <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
                       Category
                     </label>
                     <Select
@@ -321,7 +526,7 @@ export default function FeatureRequestsPage() {
                     </Select>
                   </div>
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
                       Priority
                     </label>
                     <Select
@@ -338,9 +543,31 @@ export default function FeatureRequestsPage() {
                       </SelectContent>
                     </Select>
                   </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                      Affected Area
+                    </label>
+                    <Select
+                      value={formAffectedArea}
+                      onValueChange={setFormAffectedArea}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select area..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {areaOptions.filter((a) => a.value).map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
+
+                {/* Submitted By */}
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
                     Submitted By
                   </label>
                   <Input
@@ -349,7 +576,9 @@ export default function FeatureRequestsPage() {
                     onChange={(e) => setFormSubmittedBy(e.target.value)}
                   />
                 </div>
-                <div className="flex justify-end gap-3 pt-2">
+
+                {/* Actions */}
+                <div className="flex justify-end gap-3 border-t pt-4">
                   <Button
                     variant="outline"
                     onClick={() => setDialogOpen(false)}
@@ -358,7 +587,7 @@ export default function FeatureRequestsPage() {
                   </Button>
                   <Button
                     onClick={handleSubmit}
-                    disabled={saving || !formTitle}
+                    disabled={saving || !formTitle || uploading}
                   >
                     {saving ? "Saving..." : "Submit Request"}
                   </Button>
@@ -452,13 +681,14 @@ export default function FeatureRequestsPage() {
                 const StatusIcon = statusInfo.icon;
                 const priorityInfo =
                   priorityConfig[req.priority] || priorityConfig.normal;
+                const attachments = req.attachments || [];
 
                 return (
                   <Card key={req.id} className="border-0 shadow-sm">
                     <CardContent className="p-5">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <div className="flex items-center gap-3">
+                          <div className="flex flex-wrap items-center gap-2">
                             <Badge
                               variant="outline"
                               className={statusInfo.color}
@@ -471,6 +701,13 @@ export default function FeatureRequestsPage() {
                                 (c) => c.value === req.category
                               )?.label || req.category}
                             </Badge>
+                            {req.affected_area && (
+                              <Badge variant="outline" className="text-xs text-slate-500">
+                                {areaOptions.find(
+                                  (a) => a.value === req.affected_area
+                                )?.label || req.affected_area}
+                              </Badge>
+                            )}
                             <span
                               className={`text-xs font-medium ${priorityInfo.color}`}
                             >
@@ -482,10 +719,41 @@ export default function FeatureRequestsPage() {
                             {req.title}
                           </h3>
                           {req.description && (
-                            <p className="mt-1 text-sm text-slate-600">
+                            <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">
                               {req.description}
                             </p>
                           )}
+
+                          {/* Attachments */}
+                          {attachments.length > 0 && (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {attachments.map((att, i) => (
+                                <a
+                                  key={i}
+                                  href={att.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="group relative overflow-hidden rounded-lg border border-slate-200"
+                                >
+                                  <Image
+                                    src={att.url}
+                                    alt={att.filename}
+                                    width={160}
+                                    height={100}
+                                    className="h-24 w-40 object-cover transition-opacity group-hover:opacity-80"
+                                    unoptimized
+                                  />
+                                  <div className="absolute bottom-0 left-0 right-0 bg-black/50 px-1.5 py-0.5">
+                                    <p className="flex items-center gap-1 truncate text-[10px] text-white">
+                                      <Paperclip className="h-2.5 w-2.5" />
+                                      {att.filename}
+                                    </p>
+                                  </div>
+                                </a>
+                              ))}
+                            </div>
+                          )}
+
                           <div className="mt-3 flex items-center gap-4 text-xs text-slate-400">
                             {req.submitted_by && (
                               <span>By {req.submitted_by}</span>
@@ -500,6 +768,12 @@ export default function FeatureRequestsPage() {
                                 }
                               )}
                             </span>
+                            {attachments.length > 0 && (
+                              <span className="flex items-center gap-1">
+                                <ImageIcon className="h-3 w-3" />
+                                {attachments.length} attachment{attachments.length !== 1 ? "s" : ""}
+                              </span>
+                            )}
                           </div>
 
                           {/* Admin Notes */}

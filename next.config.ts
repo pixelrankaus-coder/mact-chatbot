@@ -23,6 +23,10 @@ const nextConfig: NextConfig = {
       {
         protocol: "https",
         hostname: "www.mact.au"
+      },
+      {
+        protocol: "https",
+        hostname: "*.supabase.co"
       }
     ]
   },
