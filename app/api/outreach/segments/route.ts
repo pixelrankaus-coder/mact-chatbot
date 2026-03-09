@@ -27,6 +27,7 @@ export async function GET() {
         count: s.member_count,
         source: s.source,
         is_active: s.is_active,
+        created_at: s.created_at,
       })),
       {
         id: "custom",
