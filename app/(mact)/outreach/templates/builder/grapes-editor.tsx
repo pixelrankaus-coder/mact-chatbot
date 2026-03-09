@@ -161,76 +161,79 @@ export default function GrapesEditorComponent({ onEditor, existingDesign }: Grap
     // Register our custom blocks (newsletter preset already adds: text, image, button, divider, sect100, sect50, sect30, sect37, quote, link, link-block, grid-items, list-items)
     const bm = editor.Blocks;
 
+    // All custom blocks wrapped in max-width:600px container for email consistency
+    const W = "width:100%;max-width:600px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;";
+
     bm.add("spacer", {
       label: "Spacer",
       category: "",
-      content: `<div style="height:40px;line-height:40px;font-size:1px;">&nbsp;</div>`,
+      content: `<table style="${W}"><tr><td><div style="height:40px;line-height:40px;font-size:1px;">&nbsp;</div></td></tr></table>`,
     });
 
     bm.add("header-block", {
       label: "Header",
       category: "",
-      content: `<table style="width:100%;background-color:#1a1a1a;"><tr><td style="padding:20px;text-align:center;"><img src="https://mact.au/wp-content/uploads/mact-logo-white.png" alt="MACt" style="width:140px;" /></td></tr></table>`,
+      content: `<table style="${W}background-color:#1a1a1a;"><tr><td style="padding:20px;text-align:center;"><img src="https://mact.au/wp-content/uploads/mact-logo-white.png" alt="MACt" style="width:140px;" /></td></tr></table>`,
     });
 
     bm.add("hero-section", {
       label: "Hero",
       category: "",
-      content: `<table style="width:100%;background-color:#f1f5f9;"><tr><td style="padding:40px 30px;text-align:center;"><h1 style="font-size:28px;font-weight:700;color:#1a1a1a;margin:0 0 15px;">Your Headline Here</h1><p style="font-size:16px;color:#64748b;margin:0 0 25px;line-height:1.6;">A compelling description that encourages readers to take action.</p><a href="#" style="display:inline-block;background-color:#2563eb;color:#ffffff;padding:12px 30px;border-radius:6px;text-decoration:none;font-weight:600;font-size:15px;">Call to Action</a></td></tr></table>`,
+      content: `<table style="${W}background-color:#f1f5f9;"><tr><td style="padding:40px 30px;text-align:center;"><h1 style="font-size:28px;font-weight:700;color:#1a1a1a;margin:0 0 15px;">Your Headline Here</h1><p style="font-size:16px;color:#64748b;margin:0 0 25px;line-height:1.6;">A compelling description that encourages readers to take action.</p><a href="#" style="display:inline-block;background-color:#2563eb;color:#ffffff;padding:12px 30px;border-radius:6px;text-decoration:none;font-weight:600;font-size:15px;">Call to Action</a></td></tr></table>`,
     });
 
     bm.add("two-column", {
       label: "2 Columns",
       category: "",
-      content: `<table style="width:100%;"><tr><td style="width:50%;padding:15px;vertical-align:top;"><p style="font-size:14px;color:#333;">Column 1 content</p></td><td style="width:50%;padding:15px;vertical-align:top;"><p style="font-size:14px;color:#333;">Column 2 content</p></td></tr></table>`,
+      content: `<table style="${W}"><tr><td style="width:50%;padding:15px;vertical-align:top;"><p style="font-size:14px;color:#333;">Column 1 content</p></td><td style="width:50%;padding:15px;vertical-align:top;"><p style="font-size:14px;color:#333;">Column 2 content</p></td></tr></table>`,
     });
 
     bm.add("three-column", {
       label: "3 Columns",
       category: "",
-      content: `<table style="width:100%;"><tr><td style="width:33.33%;padding:15px;vertical-align:top;"><p>Column 1</p></td><td style="width:33.33%;padding:15px;vertical-align:top;"><p>Column 2</p></td><td style="width:33.33%;padding:15px;vertical-align:top;"><p>Column 3</p></td></tr></table>`,
+      content: `<table style="${W}"><tr><td style="width:33.33%;padding:15px;vertical-align:top;"><p>Column 1</p></td><td style="width:33.33%;padding:15px;vertical-align:top;"><p>Column 2</p></td><td style="width:33.33%;padding:15px;vertical-align:top;"><p>Column 3</p></td></tr></table>`,
     });
 
     bm.add("image-text", {
       label: "Image + Text",
       category: "",
-      content: `<table style="width:100%;"><tr><td style="width:40%;padding:15px;vertical-align:top;"><img src="https://placehold.co/250x200/e2e8f0/64748b?text=Image" alt="Image" style="width:100%;border-radius:6px;" /></td><td style="width:60%;padding:15px;vertical-align:top;"><h3 style="font-size:18px;font-weight:600;color:#1a1a1a;margin:0 0 10px;">Feature Title</h3><p style="font-size:14px;color:#64748b;line-height:1.6;margin:0;">Description text here.</p></td></tr></table>`,
+      content: `<table style="${W}"><tr><td style="width:40%;padding:15px;vertical-align:top;"><img src="https://placehold.co/250x200/e2e8f0/64748b?text=Image" alt="Image" style="width:100%;border-radius:6px;" /></td><td style="width:60%;padding:15px;vertical-align:top;"><h3 style="font-size:18px;font-weight:600;color:#1a1a1a;margin:0 0 10px;">Feature Title</h3><p style="font-size:14px;color:#64748b;line-height:1.6;margin:0;">Description text here.</p></td></tr></table>`,
     });
 
     bm.add("product-card", {
       label: "Product",
       category: "",
-      content: `<table style="width:100%;max-width:280px;margin:0 auto;background-color:#ffffff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;"><tr><td style="padding:0;"><img src="https://placehold.co/280x200/f1f5f9/64748b?text=Product" alt="Product" style="width:100%;display:block;" /></td></tr><tr><td style="padding:15px;text-align:center;"><h4 style="font-size:16px;font-weight:600;color:#1a1a1a;margin:0 0 8px;">Product Name</h4><p style="font-size:14px;color:#64748b;margin:0 0 12px;">$49.99</p><a href="#" style="display:inline-block;background-color:#2563eb;color:#ffffff;padding:8px 20px;border-radius:4px;text-decoration:none;font-size:13px;font-weight:500;">Shop Now</a></td></tr></table>`,
+      content: `<table style="${W}max-width:280px;background-color:#ffffff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;"><tr><td style="padding:0;"><img src="https://placehold.co/280x200/f1f5f9/64748b?text=Product" alt="Product" style="width:100%;display:block;" /></td></tr><tr><td style="padding:15px;text-align:center;"><h4 style="font-size:16px;font-weight:600;color:#1a1a1a;margin:0 0 8px;">Product Name</h4><p style="font-size:14px;color:#64748b;margin:0 0 12px;">$49.99</p><a href="#" style="display:inline-block;background-color:#2563eb;color:#ffffff;padding:8px 20px;border-radius:4px;text-decoration:none;font-size:13px;font-weight:500;">Shop Now</a></td></tr></table>`,
     });
 
     bm.add("social-links", {
       label: "Social links",
       category: "",
-      content: `<table style="width:100%;"><tr><td style="padding:20px;text-align:center;"><a href="#" style="display:inline-block;margin:0 8px;text-decoration:none;color:#64748b;font-size:13px;">Facebook</a><a href="#" style="display:inline-block;margin:0 8px;text-decoration:none;color:#64748b;font-size:13px;">Instagram</a><a href="#" style="display:inline-block;margin:0 8px;text-decoration:none;color:#64748b;font-size:13px;">LinkedIn</a></td></tr></table>`,
+      content: `<table style="${W}"><tr><td style="padding:20px;text-align:center;"><a href="#" style="display:inline-block;margin:0 8px;text-decoration:none;color:#64748b;font-size:13px;">Facebook</a><a href="#" style="display:inline-block;margin:0 8px;text-decoration:none;color:#64748b;font-size:13px;">Instagram</a><a href="#" style="display:inline-block;margin:0 8px;text-decoration:none;color:#64748b;font-size:13px;">LinkedIn</a></td></tr></table>`,
     });
 
     bm.add("footer-block", {
       label: "Footer",
       category: "",
-      content: `<table style="width:100%;background-color:#f8fafc;border-top:1px solid #e2e8f0;"><tr><td style="padding:20px 30px;text-align:center;"><p style="font-size:12px;color:#94a3b8;margin:0 0 8px;">MACt &bull; Unit 3C, 919-925 Nudgee Road, Banyo QLD 4014</p><p style="font-size:11px;color:#94a3b8;margin:0;"><a href="{{unsubscribe_url}}" style="color:#94a3b8;">Unsubscribe</a></p></td></tr></table>`,
+      content: `<table style="${W}background-color:#f8fafc;border-top:1px solid #e2e8f0;"><tr><td style="padding:20px 30px;text-align:center;"><p style="font-size:12px;color:#94a3b8;margin:0 0 8px;">MACt &bull; Unit 3C, 919-925 Nudgee Road, Banyo QLD 4014</p><p style="font-size:11px;color:#94a3b8;margin:0;"><a href="{{unsubscribe_url}}" style="color:#94a3b8;">Unsubscribe</a></p></td></tr></table>`,
     });
 
     bm.add("coupon-block", {
       label: "Coupon",
       category: "",
-      content: `<table style="width:100%;max-width:400px;margin:0 auto;border:2px dashed #2563eb;border-radius:8px;"><tr><td style="padding:25px;text-align:center;"><p style="font-size:12px;color:#64748b;margin:0 0 5px;text-transform:uppercase;letter-spacing:1px;">Your Discount Code</p><p style="font-size:28px;font-weight:700;color:#2563eb;margin:0 0 5px;letter-spacing:3px;">{{coupon_code}}</p><p style="font-size:13px;color:#94a3b8;margin:0;">Use at checkout for your exclusive offer</p></td></tr></table>`,
+      content: `<table style="${W}max-width:400px;border:2px dashed #2563eb;border-radius:8px;"><tr><td style="padding:25px;text-align:center;"><p style="font-size:12px;color:#64748b;margin:0 0 5px;text-transform:uppercase;letter-spacing:1px;">Your Discount Code</p><p style="font-size:28px;font-weight:700;color:#2563eb;margin:0 0 5px;letter-spacing:3px;">{{coupon_code}}</p><p style="font-size:13px;color:#94a3b8;margin:0;">Use at checkout for your exclusive offer</p></td></tr></table>`,
     });
 
     bm.add("video-block", {
       label: "Video",
       category: "",
-      content: `<table style="width:100%;"><tr><td style="padding:15px;text-align:center;"><a href="#" style="display:block;position:relative;"><img src="https://placehold.co/560x315/1a1a1a/ffffff?text=%E2%96%B6+Video" alt="Video" style="width:100%;max-width:560px;border-radius:8px;" /></a><p style="font-size:12px;color:#94a3b8;margin:8px 0 0;">Click to watch video</p></td></tr></table>`,
+      content: `<table style="${W}"><tr><td style="padding:15px;text-align:center;"><a href="#" style="display:block;position:relative;"><img src="https://placehold.co/560x315/1a1a1a/ffffff?text=%E2%96%B6+Video" alt="Video" style="width:100%;max-width:560px;border-radius:8px;" /></a><p style="font-size:12px;color:#94a3b8;margin:8px 0 0;">Click to watch video</p></td></tr></table>`,
     });
 
     bm.add("html-block", {
       label: "HTML",
       category: "",
-      content: `<div style="padding:15px;"><p style="font-size:14px;color:#64748b;text-align:center;padding:20px;border:1px dashed #cbd5e1;border-radius:4px;">Custom HTML Block — double click to edit</p></div>`,
+      content: `<table style="${W}"><tr><td style="padding:15px;"><p style="font-size:14px;color:#64748b;text-align:center;padding:20px;border:1px dashed #cbd5e1;border-radius:4px;">Custom HTML Block — double click to edit</p></td></tr></table>`,
     });
 
     // Load existing design or default
