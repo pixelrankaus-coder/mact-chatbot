@@ -339,14 +339,14 @@ function BuilderContent() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-white">
         <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
       </div>
     );
   }
 
   return (
-    <div className="h-screen flex flex-col bg-white">
+    <div className="fixed inset-0 z-50 flex flex-col bg-white">
       {/* Top Bar */}
       <div className="flex items-center justify-between px-4 py-2 border-b bg-white z-10">
         {/* Left: Back + Name */}
