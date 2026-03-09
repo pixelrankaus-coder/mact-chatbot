@@ -455,6 +455,9 @@ function BuilderContent() {
                 spellChecker: true,
               },
               undoRedo: true,
+              stockImages: {
+                enabled: true,
+              },
             },
             appearance: {
               theme: "light",
@@ -474,17 +477,67 @@ function BuilderContent() {
               },
             ],
             tools: {
-              image: { enabled: true },
+              // Content blocks
               text: { enabled: true },
+              image: { enabled: true },
               button: { enabled: true },
               divider: { enabled: true },
-              html: { enabled: true },
               heading: { enabled: true },
-              menu: { enabled: true },
+              paragraph: { enabled: true },
+              html: { enabled: true },
+              // Layout
+              columns: { enabled: true },
+              // Media & social
               social: { enabled: true },
               video: { enabled: true },
+              // Navigation
+              menu: { enabled: true },
+              // Data
+              table: { enabled: true },
+              form: { enabled: true },
+              // Interactive
               timer: { enabled: true },
+              carousel: { enabled: true },
             },
+            // Custom tools: Spacer block (like Klaviyo)
+            customJS: [
+              `
+              unlayer.registerTool({
+                name: 'spacer',
+                label: 'Spacer',
+                icon: 'fa-arrows-alt-v',
+                supportedDisplayModes: ['email', 'web'],
+                options: {
+                  spacerOptions: {
+                    title: 'Spacer',
+                    options: {
+                      spacerHeight: {
+                        label: 'Height',
+                        defaultValue: '40px',
+                        widget: 'px',
+                      },
+                    },
+                  },
+                },
+                values: {},
+                renderer: {
+                  Viewer: unlayer.createViewer({
+                    render(values) {
+                      return '<div style="height:' + (values.spacerHeight || '40px') + ';"></div>';
+                    },
+                  }),
+                  exporters: {
+                    email(values) {
+                      return '<div style="height:' + (values.spacerHeight || '40px') + '; line-height:' + (values.spacerHeight || '40px') + '; font-size:1px;">&nbsp;</div>';
+                    },
+                    web(values) {
+                      return '<div style="height:' + (values.spacerHeight || '40px') + ';"></div>';
+                    },
+                  },
+                },
+              });
+              `,
+            ],
           }}
         />
       </div>
