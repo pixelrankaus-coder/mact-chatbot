@@ -333,7 +333,7 @@ export function TemplateEditor({ body, onChange }: TemplateEditorProps) {
           <div
             ref={editorRef}
             contentEditable
-            className="min-h-[300px] p-3 border border-t-0 rounded-b-md text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 [&_.variable-chip]:inline-flex [&_.variable-chip]:items-center [&_.variable-chip]:bg-blue-100 [&_.variable-chip]:text-blue-700 [&_.variable-chip]:px-1.5 [&_.variable-chip]:py-0.5 [&_.variable-chip]:rounded [&_.variable-chip]:text-xs [&_.variable-chip]:font-mono [&_.variable-chip]:mx-0.5 [&_.variable-chip]:cursor-default [&_.variable-chip]:select-none [&_a]:text-blue-600 [&_a]:underline"
+            className="min-h-[300px] p-3 border border-t-0 rounded-b-md text-sm font-[family-name:var(--font-poppins)] focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 [&_.variable-chip]:inline-flex [&_.variable-chip]:items-center [&_.variable-chip]:bg-blue-100 [&_.variable-chip]:text-blue-700 [&_.variable-chip]:px-1.5 [&_.variable-chip]:py-0.5 [&_.variable-chip]:rounded [&_.variable-chip]:text-xs [&_.variable-chip]:font-mono [&_.variable-chip]:mx-0.5 [&_.variable-chip]:cursor-default [&_.variable-chip]:select-none [&_a]:text-blue-600 [&_a]:underline"
             onInput={handleInput}
             onPaste={handlePaste}
             onKeyDown={handleKeyDown}

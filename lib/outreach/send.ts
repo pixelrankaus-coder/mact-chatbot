@@ -245,11 +245,12 @@ export async function sendSingleEmail(emailId: string): Promise<SendResult> {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     a { color: #2563eb; text-decoration: underline; }
   </style>
 </head>
-<body style="font-family: Arial, sans-serif; font-size: 14px; color: #333; line-height: 1.6; margin: 0; padding: 20px;">
+<body style="font-family: 'Poppins', Arial, sans-serif; font-size: 14px; color: #333; line-height: 1.6; margin: 0; padding: 20px;">
   <div style="max-width: 600px;">
     ${bodyHtml}
     ${paymentBlockHtml}

@@ -46,7 +46,7 @@ export function buildPaymentBlock(options: {
     : "";
 
   return `
-<div style="margin: 25px 0; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #f8fafc;">
+<div style="margin: 25px 0; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #f8fafc; font-family: 'Poppins', Arial, sans-serif;">
   ${amountLine}
   <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse;">
     <tr>

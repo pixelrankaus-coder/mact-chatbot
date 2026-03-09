@@ -224,7 +224,7 @@ export default function NewTemplatePage() {
             </CardHeader>
             {showPreview && (
               <CardContent>
-                <div className="bg-slate-50 rounded-lg p-4 space-y-4">
+                <div className="bg-slate-50 rounded-lg p-4 space-y-4 font-[family-name:var(--font-poppins)]">
                   <div>
                     <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">
                       Subject
