@@ -109,7 +109,7 @@ function NewCampaignContent() {
 
   // Step 1: Recipients
   const [segments, setSegments] = useState<Segment[]>([]);
-  const [selectedSegment, setSelectedSegment] = useState<string>("");
+  const [selectedSegments, setSelectedSegments] = useState<string[]>([]);
   const [loadingSegments, setLoadingSegments] = useState(true);
   const [segmentSearch, setSegmentSearch] = useState("");
   const [customEmails, setCustomEmails] = useState<string>("");
@@ -259,12 +259,12 @@ function NewCampaignContent() {
 
   const handleNext = async () => {
     // Step 1: Recipients validation
-    if (step === 1 && !selectedSegment) {
+    if (step === 1 && selectedSegments.length === 0) {
       toast.error("Please select an audience");
       return;
     }
 
-    if (step === 1 && selectedSegment === "custom" && customEmailCount === 0) {
+    if (step === 1 && isCustomSelected && selectedSegments.length === 1 && customEmailCount === 0) {
       toast.error("Please enter at least one email address");
       return;
     }
@@ -278,11 +278,11 @@ function NewCampaignContent() {
     if (step === 2) {
       setLoading(true);
       try {
-        const segmentInfo = segments.find((s) => s.id === selectedSegment);
+        const segmentNames = selectedSegmentInfos.map(s => s.name).join(" + ");
         const templateInfo = templates.find((t) => t.id === selectedTemplate);
 
-        const autoDesc = campaignDesc || slugify(`${segmentInfo?.name || "campaign"}-${templateInfo?.name || "email"}`);
-        const autoType = campaignType || (selectedSegment === "dormant" ? "winback" : "product");
+        const autoDesc = campaignDesc || slugify(`${segmentNames || "campaign"}-${templateInfo?.name || "email"}`);
+        const autoType = campaignType || (selectedSegments.includes("dormant") ? "winback" : "product");
         const autoName = `${datePrefix}_${autoDesc}_${autoType}`;
         if (!campaignDesc) {
           setCampaignDesc(autoDesc);
@@ -295,9 +295,9 @@ function NewCampaignContent() {
           body: JSON.stringify({
             name: autoName,
             template_id: selectedTemplate,
-            segment: selectedSegment,
+            segment: selectedSegments.filter(s => s !== "custom").join(",") || (isCustomSelected ? "custom" : ""),
             segment_filter:
-              selectedSegment === "custom"
+              isCustomSelected
                 ? { emails: parsedCustomEmails }
                 : undefined,
             from_name: fromName,
@@ -416,17 +416,25 @@ function NewCampaignContent() {
     }
   };
 
-  const selectedSegmentInfo = segments.find((s) => s.id === selectedSegment);
+  const selectedSegmentInfos = segments.filter((s) => selectedSegments.includes(s.id));
+  const isCustomSelected = selectedSegments.includes("custom");
   const selectedTemplateInfo = templates.find(
     (t) => t.id === selectedTemplate
   );
 
-  // Estimated recipients for Step 2
-  const estimatedRecipients = selectedSegmentInfo
-    ? selectedSegment === "custom"
-      ? customEmailCount
-      : selectedSegmentInfo.count ?? 0
-    : 0;
+  // Estimated recipients for Step 2 — sum counts across all selected segments
+  const estimatedRecipients = (() => {
+    let total = 0;
+    for (const seg of selectedSegmentInfos) {
+      if (seg.id !== "custom") {
+        total += seg.count ?? 0;
+      }
+    }
+    if (isCustomSelected) {
+      total += customEmailCount;
+    }
+    return total;
+  })();
 
   return (
     <div className="container mx-auto py-6 px-4 max-w-4xl">
@@ -519,133 +527,145 @@ function NewCampaignContent() {
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Send to</Label>
 
-                {/* Selected segment chip */}
-                {selectedSegment && selectedSegment !== "custom" && (
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
-                      <Users className="h-4 w-4 text-blue-600" />
-                      <span className="text-sm font-medium text-blue-700">
-                        {selectedSegmentInfo?.name}
-                      </span>
-                      <span className="text-xs text-blue-500">
-                        ({selectedSegmentInfo?.count?.toLocaleString() ?? "..."} contacts)
-                      </span>
-                      <button
-                        onClick={() => { setSelectedSegment(""); setSegmentSearch(""); }}
-                        className="ml-1 text-blue-400 hover:text-blue-600"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
+                {/* Selected segment chips */}
+                {selectedSegments.filter(id => id !== "custom").length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2 mb-2">
+                    {selectedSegments.filter(id => id !== "custom").map((segId) => {
+                      const info = segments.find(s => s.id === segId);
+                      return (
+                        <div key={segId} className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5">
+                          <Users className="h-3.5 w-3.5 text-blue-600" />
+                          <span className="text-sm font-medium text-blue-700">
+                            {info?.name}
+                          </span>
+                          <span className="text-xs text-blue-500">
+                            ({info?.count?.toLocaleString() ?? "..."})
+                          </span>
+                          <button
+                            onClick={() => setSelectedSegments(prev => prev.filter(id => id !== segId))}
+                            className="ml-0.5 text-blue-400 hover:text-blue-600"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 
-                {/* Segment selector dropdown */}
-                {!selectedSegment || selectedSegment === "custom" ? (
+                {/* Segment selector dropdown — always visible for multi-select */}
+                <div className="relative">
                   <div className="relative">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        value={segmentSearch}
-                        onChange={(e) => {
-                          setSegmentSearch(e.target.value);
-                          setShowSegmentDropdown(true);
-                          if (selectedSegment && selectedSegment !== "custom") {
-                            setSelectedSegment("");
-                          }
-                        }}
-                        onFocus={() => setShowSegmentDropdown(true)}
-                        placeholder="Search for a list or segment..."
-                        className="pl-10"
-                      />
-                    </div>
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      value={segmentSearch}
+                      onChange={(e) => {
+                        setSegmentSearch(e.target.value);
+                        setShowSegmentDropdown(true);
+                      }}
+                      onFocus={() => setShowSegmentDropdown(true)}
+                      placeholder="Search for a list or segment..."
+                      className="pl-10"
+                    />
+                  </div>
 
-                    {showSegmentDropdown && (
-                      <>
-                        {/* Backdrop to close dropdown */}
-                        <div
-                          className="fixed inset-0 z-10"
-                          onClick={() => setShowSegmentDropdown(false)}
-                        />
-                        <div className="absolute z-20 mt-1 w-full bg-white border rounded-lg shadow-lg max-h-80 overflow-y-auto">
-                          {loadingSegments ? (
-                            <div className="flex items-center justify-center py-6">
-                              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  {showSegmentDropdown && (
+                    <>
+                      {/* Backdrop to close dropdown */}
+                      <div
+                        className="fixed inset-0 z-10"
+                        onClick={() => setShowSegmentDropdown(false)}
+                      />
+                      <div className="absolute z-20 mt-1 w-full bg-white border rounded-lg shadow-lg max-h-80 overflow-y-auto">
+                        {loadingSegments ? (
+                          <div className="flex items-center justify-center py-6">
+                            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                          </div>
+                        ) : (
+                          <>
+                            {/* List header */}
+                            <div className="px-3 py-2 text-xs font-medium text-muted-foreground border-b bg-slate-50">
+                              Segments
                             </div>
-                          ) : (
-                            <>
-                              {/* List header */}
-                              <div className="px-3 py-2 text-xs font-medium text-muted-foreground border-b bg-slate-50">
-                                Segments
-                              </div>
-                              {filteredSegments
-                                .filter((s) => s.id !== "custom")
-                                .map((segment) => (
+                            {filteredSegments
+                              .filter((s) => s.id !== "custom")
+                              .map((seg) => {
+                                const isChecked = selectedSegments.includes(seg.id);
+                                return (
                                   <button
-                                    key={segment.id}
+                                    key={seg.id}
                                     onClick={() => {
-                                      setSelectedSegment(segment.id);
-                                      setSegmentSearch("");
-                                      setShowSegmentDropdown(false);
+                                      setSelectedSegments(prev =>
+                                        isChecked
+                                          ? prev.filter(id => id !== seg.id)
+                                          : [...prev, seg.id]
+                                      );
                                     }}
-                                    className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 text-left transition-colors border-b last:border-b-0"
+                                    className={`w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 text-left transition-colors border-b last:border-b-0 ${isChecked ? "bg-blue-50/50" : ""}`}
                                   >
                                     <div className="flex items-center gap-3">
-                                      <Users className="h-4 w-4 text-slate-400" />
+                                      <Checkbox checked={isChecked} className="pointer-events-none" />
                                       <div>
-                                        <p className="text-sm font-medium">{segment.name}</p>
-                                        {segment.description && (
-                                          <p className="text-xs text-muted-foreground">{segment.description}</p>
+                                        <p className="text-sm font-medium">{seg.name}</p>
+                                        {seg.description && (
+                                          <p className="text-xs text-muted-foreground">{seg.description}</p>
                                         )}
                                       </div>
                                     </div>
                                     <Badge variant="secondary" className="text-xs">
-                                      {segment.count?.toLocaleString() ?? "—"}
+                                      {seg.count?.toLocaleString() ?? "—"}
                                     </Badge>
                                   </button>
-                                ))}
+                                );
+                              })}
 
-                              {filteredSegments.filter((s) => s.id !== "custom").length === 0 && (
-                                <div className="px-4 py-6 text-center text-sm text-muted-foreground">
-                                  No segments found
-                                </div>
-                              )}
-
-                              {/* Custom / Manual option */}
-                              <div className="border-t">
-                                <button
-                                  onClick={() => {
-                                    setSelectedSegment("custom");
-                                    setSegmentSearch("");
-                                    setShowSegmentDropdown(false);
-                                  }}
-                                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-purple-50 text-left transition-colors"
-                                >
-                                  <UserPlus className="h-4 w-4 text-purple-500" />
-                                  <div>
-                                    <p className="text-sm font-medium text-purple-700">Custom / Manual Entry</p>
-                                    <p className="text-xs text-muted-foreground">Enter email addresses manually</p>
-                                  </div>
-                                </button>
+                            {filteredSegments.filter((s) => s.id !== "custom").length === 0 && (
+                              <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+                                No segments found
                               </div>
-                            </>
-                          )}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                ) : null}
+                            )}
+
+                            {/* Custom / Manual option */}
+                            <div className="border-t">
+                              <button
+                                onClick={() => {
+                                  const isChecked = selectedSegments.includes("custom");
+                                  setSelectedSegments(prev =>
+                                    isChecked
+                                      ? prev.filter(id => id !== "custom")
+                                      : [...prev, "custom"]
+                                  );
+                                  if (!selectedSegments.includes("custom")) {
+                                    setShowSegmentDropdown(false);
+                                  }
+                                }}
+                                className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-purple-50 text-left transition-colors ${isCustomSelected ? "bg-purple-50/50" : ""}`}
+                              >
+                                <Checkbox checked={isCustomSelected} className="pointer-events-none" />
+                                <UserPlus className="h-4 w-4 text-purple-500" />
+                                <div>
+                                  <p className="text-sm font-medium text-purple-700">Custom / Manual Entry</p>
+                                  <p className="text-xs text-muted-foreground">Enter email addresses manually</p>
+                                </div>
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
 
                 {/* Custom emails textarea */}
-                {selectedSegment === "custom" && (
+                {isCustomSelected && (
                   <div className="mt-3 space-y-2">
                     <div className="flex items-center justify-between">
                       <Label htmlFor="customEmails" className="text-sm">Email Addresses</Label>
                       <button
-                        onClick={() => { setSelectedSegment(""); setCustomEmails(""); }}
+                        onClick={() => { setSelectedSegments(prev => prev.filter(id => id !== "custom")); setCustomEmails(""); }}
                         className="text-xs text-muted-foreground hover:text-foreground"
                       >
-                        Switch to segment
+                        Remove custom emails
                       </button>
                     </div>
                     <Textarea
@@ -843,7 +863,7 @@ function NewCampaignContent() {
               <div className="flex items-center gap-6 bg-slate-50 rounded-lg p-3 text-sm">
                 <div>
                   <span className="text-muted-foreground">Segment:</span>{" "}
-                  <span className="font-medium">{selectedSegmentInfo?.name}</span>
+                  <span className="font-medium">{selectedSegmentInfos.map(s => s.name).join(", ") || "Custom"}</span>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Template:</span>{" "}
@@ -1128,7 +1148,7 @@ function NewCampaignContent() {
                     </div>
                     <div>
                       <p className="text-muted-foreground">Segment</p>
-                      <p className="font-medium">{selectedSegmentInfo?.name}</p>
+                      <p className="font-medium">{selectedSegmentInfos.map(s => s.name).join(", ") || "Custom"}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Template</p>

@@ -88,6 +88,26 @@ export async function getSegmentRecipients(
   segment: SegmentType | string,
   segmentFilter?: Record<string, unknown>
 ): Promise<CustomerRecipient[]> {
+  // Multi-segment support: comma-separated segment IDs
+  if (segment.includes(",")) {
+    const slugs = segment.split(",").map((s) => s.trim()).filter(Boolean);
+    const allRecipients: CustomerRecipient[] = [];
+    const seenEmails = new Set<string>();
+
+    for (const slug of slugs) {
+      const recipients = await getSegmentRecipients(slug as SegmentType, segmentFilter);
+      for (const r of recipients) {
+        const email = r.email.toLowerCase();
+        if (!seenEmails.has(email)) {
+          seenEmails.add(email);
+          allRecipients.push(r);
+        }
+      }
+    }
+    console.log(`[Segments] Multi-segment resolved ${slugs.length} segments: ${allRecipients.length} unique recipients`);
+    return allRecipients;
+  }
+
   // Try DB-backed segment engine first (for new segments and migrated legacy ones)
   if (segment !== "custom") {
     const slug = SEGMENT_SLUG_MAP[segment] || segment;
