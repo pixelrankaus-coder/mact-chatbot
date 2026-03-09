@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import grapesjs, { Editor } from "grapesjs";
 import newsletterPreset from "grapesjs-preset-newsletter";
 import "grapesjs/dist/css/grapes.min.css";
@@ -19,7 +19,6 @@ import {
   ShoppingBag,
   Ticket,
   LayoutGrid,
-  LayoutList,
   Code,
   Video,
   MessageSquareQuote,
@@ -27,6 +26,7 @@ import {
   LayoutTemplate,
   Rows3,
   Sparkles,
+  LayoutList,
 } from "lucide-react";
 
 // Default email HTML template for new emails
@@ -61,7 +61,7 @@ const BLOCK_DEFS = {
       { id: "sect50", label: "Split", icon: Columns3 },
       { id: "button", label: "Button", icon: MousePointerClick },
       { id: "header-block", label: "Header bar", icon: PanelTop },
-      { id: "hero-section", label: "Drop shadow", icon: Eclipse },
+      { id: "hero-section", label: "Hero", icon: Eclipse },
       { id: "divider", label: "Divider", icon: Minus },
       { id: "social-links", label: "Social links", icon: Heart },
       { id: "spacer", label: "Spacer", icon: ArrowUpDown },
@@ -129,7 +129,10 @@ export default function GrapesEditorComponent({ onEditor, existingDesign }: Grap
           "https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap",
         ],
       },
-      // Render style manager into our custom panel
+      // Put the block manager in a hidden container — we render our own UI
+      blockManager: {
+        appendTo: "#gjs-hidden-blocks",
+      },
       styleManager: {
         appendTo: "#gjs-styles-panel",
         sectors: [
@@ -155,10 +158,7 @@ export default function GrapesEditorComponent({ onEditor, existingDesign }: Grap
       },
     });
 
-    // Remove all default blocks from the newsletter preset so we control the order
-    // We keep them registered for drag/drop — they just won't appear in the default block manager
-
-    // Add our custom blocks
+    // Register our custom blocks (newsletter preset already adds: text, image, button, divider, sect100, sect50, sect30, sect37, quote, link, link-block, grid-items, list-items)
     const bm = editor.Blocks;
 
     bm.add("spacer", {
@@ -224,13 +224,13 @@ export default function GrapesEditorComponent({ onEditor, existingDesign }: Grap
     bm.add("video-block", {
       label: "Video",
       category: "",
-      content: `<table style="width:100%;"><tr><td style="padding:15px;text-align:center;"><a href="#" style="display:block;position:relative;"><img src="https://placehold.co/560x315/1a1a1a/ffffff?text=▶+Video" alt="Video" style="width:100%;max-width:560px;border-radius:8px;" /></a><p style="font-size:12px;color:#94a3b8;margin:8px 0 0;">Click to watch video</p></td></tr></table>`,
+      content: `<table style="width:100%;"><tr><td style="padding:15px;text-align:center;"><a href="#" style="display:block;position:relative;"><img src="https://placehold.co/560x315/1a1a1a/ffffff?text=%E2%96%B6+Video" alt="Video" style="width:100%;max-width:560px;border-radius:8px;" /></a><p style="font-size:12px;color:#94a3b8;margin:8px 0 0;">Click to watch video</p></td></tr></table>`,
     });
 
     bm.add("html-block", {
       label: "HTML",
       category: "",
-      content: `<div style="padding:15px;"><!-- Custom HTML here --><p style="font-size:14px;color:#64748b;text-align:center;padding:20px;border:1px dashed #cbd5e1;border-radius:4px;">Custom HTML Block</p></div>`,
+      content: `<div style="padding:15px;"><p style="font-size:14px;color:#64748b;text-align:center;padding:20px;border:1px dashed #cbd5e1;border-radius:4px;">Custom HTML Block — double click to edit</p></div>`,
     });
 
     // Load existing design or default
@@ -251,28 +251,61 @@ export default function GrapesEditorComponent({ onEditor, existingDesign }: Grap
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Drag block into GrapesJS canvas
-  const handleDragStart = (e: React.DragEvent, blockId: string) => {
+  // Handle clicking a block card — find the real GrapesJS block element in the hidden container and simulate a drag
+  const handleBlockClick = useCallback((blockId: string) => {
     const editor = editorInstanceRef.current;
     if (!editor) return;
+
     const block = editor.Blocks.get(blockId);
-    if (block) {
-      // Use GrapesJS drag API
-      e.dataTransfer.setData("text/plain", blockId);
-      e.dataTransfer.effectAllowed = "copy";
-      // Trigger GrapesJS block drag
-      const content = block.get("content");
-      if (content) {
-        editor.Commands.run("core:component-drag", {
-          event: e.nativeEvent,
-          result: typeof content === "string" ? { content } : content,
-        });
-      }
+    if (!block) return;
+
+    const content = block.get("content");
+    if (!content) return;
+
+    // Use the wrapper to append the component properly
+    const wrapper = editor.getWrapper();
+    if (!wrapper) return;
+
+    // Append as a proper component at the end of the email
+    wrapper.append(content);
+
+    // Scroll canvas to bottom to show newly added block
+    const canvasEl = editor.Canvas.getBody();
+    if (canvasEl) {
+      setTimeout(() => {
+        canvasEl.scrollTop = canvasEl.scrollHeight;
+      }, 100);
     }
-  };
+  }, []);
+
+  // Handle drag start from our custom block cards — use GrapesJS's sorter/drag system
+  const handleBlockMouseDown = useCallback((e: React.MouseEvent, blockId: string) => {
+    const editor = editorInstanceRef.current;
+    if (!editor) return;
+
+    // Find the real GrapesJS block element in the hidden panel and trigger mousedown on it
+    const hiddenPanel = document.getElementById("gjs-hidden-blocks");
+    if (!hiddenPanel) return;
+
+    const gjsBlockEl = hiddenPanel.querySelector(`.gjs-block[data-gjs-block="${blockId}"]`) as HTMLElement;
+    if (!gjsBlockEl) return;
+
+    // Create and dispatch a mousedown event on the real GrapesJS block
+    const mouseDownEvent = new MouseEvent("mousedown", {
+      bubbles: true,
+      cancelable: true,
+      clientX: e.clientX,
+      clientY: e.clientY,
+      button: 0,
+    });
+    gjsBlockEl.dispatchEvent(mouseDownEvent);
+  }, []);
 
   return (
     <div className="flex h-full w-full">
+      {/* Hidden container for GrapesJS's real block manager */}
+      <div id="gjs-hidden-blocks" style={{ position: "absolute", left: "-9999px", width: "1px", height: "1px", overflow: "hidden" }} />
+
       {/* Left sidebar — Klaviyo style */}
       <div className="w-[300px] min-w-[300px] h-full flex flex-col border-r bg-white">
         {/* Tabs: Content / Styles */}
@@ -322,27 +355,14 @@ export default function GrapesEditorComponent({ onEditor, existingDesign }: Grap
                       return (
                         <div
                           key={block.id}
-                          draggable
-                          onDragStart={(e) => handleDragStart(e, block.id)}
-                          onClick={() => {
-                            // Click to add at bottom
-                            const editor = editorInstanceRef.current;
-                            if (!editor) return;
-                            const b = editor.Blocks.get(block.id);
-                            if (b) {
-                              const content = b.get("content");
-                              if (typeof content === "string") {
-                                editor.addComponents(content);
-                              }
-                            }
-                          }}
+                          onMouseDown={(e) => handleBlockMouseDown(e, block.id)}
+                          onClick={() => handleBlockClick(block.id)}
                           className={cn(
                             "flex flex-col items-center justify-center gap-1.5 p-3 rounded-lg border cursor-grab",
                             "bg-card hover:bg-accent hover:border-primary/30 transition-all",
                             "active:cursor-grabbing select-none relative"
                           )}
                         >
-                          {/* "New" badge */}
                           {"isNew" in block && block.isNew && (
                             <div className="absolute -top-1.5 -right-1.5">
                               <span className="flex items-center gap-0.5 bg-emerald-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
@@ -399,8 +419,6 @@ export default function GrapesEditorComponent({ onEditor, existingDesign }: Grap
       <style>{`
         /* Hide GrapesJS default panels — we have our own sidebar + top bar */
         .gjs-pn-panels { display: none !important; }
-        /* Hide default block manager (we render our own) */
-        .gjs-blocks-cs { display: none !important; }
 
         /* Canvas */
         .gjs-cv-canvas { background-color: #f1f5f9 !important; }
@@ -445,7 +463,7 @@ export default function GrapesEditorComponent({ onEditor, existingDesign }: Grap
         }
         .gjs-toolbar-item { color: white !important; }
 
-        /* RTE (rich text editor) */
+        /* RTE */
         .gjs-rte-toolbar {
           background: hsl(var(--card)) !important;
           border: 1px solid hsl(var(--border)) !important;
