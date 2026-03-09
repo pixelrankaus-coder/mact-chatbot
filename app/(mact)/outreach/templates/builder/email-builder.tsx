@@ -5,8 +5,22 @@ import type { EmailDesign, BlockType } from "@/lib/email-builder/types";
 import { useEmailBuilder } from "./use-email-builder";
 import { BuilderSidebar } from "./builder-sidebar";
 import { BuilderCanvas } from "./builder-canvas";
-import { PropertyPanel, BodySettingsPanel } from "./property-panels";
+import { PropertyPanel, BodySettingsPanel, FONT_OPTIONS } from "./property-panels";
 import { ScrollArea } from "@/components/ui/scroll-area";
+
+// ─── Google Font Loader ──────────────────────────────────────────────────────
+
+function GoogleFontLink({ fontFamily }: { fontFamily: string }) {
+  const font = FONT_OPTIONS.find((f) => f.value === fontFamily);
+  if (!font || !("google" in font) || !font.google) return null;
+  return (
+    // eslint-disable-next-line @next/next/no-page-custom-font
+    <link
+      rel="stylesheet"
+      href={`https://fonts.googleapis.com/css2?family=${font.google}:wght@400;600;700&display=swap`}
+    />
+  );
+}
 
 // ─── Editor API (ref handle for page.tsx) ────────────────────────────────────
 
@@ -76,6 +90,7 @@ const EmailBuilderInner = forwardRef<EmailBuilderHandle, EmailBuilderProps>(
 
     return (
       <div className="flex h-full">
+        <GoogleFontLink fontFamily={builder.design.bodySettings.fontFamily} />
         {/* Left Sidebar */}
         <div className="w-[272px] border-r bg-white flex flex-col shrink-0">
           {/* Tabs */}

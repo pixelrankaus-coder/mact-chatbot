@@ -2,6 +2,7 @@ import type {
   BlockType,
   BlockPropsMap,
   EmailDesign,
+  EmailBlock,
   Padding,
   ColumnDef,
 } from "./types";
@@ -73,6 +74,14 @@ export const DEFAULT_PROPS: { [K in BlockType]: () => BlockPropsMap[K] } = {
     gap: 16,
     padding: padXY(20, 10),
     backgroundColor: "",
+  }),
+
+  section: () => ({
+    blocks: [] as EmailBlock[],
+    backgroundColor: "#ffffff",
+    padding: padXY(20, 24),
+    borderTop: { width: 0, color: "#e0e0e0" },
+    borderBottom: { width: 0, color: "#e0e0e0" },
   }),
 
   divider: () => ({
@@ -211,6 +220,20 @@ export function emptyDesign(): EmailDesign {
       contentWidth: 600,
       fontFamily: "Arial, Helvetica, sans-serif",
     },
-    blocks: [],
+    blocks: [
+      {
+        id: uid(),
+        type: "footer",
+        props: {
+          content:
+            '<p style="margin:0">No longer want to receive these emails? <a href="{{unsubscribe_url}}" style="color:#999999;text-decoration:underline">Unsubscribe</a>.</p><p style="margin:4px 0 0">{{organization_name}} {{organization_full_address}}</p>',
+          fontSize: 12,
+          color: "#999999",
+          alignment: "center" as const,
+          padding: padXY(20, 24),
+          backgroundColor: "#f5f5f5",
+        },
+      },
+    ],
   };
 }

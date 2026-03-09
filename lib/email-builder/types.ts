@@ -5,6 +5,7 @@ export type BlockType =
   | "image"
   | "button"
   | "columns"
+  | "section"
   | "divider"
   | "spacer"
   | "social"
@@ -184,6 +185,14 @@ export interface VideoBlockProps {
   alignment: Alignment;
 }
 
+export interface SectionBlockProps {
+  blocks: EmailBlock[];
+  backgroundColor: string;
+  padding: Padding;
+  borderTop: { width: number; color: string };
+  borderBottom: { width: number; color: string };
+}
+
 export interface HtmlBlockProps {
   content: string; // raw HTML
   padding: Padding;
@@ -207,6 +216,7 @@ export type BlockPropsMap = {
   image: ImageBlockProps;
   button: ButtonBlockProps;
   columns: ColumnsBlockProps;
+  section: SectionBlockProps;
   divider: DividerBlockProps;
   spacer: SpacerBlockProps;
   social: SocialBlockProps;

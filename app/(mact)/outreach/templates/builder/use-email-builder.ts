@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import type { EmailDesign, EmailBlock, BlockType, ColumnsBlockProps } from "@/lib/email-builder/types";
+import type { EmailDesign, EmailBlock, BlockType, ColumnsBlockProps, SectionBlockProps } from "@/lib/email-builder/types";
 import { emptyDesign, createBlock, uid } from "@/lib/email-builder/defaults";
 import { exportToHtml } from "@/lib/email-builder/html-export";
 
@@ -81,12 +81,18 @@ export function useEmailBuilder() {
       const block = createBlock(type);
       updateDesign((d) => {
         const blocks = d.blocks.map((b) => {
-          if (b.id !== parentBlockId || b.type !== "columns") return b;
-          const cols = (b.props as ColumnsBlockProps).columns.map((col) => {
-            if (col.id !== columnId) return col;
-            return { ...col, blocks: [...col.blocks, block] };
-          });
-          return { ...b, props: { ...b.props, columns: cols } };
+          if (b.id !== parentBlockId) return b;
+          if (b.type === "columns") {
+            const cols = (b.props as ColumnsBlockProps).columns.map((col) => {
+              if (col.id !== columnId) return col;
+              return { ...col, blocks: [...col.blocks, block] };
+            });
+            return { ...b, props: { ...b.props, columns: cols } };
+          }
+          if (b.type === "section") {
+            return { ...b, props: { ...b.props, blocks: [...(b.props as SectionBlockProps).blocks, block] } };
+          }
+          return b;
         });
         return { ...d, blocks };
       });
@@ -105,14 +111,19 @@ export function useEmailBuilder() {
           const blocks = d.blocks.filter((b) => b.id !== blockId);
           return { ...d, blocks };
         }
-        // Try inside columns
+        // Try inside columns or sections
         const blocks = d.blocks.map((b) => {
-          if (b.type !== "columns") return b;
-          const cols = (b.props as ColumnsBlockProps).columns.map((col) => ({
-            ...col,
-            blocks: col.blocks.filter((cb) => cb.id !== blockId),
-          }));
-          return { ...b, props: { ...b.props, columns: cols } };
+          if (b.type === "columns") {
+            const cols = (b.props as ColumnsBlockProps).columns.map((col) => ({
+              ...col,
+              blocks: col.blocks.filter((cb) => cb.id !== blockId),
+            }));
+            return { ...b, props: { ...b.props, columns: cols } };
+          }
+          if (b.type === "section") {
+            return { ...b, props: { ...b.props, blocks: (b.props as SectionBlockProps).blocks.filter((cb) => cb.id !== blockId) } };
+          }
+          return b;
         });
         return { ...d, blocks };
       });
@@ -144,19 +155,31 @@ export function useEmailBuilder() {
           blocks.splice(topIdx + 1, 0, clone);
           return { ...d, blocks };
         }
-        // Inside columns
+        // Inside columns or sections
         const blocks = d.blocks.map((b) => {
-          if (b.type !== "columns") return b;
-          const cols = (b.props as ColumnsBlockProps).columns.map((col) => {
-            const idx = col.blocks.findIndex((cb) => cb.id === blockId);
-            if (idx === -1) return col;
-            const clone: EmailBlock = JSON.parse(JSON.stringify(col.blocks[idx]));
+          if (b.type === "columns") {
+            const cols = (b.props as ColumnsBlockProps).columns.map((col) => {
+              const idx = col.blocks.findIndex((cb) => cb.id === blockId);
+              if (idx === -1) return col;
+              const clone: EmailBlock = JSON.parse(JSON.stringify(col.blocks[idx]));
+              clone.id = uid();
+              const newBlocks = [...col.blocks];
+              newBlocks.splice(idx + 1, 0, clone);
+              return { ...col, blocks: newBlocks };
+            });
+            return { ...b, props: { ...b.props, columns: cols } };
+          }
+          if (b.type === "section") {
+            const sBlocks = (b.props as SectionBlockProps).blocks;
+            const idx = sBlocks.findIndex((cb) => cb.id === blockId);
+            if (idx === -1) return b;
+            const clone: EmailBlock = JSON.parse(JSON.stringify(sBlocks[idx]));
             clone.id = uid();
-            const newBlocks = [...col.blocks];
+            const newBlocks = [...sBlocks];
             newBlocks.splice(idx + 1, 0, clone);
-            return { ...col, blocks: newBlocks };
-          });
-          return { ...b, props: { ...b.props, columns: cols } };
+            return { ...b, props: { ...b.props, blocks: newBlocks } };
+          }
+          return b;
         });
         return { ...d, blocks };
       });
@@ -169,19 +192,31 @@ export function useEmailBuilder() {
       updateDesign((d) => {
         const idx = d.blocks.findIndex((b) => b.id === blockId);
         if (idx === -1) {
-          // Try inside columns
+          // Try inside columns or sections
           const blocks = d.blocks.map((b) => {
-            if (b.type !== "columns") return b;
-            const cols = (b.props as ColumnsBlockProps).columns.map((col) => {
-              const cIdx = col.blocks.findIndex((cb) => cb.id === blockId);
-              if (cIdx === -1) return col;
+            if (b.type === "columns") {
+              const cols = (b.props as ColumnsBlockProps).columns.map((col) => {
+                const cIdx = col.blocks.findIndex((cb) => cb.id === blockId);
+                if (cIdx === -1) return col;
+                const newIdx = direction === "up" ? cIdx - 1 : cIdx + 1;
+                if (newIdx < 0 || newIdx >= col.blocks.length) return col;
+                const newBlocks = [...col.blocks];
+                [newBlocks[cIdx], newBlocks[newIdx]] = [newBlocks[newIdx], newBlocks[cIdx]];
+                return { ...col, blocks: newBlocks };
+              });
+              return { ...b, props: { ...b.props, columns: cols } };
+            }
+            if (b.type === "section") {
+              const sBlocks = (b.props as SectionBlockProps).blocks;
+              const cIdx = sBlocks.findIndex((cb) => cb.id === blockId);
+              if (cIdx === -1) return b;
               const newIdx = direction === "up" ? cIdx - 1 : cIdx + 1;
-              if (newIdx < 0 || newIdx >= col.blocks.length) return col;
-              const newBlocks = [...col.blocks];
+              if (newIdx < 0 || newIdx >= sBlocks.length) return b;
+              const newBlocks = [...sBlocks];
               [newBlocks[cIdx], newBlocks[newIdx]] = [newBlocks[newIdx], newBlocks[cIdx]];
-              return { ...col, blocks: newBlocks };
-            });
-            return { ...b, props: { ...b.props, columns: cols } };
+              return { ...b, props: { ...b.props, blocks: newBlocks } };
+            }
+            return b;
           });
           return { ...d, blocks };
         }
@@ -219,16 +254,24 @@ export function useEmailBuilder() {
           );
           return { ...d, blocks };
         }
-        // Inside columns
+        // Inside columns or sections
         const blocks = d.blocks.map((b) => {
-          if (b.type !== "columns") return b;
-          const cols = (b.props as ColumnsBlockProps).columns.map((col) => ({
-            ...col,
-            blocks: col.blocks.map((cb) =>
+          if (b.type === "columns") {
+            const cols = (b.props as ColumnsBlockProps).columns.map((col) => ({
+              ...col,
+              blocks: col.blocks.map((cb) =>
+                cb.id === blockId ? { ...cb, props: { ...cb.props, ...partial } } : cb
+              ),
+            }));
+            return { ...b, props: { ...b.props, columns: cols } };
+          }
+          if (b.type === "section") {
+            const sBlocks = (b.props as SectionBlockProps).blocks.map((cb) =>
               cb.id === blockId ? { ...cb, props: { ...cb.props, ...partial } } : cb
-            ),
-          }));
-          return { ...b, props: { ...b.props, columns: cols } };
+            );
+            return { ...b, props: { ...b.props, blocks: sBlocks } };
+          }
+          return b;
         });
         return { ...d, blocks };
       });
@@ -267,11 +310,16 @@ export function useEmailBuilder() {
     // Top-level
     const found = design.blocks.find((b) => b.id === selectedBlockId);
     if (found) return found;
-    // Inside columns
+    // Inside columns or sections
     for (const b of design.blocks) {
-      if (b.type !== "columns") continue;
-      for (const col of (b.props as ColumnsBlockProps).columns) {
-        const cb = col.blocks.find((cb) => cb.id === selectedBlockId);
+      if (b.type === "columns") {
+        for (const col of (b.props as ColumnsBlockProps).columns) {
+          const cb = col.blocks.find((cb) => cb.id === selectedBlockId);
+          if (cb) return cb;
+        }
+      }
+      if (b.type === "section") {
+        const cb = (b.props as SectionBlockProps).blocks.find((cb) => cb.id === selectedBlockId);
         if (cb) return cb;
       }
     }

@@ -6,6 +6,7 @@ import type {
   ImageBlockProps,
   ButtonBlockProps,
   ColumnsBlockProps,
+  SectionBlockProps,
   DividerBlockProps,
   SpacerBlockProps,
   SocialBlockProps,
@@ -178,6 +179,16 @@ function renderQuote(p: QuoteBlockProps): string {
   return `<tr><td style="padding:${padStr(p.padding)};${bgStyle(p.backgroundColor)}text-align:${p.alignment};"><div style="border-left:4px solid ${p.quoteColor};padding:12px 24px;text-align:left;display:inline-block;"><p style="margin:0 0 8px;font-size:${px(p.fontSize)};font-style:italic;color:${p.color};line-height:1.5;font-family:inherit;">&ldquo;${esc(p.content)}&rdquo;</p><p style="margin:0;font-size:14px;color:#999;font-family:inherit;">&mdash; ${esc(p.author)}</p></div></td></tr>`;
 }
 
+function renderSection(p: SectionBlockProps, design: EmailDesign): string {
+  const borderTopCss = p.borderTop.width ? `border-top:${px(p.borderTop.width)} solid ${p.borderTop.color};` : "";
+  const borderBottomCss = p.borderBottom.width ? `border-bottom:${px(p.borderBottom.width)} solid ${p.borderBottom.color};` : "";
+  const innerBlocks = p.blocks.map((b) => renderBlock(b, design)).join("");
+  const innerTable = innerBlocks
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tbody>${innerBlocks}</tbody></table>`
+    : "";
+  return `<tr><td style="padding:${padStr(p.padding)};${bgStyle(p.backgroundColor)}${borderTopCss}${borderBottomCss}">${innerTable}</td></tr>`;
+}
+
 // ─── Block Dispatcher ────────────────────────────────────────────────────────
 
 function renderBlock(block: EmailBlock, design: EmailDesign): string {
@@ -186,6 +197,7 @@ function renderBlock(block: EmailBlock, design: EmailDesign): string {
     case "image": return renderImage(block.props as ImageBlockProps);
     case "button": return renderButton(block.props as ButtonBlockProps);
     case "columns": return renderColumns(block.props as ColumnsBlockProps, design);
+    case "section": return renderSection(block.props as SectionBlockProps, design);
     case "divider": return renderDivider(block.props as DividerBlockProps);
     case "spacer": return renderSpacer(block.props as SpacerBlockProps);
     case "social": return renderSocial(block.props as SocialBlockProps);
@@ -203,9 +215,36 @@ function renderBlock(block: EmailBlock, design: EmailDesign): string {
 
 // ─── Full HTML Export ────────────────────────────────────────────────────────
 
+// ─── Google Font Detection ───────────────────────────────────────────────────
+
+const GOOGLE_FONT_MAP: Record<string, string> = {
+  "Open Sans": "Open+Sans",
+  "Roboto": "Roboto",
+  "Lato": "Lato",
+  "Montserrat": "Montserrat",
+  "Poppins": "Poppins",
+  "Raleway": "Raleway",
+  "Playfair Display": "Playfair+Display",
+  "Merriweather": "Merriweather",
+  "Oswald": "Oswald",
+  "PT Sans": "PT+Sans",
+  "Source Sans 3": "Source+Sans+3",
+  "Nunito": "Nunito",
+};
+
+function getGoogleFontImport(fontFamily: string): string {
+  for (const [name, slug] of Object.entries(GOOGLE_FONT_MAP)) {
+    if (fontFamily.includes(name)) {
+      return `@import url('https://fonts.googleapis.com/css2?family=${slug}:wght@400;600;700&display=swap');`;
+    }
+  }
+  return "";
+}
+
 export function exportToHtml(design: EmailDesign): string {
   const { bodySettings, blocks } = design;
   const rows = blocks.map((b) => renderBlock(b, design)).join("\n");
+  const googleImport = getGoogleFontImport(bodySettings.fontFamily);
 
   return `<!DOCTYPE html>
 <html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
@@ -226,6 +265,7 @@ export function exportToHtml(design: EmailDesign): string {
 </noscript>
 <![endif]-->
 <style>
+${googleImport}
 body,table,td,a{-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%}
 table,td{mso-table-lspace:0;mso-table-rspace:0}
 img{-ms-interpolation-mode:bicubic;border:0;height:auto;line-height:100%;outline:none;text-decoration:none}

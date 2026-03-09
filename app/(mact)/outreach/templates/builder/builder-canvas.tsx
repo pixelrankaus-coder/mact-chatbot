@@ -17,7 +17,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { EmailBlock, EmailDesign, BlockType, ColumnsBlockProps } from "@/lib/email-builder/types";
+import type { EmailBlock, EmailDesign, BlockType, ColumnsBlockProps, SectionBlockProps } from "@/lib/email-builder/types";
 import { BlockRenderer } from "@/lib/email-builder/block-renderers";
 import {
   Trash2,
@@ -97,6 +97,7 @@ const BLOCK_LABELS: Record<string, string> = {
   video: "Video",
   html: "HTML",
   quote: "Quote",
+  section: "Section",
 };
 
 interface SortableBlockProps {

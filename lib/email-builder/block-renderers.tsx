@@ -7,6 +7,7 @@ import type {
   ImageBlockProps,
   ButtonBlockProps,
   ColumnsBlockProps,
+  SectionBlockProps,
   DividerBlockProps,
   SpacerBlockProps,
   SocialBlockProps,
@@ -530,6 +531,56 @@ export function QuoteRenderer({ props: p }: RendererProps<QuoteBlockProps>) {
   );
 }
 
+// ─── Section Renderer ────────────────────────────────────────────────────────
+
+interface SectionRendererProps extends RendererProps<SectionBlockProps> {
+  renderBlock: (block: EmailBlock, columnId: string) => React.ReactNode;
+  onDropInColumn?: (columnId: string, blockType: string) => void;
+}
+
+export function SectionRenderer({ props: p, renderBlock, onDropInColumn }: SectionRendererProps) {
+  const sectionId = "section-inner";
+  return (
+    <div
+      style={{
+        ...padStyle(p.padding),
+        backgroundColor: p.backgroundColor || undefined,
+        borderTop: p.borderTop.width ? `${p.borderTop.width}px solid ${p.borderTop.color}` : undefined,
+        borderBottom: p.borderBottom.width ? `${p.borderBottom.width}px solid ${p.borderBottom.color}` : undefined,
+      }}
+    >
+      <div
+        className="relative min-h-[60px]"
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          e.currentTarget.classList.add("ring-2", "ring-blue-400", "ring-inset");
+        }}
+        onDragLeave={(e) => {
+          e.currentTarget.classList.remove("ring-2", "ring-blue-400", "ring-inset");
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          e.currentTarget.classList.remove("ring-2", "ring-blue-400", "ring-inset");
+          const blockType = e.dataTransfer.getData("text/block-type");
+          if (blockType && onDropInColumn) {
+            onDropInColumn(sectionId, blockType);
+          }
+        }}
+      >
+        {p.blocks.length === 0 ? (
+          <div className="min-h-[60px] border-2 border-dashed border-slate-200 rounded flex items-center justify-center text-slate-400 text-xs">
+            Drop content here
+          </div>
+        ) : (
+          p.blocks.map((block) => renderBlock(block, sectionId))
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Dispatcher ──────────────────────────────────────────────────────────────
 
 interface BlockRendererProps {
@@ -562,6 +613,15 @@ export function BlockRenderer({
       return (
         <ColumnsRenderer
           props={block.props as ColumnsBlockProps}
+          {...common}
+          renderBlock={renderNestedBlock || (() => null)}
+          onDropInColumn={onDropInColumn}
+        />
+      );
+    case "section":
+      return (
+        <SectionRenderer
+          props={block.props as SectionBlockProps}
           {...common}
           renderBlock={renderNestedBlock || (() => null)}
           onDropInColumn={onDropInColumn}

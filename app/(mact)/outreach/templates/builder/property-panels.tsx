@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useRef, useState } from "react";
 import type {
   EmailBlock,
   EmailDesign,
@@ -10,6 +10,7 @@ import type {
   ImageBlockProps,
   ButtonBlockProps,
   ColumnsBlockProps,
+  SectionBlockProps,
   DividerBlockProps,
   SpacerBlockProps,
   SocialBlockProps,
@@ -45,6 +46,9 @@ import {
   Plus,
   Trash2,
   Tag,
+  Upload,
+  Loader2,
+  ImageIcon,
 } from "lucide-react";
 import {
   Popover,
@@ -227,6 +231,115 @@ function SectionHeader({ title }: { title: string }) {
   );
 }
 
+// ─── Image Upload Component ─────────────────────────────────────────────────
+
+function ImageUpload({
+  value,
+  onChange,
+  label = "Image",
+}: {
+  value: string;
+  onChange: (url: string) => void;
+  label?: string;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleUpload = async (file: File) => {
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/outreach/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        onChange(data.url);
+      } else {
+        console.error("Upload failed:", data.error);
+      }
+    } catch (err) {
+      console.error("Upload error:", err);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <Label className="text-xs text-muted-foreground">{label}</Label>
+      {value ? (
+        <div className="relative group">
+          <img
+            src={value}
+            alt="Preview"
+            className="w-full rounded border object-cover"
+            style={{ maxHeight: 160 }}
+          />
+          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded flex items-center justify-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => fileRef.current?.click()}
+            >
+              Replace
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => onChange("")}
+            >
+              Remove
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div
+          onClick={() => !uploading && fileRef.current?.click()}
+          className="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center cursor-pointer hover:border-slate-300 hover:bg-slate-50 transition-colors"
+        >
+          {uploading ? (
+            <Loader2 className="h-8 w-8 animate-spin text-slate-400 mx-auto" />
+          ) : (
+            <>
+              <ImageIcon className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+              <p className="text-xs font-medium text-slate-500">
+                Click to upload image
+              </p>
+              <p className="text-[10px] text-slate-400 mt-1">
+                PNG, JPG, GIF, WebP up to 5MB
+              </p>
+            </>
+          )}
+        </div>
+      )}
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleUpload(file);
+          e.target.value = "";
+        }}
+      />
+      <div className="flex items-center gap-1">
+        <Input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Or paste image URL..."
+          className="h-7 text-xs flex-1"
+        />
+      </div>
+    </div>
+  );
+}
+
 // ─── Panel Per Block Type ────────────────────────────────────────────────────
 
 function TextPanel({
@@ -269,15 +382,11 @@ function ImagePanel({
 }) {
   return (
     <div className="space-y-3">
-      <div>
-        <Label className="text-xs text-muted-foreground">Image URL</Label>
-        <Input
-          value={p.src}
-          onChange={(e) => onUpdate({ src: e.target.value })}
-          placeholder="https://..."
-          className="h-7 text-xs mt-1"
-        />
-      </div>
+      <ImageUpload
+        value={p.src}
+        onChange={(url) => onUpdate({ src: url })}
+      />
+      <SectionHeader title="Settings" />
       <div>
         <Label className="text-xs text-muted-foreground">Link URL</Label>
         <Input
@@ -387,7 +496,6 @@ function ColumnsPanel({
     const newWidth = Math.round(100 / (p.columns.length + 1));
     const cols = p.columns.map((c) => ({ ...c, width: newWidth }));
     cols.push({ id: uid(), width: newWidth, blocks: [] });
-    // Rebalance
     const total = cols.reduce((s, c) => s + c.width, 0);
     if (total !== 100) cols[cols.length - 1].width += 100 - total;
     onUpdate({ columns: cols });
@@ -434,6 +542,29 @@ function ColumnsPanel({
       <NumberInput label="Gap" value={p.gap} onChange={(v) => onUpdate({ gap: v })} />
       <ColorInput label="Background" value={p.backgroundColor} onChange={(v) => onUpdate({ backgroundColor: v })} />
       <PaddingInput value={p.padding} onChange={(v) => onUpdate({ padding: v })} />
+    </div>
+  );
+}
+
+function SectionPanel({
+  props: p,
+  onUpdate,
+}: {
+  props: SectionBlockProps;
+  onUpdate: (partial: Partial<SectionBlockProps>) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">
+        Drag blocks into this section from the sidebar. Sections group content with a shared background.
+      </p>
+      <ColorInput label="Background" value={p.backgroundColor} onChange={(v) => onUpdate({ backgroundColor: v })} />
+      <PaddingInput value={p.padding} onChange={(v) => onUpdate({ padding: v })} />
+      <SectionHeader title="Borders" />
+      <NumberInput label="Top border" value={p.borderTop.width} onChange={(v) => onUpdate({ borderTop: { ...p.borderTop, width: v } })} max={10} />
+      <ColorInput label="Top color" value={p.borderTop.color} onChange={(v) => onUpdate({ borderTop: { ...p.borderTop, color: v } })} />
+      <NumberInput label="Bottom border" value={p.borderBottom.width} onChange={(v) => onUpdate({ borderBottom: { ...p.borderBottom, width: v } })} max={10} />
+      <ColorInput label="Bottom color" value={p.borderBottom.color} onChange={(v) => onUpdate({ borderBottom: { ...p.borderBottom, color: v } })} />
     </div>
   );
 }
@@ -557,15 +688,11 @@ function HeaderPanel({
 }) {
   return (
     <div className="space-y-3">
-      <div>
-        <Label className="text-xs text-muted-foreground">Logo URL</Label>
-        <Input
-          value={p.logoSrc}
-          onChange={(e) => onUpdate({ logoSrc: e.target.value })}
-          placeholder="https://..."
-          className="h-7 text-xs mt-1"
-        />
-      </div>
+      <ImageUpload
+        value={p.logoSrc}
+        onChange={(url) => onUpdate({ logoSrc: url })}
+        label="Logo Image"
+      />
       <NumberInput label="Logo width" value={p.logoWidth} onChange={(v) => onUpdate({ logoWidth: v })} min={50} max={400} />
       <div>
         <Label className="text-xs text-muted-foreground">Logo link</Label>
@@ -629,10 +756,11 @@ function HeroPanel({
         <Label className="text-xs text-muted-foreground">Subheading</Label>
         <Input value={p.subheading} onChange={(e) => onUpdate({ subheading: e.target.value })} className="h-7 text-xs mt-1" />
       </div>
-      <div>
-        <Label className="text-xs text-muted-foreground">Image URL</Label>
-        <Input value={p.imageSrc} onChange={(e) => onUpdate({ imageSrc: e.target.value })} placeholder="https://..." className="h-7 text-xs mt-1" />
-      </div>
+      <ImageUpload
+        value={p.imageSrc}
+        onChange={(url) => onUpdate({ imageSrc: url })}
+        label="Hero Image"
+      />
       <div className="flex items-center gap-2">
         <Label className="text-xs text-muted-foreground w-24 shrink-0">Image pos</Label>
         <Select value={p.imagePosition} onValueChange={(v: "above" | "below" | "background") => onUpdate({ imagePosition: v })}>
@@ -685,10 +813,11 @@ function ProductPanel({
         <Label className="text-xs text-muted-foreground">Price</Label>
         <Input value={p.price} onChange={(e) => onUpdate({ price: e.target.value })} className="h-7 text-xs mt-1" />
       </div>
-      <div>
-        <Label className="text-xs text-muted-foreground">Image URL</Label>
-        <Input value={p.imageSrc} onChange={(e) => onUpdate({ imageSrc: e.target.value })} placeholder="https://..." className="h-7 text-xs mt-1" />
-      </div>
+      <ImageUpload
+        value={p.imageSrc}
+        onChange={(url) => onUpdate({ imageSrc: url })}
+        label="Product Image"
+      />
       <div className="flex items-center gap-2">
         <Label className="text-xs text-muted-foreground w-24 shrink-0">Image pos</Label>
         <Select value={p.imagePosition} onValueChange={(v: "left" | "right" | "top") => onUpdate({ imagePosition: v })}>
@@ -753,10 +882,11 @@ function VideoPanel({
         <Label className="text-xs text-muted-foreground">Video URL</Label>
         <Input value={p.videoUrl} onChange={(e) => onUpdate({ videoUrl: e.target.value })} placeholder="YouTube/Vimeo URL" className="h-7 text-xs mt-1" />
       </div>
-      <div>
-        <Label className="text-xs text-muted-foreground">Thumbnail URL</Label>
-        <Input value={p.thumbnailSrc} onChange={(e) => onUpdate({ thumbnailSrc: e.target.value })} placeholder="https://..." className="h-7 text-xs mt-1" />
-      </div>
+      <ImageUpload
+        value={p.thumbnailSrc}
+        onChange={(url) => onUpdate({ thumbnailSrc: url })}
+        label="Thumbnail"
+      />
       <div>
         <Label className="text-xs text-muted-foreground">Alt text</Label>
         <Input value={p.alt} onChange={(e) => onUpdate({ alt: e.target.value })} className="h-7 text-xs mt-1" />
@@ -818,6 +948,32 @@ function QuotePanel({
   );
 }
 
+// ─── Google Fonts + System Fonts ─────────────────────────────────────────────
+
+const FONT_OPTIONS = [
+  { label: "Arial", value: "Arial, Helvetica, sans-serif" },
+  { label: "Helvetica", value: "Helvetica, Arial, sans-serif" },
+  { label: "Georgia", value: "Georgia, serif" },
+  { label: "Trebuchet MS", value: "'Trebuchet MS', sans-serif" },
+  { label: "Verdana", value: "Verdana, sans-serif" },
+  { label: "Times New Roman", value: "'Times New Roman', serif" },
+  { label: "Courier New", value: "'Courier New', monospace" },
+  { label: "Lucida", value: "'Lucida Grande', 'Lucida Sans', sans-serif" },
+  // Google Fonts (web-safe via @import)
+  { label: "Open Sans", value: "'Open Sans', Arial, sans-serif", google: "Open+Sans" },
+  { label: "Roboto", value: "'Roboto', Arial, sans-serif", google: "Roboto" },
+  { label: "Lato", value: "'Lato', Arial, sans-serif", google: "Lato" },
+  { label: "Montserrat", value: "'Montserrat', Arial, sans-serif", google: "Montserrat" },
+  { label: "Poppins", value: "'Poppins', Arial, sans-serif", google: "Poppins" },
+  { label: "Raleway", value: "'Raleway', Arial, sans-serif", google: "Raleway" },
+  { label: "Playfair Display", value: "'Playfair Display', Georgia, serif", google: "Playfair+Display" },
+  { label: "Merriweather", value: "'Merriweather', Georgia, serif", google: "Merriweather" },
+  { label: "Oswald", value: "'Oswald', Arial, sans-serif", google: "Oswald" },
+  { label: "PT Sans", value: "'PT Sans', Arial, sans-serif", google: "PT+Sans" },
+  { label: "Source Sans Pro", value: "'Source Sans 3', Arial, sans-serif", google: "Source+Sans+3" },
+  { label: "Nunito", value: "'Nunito', Arial, sans-serif", google: "Nunito" },
+];
+
 // ─── Body Settings Panel ─────────────────────────────────────────────────────
 
 export function BodySettingsPanel({
@@ -837,12 +993,11 @@ export function BodySettingsPanel({
         <Select value={settings.fontFamily} onValueChange={(v) => onUpdate({ fontFamily: v })}>
           <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="Arial, Helvetica, sans-serif">Arial</SelectItem>
-            <SelectItem value="Georgia, serif">Georgia</SelectItem>
-            <SelectItem value="'Trebuchet MS', sans-serif">Trebuchet MS</SelectItem>
-            <SelectItem value="Verdana, sans-serif">Verdana</SelectItem>
-            <SelectItem value="'Times New Roman', serif">Times New Roman</SelectItem>
-            <SelectItem value="'Courier New', monospace">Courier New</SelectItem>
+            {FONT_OPTIONS.map((f) => (
+              <SelectItem key={f.value} value={f.value}>
+                <span style={{ fontFamily: f.value }}>{f.label}</span>
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -857,6 +1012,7 @@ const BLOCK_LABELS: Record<BlockType, string> = {
   image: "Image",
   button: "Button",
   columns: "Columns",
+  section: "Section",
   divider: "Divider",
   spacer: "Spacer",
   social: "Social Links",
@@ -884,6 +1040,7 @@ export function PropertyPanel({
       {block.type === "image" && <ImagePanel props={block.props as ImageBlockProps} onUpdate={onUpdate} />}
       {block.type === "button" && <ButtonPanel props={block.props as ButtonBlockProps} onUpdate={onUpdate} />}
       {block.type === "columns" && <ColumnsPanel props={block.props as ColumnsBlockProps} onUpdate={onUpdate} />}
+      {block.type === "section" && <SectionPanel props={block.props as SectionBlockProps} onUpdate={onUpdate} />}
       {block.type === "divider" && <DividerPanel props={block.props as DividerBlockProps} onUpdate={onUpdate} />}
       {block.type === "spacer" && <SpacerPanel props={block.props as SpacerBlockProps} onUpdate={onUpdate} />}
       {block.type === "social" && <SocialPanel props={block.props as SocialBlockProps} onUpdate={onUpdate} />}
@@ -898,3 +1055,5 @@ export function PropertyPanel({
     </div>
   );
 }
+
+export { FONT_OPTIONS };

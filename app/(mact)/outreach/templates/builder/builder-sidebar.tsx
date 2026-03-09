@@ -15,14 +15,13 @@ import {
   ArrowUpDown,
   ShoppingBag,
   Ticket,
-  LayoutGrid,
   MessageSquareQuote,
   Video,
   Code,
   LayoutTemplate,
-  Rows3,
   PanelBottom,
   GripVertical,
+  SquareDashedBottom,
 } from "lucide-react";
 
 interface BlockDef {
@@ -50,6 +49,7 @@ const CONTENT_BLOCKS: BlockDef[] = [
 
 const LAYOUT_BLOCKS: BlockDef[] = [
   { id: "columns", label: "Columns", icon: Columns3 },
+  { id: "section", label: "Section", icon: LayoutTemplate },
   { id: "footer", label: "Footer", icon: PanelBottom },
 ];
 
