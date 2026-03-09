@@ -22,16 +22,13 @@ import {
   Monitor,
   Smartphone,
   Eye,
-  Send,
-  Undo2,
-  Redo2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Suspense } from "react";
 
-// Dynamic import Unlayer to avoid SSR issues
-const EmailEditor = dynamic(
-  () => import("react-email-editor").then((mod) => mod.default),
+// Dynamic import GrapesJS editor to avoid SSR issues
+const GrapesJSEditor = dynamic(
+  () => import("./grapes-editor"),
   {
     ssr: false,
     loading: () => (
@@ -42,159 +39,11 @@ const EmailEditor = dynamic(
   }
 );
 
-// Default blank email design with MACt branding
-const BLANK_EMAIL_DESIGN = {
-  counters: {
-    u_row: 3,
-    u_column: 3,
-    u_content_text: 2,
-    u_content_image: 1,
-    u_content_button: 1,
-    u_content_divider: 1,
-  },
-  body: {
-    id: "email",
-    rows: [
-      {
-        id: "header_row",
-        cells: [1],
-        columns: [
-          {
-            id: "header_col",
-            contents: [
-              {
-                id: "logo",
-                type: "image",
-                values: {
-                  containerPadding: "20px 20px 10px",
-                  src: {
-                    url: "https://mact.au/wp-content/uploads/mact-logo-white.png",
-                    width: 140,
-                    height: 47,
-                  },
-                  textAlign: "center",
-                  altText: "MACt",
-                },
-              },
-            ],
-            values: {
-              backgroundColor: "#1a1a1a",
-              padding: "0px",
-              borderRadius: "8px 8px 0 0",
-            },
-          },
-        ],
-        values: { padding: "0px" },
-      },
-      {
-        id: "body_row",
-        cells: [1],
-        columns: [
-          {
-            id: "body_col",
-            contents: [
-              {
-                id: "body_text",
-                type: "text",
-                values: {
-                  containerPadding: "30px 30px 20px",
-                  textAlign: "left",
-                  lineHeight: "160%",
-                  text: '<p style="font-size: 15px; line-height: 160%; font-family: arial, helvetica, sans-serif;">Hi {{first_name}},</p><p style="font-size: 15px; line-height: 160%; font-family: arial, helvetica, sans-serif;">&nbsp;</p><p style="font-size: 15px; line-height: 160%; font-family: arial, helvetica, sans-serif;">Your email content goes here. Use the blocks on the left to add images, buttons, dividers and more.</p>',
-                },
-              },
-            ],
-            values: { backgroundColor: "#ffffff", padding: "0px" },
-          },
-        ],
-        values: { padding: "0px" },
-      },
-      {
-        id: "footer_row",
-        cells: [1],
-        columns: [
-          {
-            id: "footer_col",
-            contents: [
-              {
-                id: "footer_divider",
-                type: "divider",
-                values: {
-                  containerPadding: "10px 30px",
-                  border: {
-                    borderTopWidth: "1px",
-                    borderTopStyle: "solid",
-                    borderTopColor: "#e2e8f0",
-                  },
-                },
-              },
-              {
-                id: "footer_text",
-                type: "text",
-                values: {
-                  containerPadding: "10px 30px 20px",
-                  textAlign: "center",
-                  lineHeight: "150%",
-                  text: '<p style="font-size: 12px; color: #94a3b8; font-family: arial, helvetica, sans-serif;">MACt &bull; Unit 3C, 919-925 Nudgee Road, Banyo QLD 4014</p>',
-                },
-              },
-            ],
-            values: { backgroundColor: "#f8fafc", padding: "0px", borderRadius: "0 0 8px 8px" },
-          },
-        ],
-        values: { padding: "0px" },
-      },
-    ],
-    values: {
-      contentWidth: "600px",
-      contentAlign: "center",
-      fontFamily: { label: "Arial", value: "arial,helvetica,sans-serif" },
-      textColor: "#333333",
-      backgroundColor: "#f1f5f9",
-      preheaderText: "",
-      linkStyle: {
-        body: true,
-        linkColor: "#2563eb",
-        linkHoverColor: "#1d4ed8",
-        linkUnderline: true,
-        linkHoverUnderline: true,
-      },
-    },
-  },
-  schemaVersion: 16,
-};
-
-interface EditorRef {
-  editor?: {
-    loadDesign: (design: Record<string, unknown>) => void;
-    exportHtml: (
-      callback: (data: { design: Record<string, unknown>; html: string }) => void
-    ) => void;
-    setBodyValues: (values: Record<string, unknown>) => void;
-  };
-}
-
-// Merge tags for template variables
-const MERGE_TAGS = {
-  first_name: { name: "First Name", value: "{{first_name}}" },
-  last_name: { name: "Last Name", value: "{{last_name}}" },
-  company: { name: "Company", value: "{{company}}" },
-  last_product: { name: "Last Product", value: "{{last_product}}" },
-  last_order_date: { name: "Last Order Date", value: "{{last_order_date}}" },
-  days_since_order: { name: "Days Since Order", value: "{{days_since_order}}" },
-  total_spent: { name: "Total Spent", value: "{{total_spent}}" },
-  order_count: { name: "Order Count", value: "{{order_count}}" },
-  coupon_code: { name: "Coupon Code", value: "{{coupon_code}}" },
-  order_number: { name: "Order Number", value: "{{order_number}}" },
-  invoice_number: { name: "Invoice Number", value: "{{invoice_number}}" },
-  invoice_total: { name: "Invoice Total", value: "{{invoice_total}}" },
-  amount_due: { name: "Amount Due", value: "{{amount_due}}" },
-};
-
 function BuilderContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const emailEditorRef = useRef<EditorRef>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const editorRef = useRef<any>(null);
 
   const editId = searchParams.get("id");
   const returnTo = searchParams.get("return") || "/outreach/templates";
@@ -219,14 +68,10 @@ function BuilderContent() {
 
   // Load design into editor when ready
   useEffect(() => {
-    if (editorReady && emailEditorRef.current?.editor) {
-      if (existingDesign) {
-        emailEditorRef.current.editor.loadDesign(existingDesign);
-      } else if (!editId) {
-        emailEditorRef.current.editor.loadDesign(BLANK_EMAIL_DESIGN as Record<string, unknown>);
-      }
+    if (editorReady && editorRef.current && existingDesign) {
+      editorRef.current.loadProjectData(existingDesign);
     }
-  }, [editorReady, existingDesign, editId]);
+  }, [editorReady, existingDesign]);
 
   const fetchTemplate = async (id: string) => {
     try {
@@ -247,24 +92,31 @@ function BuilderContent() {
     }
   };
 
-  const onEditorReady = useCallback(() => {
+  const handleEditorReady = useCallback((editor: unknown) => {
+    editorRef.current = editor;
     setEditorReady(true);
   }, []);
 
+  const getHtml = (): string => {
+    if (!editorRef.current) return "";
+    return editorRef.current.runCommand("gjs-get-inlined-html") || "";
+  };
+
+  const getProjectData = (): Record<string, unknown> => {
+    if (!editorRef.current) return {};
+    return editorRef.current.getProjectData();
+  };
+
   const handlePreview = () => {
-    if (!emailEditorRef.current?.editor) return;
-    emailEditorRef.current.editor.exportHtml((data) => {
-      setPreviewHtml(data.html);
+    const html = getHtml();
+    if (html) {
+      setPreviewHtml(html);
       setShowPreview(true);
-    });
+    }
   };
 
   const handleSave = () => {
-    if (!templateName.trim()) {
-      setShowSaveDialog(true);
-      return;
-    }
-    if (!subject.trim()) {
+    if (!templateName.trim() || !subject.trim()) {
       setShowSaveDialog(true);
       return;
     }
@@ -280,60 +132,64 @@ function BuilderContent() {
       toast.error("Please enter a subject line");
       return;
     }
-    if (!emailEditorRef.current?.editor) return;
+    if (!editorRef.current) return;
 
     setSaving(true);
     setShowSaveDialog(false);
 
-    emailEditorRef.current.editor.exportHtml(async (data) => {
-      try {
-        const url = editId
-          ? `/api/outreach/templates/${editId}`
-          : "/api/outreach/templates";
-        const method = editId ? "PUT" : "POST";
+    try {
+      const html = getHtml();
+      const designJson = getProjectData();
 
-        const res = await fetch(url, {
-          method,
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: templateName.trim(),
-            subject: subject.trim(),
-            body: data.html,
-            design_json: data.design,
-          }),
-        });
+      const url = editId
+        ? `/api/outreach/templates/${editId}`
+        : "/api/outreach/templates";
+      const method = editId ? "PUT" : "POST";
 
-        const result = await res.json();
-        if (!res.ok) {
-          throw new Error(result.error || "Failed to save template");
-        }
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: templateName.trim(),
+          subject: subject.trim(),
+          body: html,
+          design_json: designJson,
+        }),
+      });
 
-        toast.success(editId ? "Template updated" : "Template created");
-
-        // If returning to campaign wizard, pass the template ID
-        if (returnTo.includes("/outreach/new")) {
-          const templateId = editId || result.template?.id;
-          router.push(`${returnTo}${returnTo.includes("?") ? "&" : "?"}templateId=${templateId}`);
-        } else {
-          router.push(returnTo);
-        }
-      } catch (error) {
-        console.error("Save error:", error);
-        toast.error(
-          error instanceof Error ? error.message : "Failed to save"
-        );
-      } finally {
-        setSaving(false);
+      const result = await res.json();
+      if (!res.ok) {
+        throw new Error(result.error || "Failed to save template");
       }
-    });
+
+      toast.success(editId ? "Template updated" : "Template created");
+
+      // If returning to campaign wizard, pass the template ID
+      if (returnTo.includes("/outreach/new")) {
+        const templateId = editId || result.template?.id;
+        router.push(`${returnTo}${returnTo.includes("?") ? "&" : "?"}templateId=${templateId}`);
+      } else {
+        router.push(returnTo);
+      }
+    } catch (error) {
+      console.error("Save error:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Failed to save"
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleViewModeChange = (mode: "desktop" | "mobile") => {
     setViewMode(mode);
-    if (emailEditorRef.current?.editor) {
-      emailEditorRef.current.editor.setBodyValues({
-        contentWidth: mode === "mobile" ? "375px" : "600px",
-      });
+    if (editorRef.current) {
+      const editor = editorRef.current;
+      if (mode === "mobile") {
+        editor.setDevice("Mobile portrait");
+      } else {
+        editor.setDevice("Desktop");
+      }
     }
   };
 
@@ -440,105 +296,11 @@ function BuilderContent() {
         />
       </div>
 
-      {/* Unlayer Editor — fills remaining space. Unlayer needs explicit pixel height, not %. */}
+      {/* GrapesJS Editor */}
       <div className="flex-1" style={{ minHeight: 0 }}>
-        <EmailEditor
-          ref={emailEditorRef}
-          onReady={onEditorReady}
-          minHeight="100%"
-          style={{ height: "calc(100vh - 90px)" }}
-          options={{
-            displayMode: "email",
-            projectId: undefined,
-            features: {
-              textEditor: {
-                spellChecker: true,
-              },
-              undoRedo: true,
-              stockImages: {
-                enabled: true,
-              },
-            },
-            appearance: {
-              theme: "light",
-              panels: {
-                tools: {
-                  dock: "left",
-                },
-              },
-            },
-            mergeTags: MERGE_TAGS,
-            designTags: {},
-            specialLinks: [
-              {
-                name: "Unsubscribe",
-                href: "{{unsubscribe_url}}",
-                target: "_blank",
-              },
-            ],
-            tools: {
-              // Content blocks
-              text: { enabled: true },
-              image: { enabled: true },
-              button: { enabled: true },
-              divider: { enabled: true },
-              heading: { enabled: true },
-              paragraph: { enabled: true },
-              html: { enabled: true },
-              // Layout
-              columns: { enabled: true },
-              // Media & social
-              social: { enabled: true },
-              video: { enabled: true },
-              // Navigation
-              menu: { enabled: true },
-              // Data
-              table: { enabled: true },
-              form: { enabled: true },
-              // Interactive
-              timer: { enabled: true },
-              carousel: { enabled: true },
-            },
-            // Custom tools: Spacer block (like Klaviyo)
-            customJS: [
-              `
-              unlayer.registerTool({
-                name: 'spacer',
-                label: 'Spacer',
-                icon: 'fa-arrows-alt-v',
-                supportedDisplayModes: ['email', 'web'],
-                options: {
-                  spacerOptions: {
-                    title: 'Spacer',
-                    options: {
-                      spacerHeight: {
-                        label: 'Height',
-                        defaultValue: '40px',
-                        widget: 'px',
-                      },
-                    },
-                  },
-                },
-                values: {},
-                renderer: {
-                  Viewer: unlayer.createViewer({
-                    render(values) {
-                      return '<div style="height:' + (values.spacerHeight || '40px') + ';"></div>';
-                    },
-                  }),
-                  exporters: {
-                    email(values) {
-                      return '<div style="height:' + (values.spacerHeight || '40px') + '; line-height:' + (values.spacerHeight || '40px') + '; font-size:1px;">&nbsp;</div>';
-                    },
-                    web(values) {
-                      return '<div style="height:' + (values.spacerHeight || '40px') + ';"></div>';
-                    },
-                  },
-                },
-              });
-              `,
-            ],
-          }}
+        <GrapesJSEditor
+          onEditor={handleEditorReady}
+          existingDesign={existingDesign}
         />
       </div>
 
