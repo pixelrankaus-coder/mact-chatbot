@@ -69,7 +69,52 @@ export default function GrapesEditorComponent({ onEditor, existingDesign }: Grap
           "https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap",
         ],
       },
-      panels: { defaults: [] },
+      blockManager: {
+        appendTo: "#blocks-panel",
+      },
+      styleManager: {
+        appendTo: "#styles-panel",
+        sectors: [
+          {
+            name: "Dimension",
+            open: false,
+            buildProps: ["width", "min-height", "padding"],
+          },
+          {
+            name: "Typography",
+            open: false,
+            buildProps: [
+              "font-family",
+              "font-size",
+              "font-weight",
+              "letter-spacing",
+              "color",
+              "line-height",
+              "text-align",
+              "text-decoration",
+              "text-transform",
+            ],
+          },
+          {
+            name: "Decorations",
+            open: false,
+            buildProps: [
+              "background-color",
+              "border-radius",
+              "border",
+              "box-shadow",
+            ],
+          },
+          {
+            name: "Extra",
+            open: false,
+            buildProps: ["opacity", "transition"],
+          },
+        ],
+      },
+      layerManager: {
+        appendTo: "#layers-panel",
+      },
     });
 
     // Add custom blocks for email building
@@ -77,14 +122,13 @@ export default function GrapesEditorComponent({ onEditor, existingDesign }: Grap
 
     bm.add("spacer", {
       label: "Spacer",
-      category: "Basic",
+      category: "Custom",
       content: `<div style="height:40px;line-height:40px;font-size:1px;" data-gjs-type="spacer">&nbsp;</div>`,
-      attributes: { class: "fa fa-arrows-v" },
     });
 
     bm.add("header-block", {
       label: "Header",
-      category: "Sections",
+      category: "Custom",
       content: `<table style="width:100%;background-color:#1a1a1a;">
         <tr>
           <td style="padding:20px;text-align:center;">
@@ -92,12 +136,11 @@ export default function GrapesEditorComponent({ onEditor, existingDesign }: Grap
           </td>
         </tr>
       </table>`,
-      attributes: { class: "fa fa-header" },
     });
 
     bm.add("hero-section", {
       label: "Hero Section",
-      category: "Sections",
+      category: "Custom",
       content: `<table style="width:100%;background-color:#f1f5f9;">
         <tr>
           <td style="padding:40px 30px;text-align:center;">
@@ -107,12 +150,11 @@ export default function GrapesEditorComponent({ onEditor, existingDesign }: Grap
           </td>
         </tr>
       </table>`,
-      attributes: { class: "fa fa-image" },
     });
 
     bm.add("two-column", {
       label: "2 Columns",
-      category: "Sections",
+      category: "Custom",
       content: `<table style="width:100%;">
         <tr>
           <td style="width:50%;padding:15px;vertical-align:top;">
@@ -123,12 +165,11 @@ export default function GrapesEditorComponent({ onEditor, existingDesign }: Grap
           </td>
         </tr>
       </table>`,
-      attributes: { class: "fa fa-columns" },
     });
 
     bm.add("three-column", {
       label: "3 Columns",
-      category: "Sections",
+      category: "Custom",
       content: `<table style="width:100%;">
         <tr>
           <td style="width:33.33%;padding:15px;vertical-align:top;">
@@ -142,12 +183,11 @@ export default function GrapesEditorComponent({ onEditor, existingDesign }: Grap
           </td>
         </tr>
       </table>`,
-      attributes: { class: "fa fa-th" },
     });
 
     bm.add("image-text", {
       label: "Image + Text",
-      category: "Sections",
+      category: "Custom",
       content: `<table style="width:100%;">
         <tr>
           <td style="width:40%;padding:15px;vertical-align:top;">
@@ -159,12 +199,11 @@ export default function GrapesEditorComponent({ onEditor, existingDesign }: Grap
           </td>
         </tr>
       </table>`,
-      attributes: { class: "fa fa-picture-o" },
     });
 
     bm.add("product-card", {
       label: "Product Card",
-      category: "Sections",
+      category: "Custom",
       content: `<table style="width:100%;max-width:280px;margin:0 auto;background-color:#ffffff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
         <tr>
           <td style="padding:0;">
@@ -179,12 +218,11 @@ export default function GrapesEditorComponent({ onEditor, existingDesign }: Grap
           </td>
         </tr>
       </table>`,
-      attributes: { class: "fa fa-shopping-bag" },
     });
 
     bm.add("social-links", {
       label: "Social Links",
-      category: "Basic",
+      category: "Custom",
       content: `<table style="width:100%;">
         <tr>
           <td style="padding:20px;text-align:center;">
@@ -195,12 +233,11 @@ export default function GrapesEditorComponent({ onEditor, existingDesign }: Grap
           </td>
         </tr>
       </table>`,
-      attributes: { class: "fa fa-share-alt" },
     });
 
     bm.add("footer-block", {
       label: "Footer",
-      category: "Sections",
+      category: "Custom",
       content: `<table style="width:100%;background-color:#f8fafc;border-top:1px solid #e2e8f0;">
         <tr>
           <td style="padding:20px 30px;text-align:center;">
@@ -209,12 +246,11 @@ export default function GrapesEditorComponent({ onEditor, existingDesign }: Grap
           </td>
         </tr>
       </table>`,
-      attributes: { class: "fa fa-ellipsis-h" },
     });
 
     bm.add("coupon-block", {
       label: "Coupon",
-      category: "Basic",
+      category: "Custom",
       content: `<table style="width:100%;max-width:400px;margin:0 auto;border:2px dashed #2563eb;border-radius:8px;">
         <tr>
           <td style="padding:25px;text-align:center;">
@@ -224,7 +260,6 @@ export default function GrapesEditorComponent({ onEditor, existingDesign }: Grap
           </td>
         </tr>
       </table>`,
-      attributes: { class: "fa fa-ticket" },
     });
 
     // Load existing design or default
@@ -232,28 +267,6 @@ export default function GrapesEditorComponent({ onEditor, existingDesign }: Grap
       editor.loadProjectData(existingDesign as Parameters<Editor["loadProjectData"]>[0]);
     } else {
       editor.setComponents(DEFAULT_EMAIL_HTML);
-    }
-
-    // Style the GrapesJS UI to match our app
-    const editorEl = editorContainerRef.current;
-    if (editorEl) {
-      const style = document.createElement("style");
-      style.textContent = `
-        .gjs-one-bg { background-color: #ffffff; }
-        .gjs-two-color { color: #334155; }
-        .gjs-three-bg { background-color: #f1f5f9; }
-        .gjs-four-color, .gjs-four-color-h:hover { color: #2563eb; }
-        .gjs-pn-panel { border: none; }
-        .gjs-block { min-height: auto; padding: 10px; }
-        .gjs-block__media { display: none; }
-        .gjs-block-label { font-size: 12px; }
-        .gjs-cv-canvas { background-color: #f1f5f9; }
-        .gjs-frame-wrapper { overflow: auto; }
-        .gjs-category-title { font-size: 13px; font-weight: 600; }
-        /* Hide default panels — we have our own top bar */
-        .gjs-pn-panels { display: none; }
-      `;
-      editorEl.appendChild(style);
     }
 
     editorInstanceRef.current = editor;
@@ -267,9 +280,198 @@ export default function GrapesEditorComponent({ onEditor, existingDesign }: Grap
   }, []);
 
   return (
-    <div
-      ref={editorContainerRef}
-      style={{ height: "100%", width: "100%" }}
-    />
+    <div style={{ height: "100%", width: "100%", display: "flex" }}>
+      {/* Left panel: Blocks, Styles, Layers tabs */}
+      <div
+        style={{
+          width: "280px",
+          minWidth: "280px",
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          borderRight: "1px solid #e2e8f0",
+          background: "#ffffff",
+          overflow: "hidden",
+        }}
+      >
+        {/* Tab buttons */}
+        <div style={{ display: "flex", borderBottom: "1px solid #e2e8f0" }}>
+          <button
+            className="gjs-tab-btn"
+            data-tab="blocks"
+            onClick={(e) => {
+              const parent = e.currentTarget.parentElement?.parentElement;
+              if (!parent) return;
+              parent.querySelectorAll<HTMLElement>(".gjs-tab-content").forEach(el => el.style.display = "none");
+              parent.querySelectorAll<HTMLElement>(".gjs-tab-btn").forEach(el => {
+                el.style.borderBottom = "2px solid transparent";
+                el.style.color = "#64748b";
+              });
+              const target = parent.querySelector<HTMLElement>("#blocks-panel");
+              if (target) target.style.display = "block";
+              e.currentTarget.style.borderBottom = "2px solid #2563eb";
+              e.currentTarget.style.color = "#1e293b";
+            }}
+            style={{
+              flex: 1,
+              padding: "10px 8px",
+              border: "none",
+              borderBottom: "2px solid #2563eb",
+              background: "transparent",
+              cursor: "pointer",
+              fontSize: "12px",
+              fontWeight: 600,
+              color: "#1e293b",
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+            }}
+          >
+            Blocks
+          </button>
+          <button
+            className="gjs-tab-btn"
+            data-tab="styles"
+            onClick={(e) => {
+              const parent = e.currentTarget.parentElement?.parentElement;
+              if (!parent) return;
+              parent.querySelectorAll<HTMLElement>(".gjs-tab-content").forEach(el => el.style.display = "none");
+              parent.querySelectorAll<HTMLElement>(".gjs-tab-btn").forEach(el => {
+                el.style.borderBottom = "2px solid transparent";
+                el.style.color = "#64748b";
+              });
+              const target = parent.querySelector<HTMLElement>("#styles-panel");
+              if (target) target.style.display = "block";
+              e.currentTarget.style.borderBottom = "2px solid #2563eb";
+              e.currentTarget.style.color = "#1e293b";
+            }}
+            style={{
+              flex: 1,
+              padding: "10px 8px",
+              border: "none",
+              borderBottom: "2px solid transparent",
+              background: "transparent",
+              cursor: "pointer",
+              fontSize: "12px",
+              fontWeight: 600,
+              color: "#64748b",
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+            }}
+          >
+            Styles
+          </button>
+          <button
+            className="gjs-tab-btn"
+            data-tab="layers"
+            onClick={(e) => {
+              const parent = e.currentTarget.parentElement?.parentElement;
+              if (!parent) return;
+              parent.querySelectorAll<HTMLElement>(".gjs-tab-content").forEach(el => el.style.display = "none");
+              parent.querySelectorAll<HTMLElement>(".gjs-tab-btn").forEach(el => {
+                el.style.borderBottom = "2px solid transparent";
+                el.style.color = "#64748b";
+              });
+              const target = parent.querySelector<HTMLElement>("#layers-panel");
+              if (target) target.style.display = "block";
+              e.currentTarget.style.borderBottom = "2px solid #2563eb";
+              e.currentTarget.style.color = "#1e293b";
+            }}
+            style={{
+              flex: 1,
+              padding: "10px 8px",
+              border: "none",
+              borderBottom: "2px solid transparent",
+              background: "transparent",
+              cursor: "pointer",
+              fontSize: "12px",
+              fontWeight: 600,
+              color: "#64748b",
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+            }}
+          >
+            Layers
+          </button>
+        </div>
+        {/* Panel content areas */}
+        <div id="blocks-panel" className="gjs-tab-content" style={{ flex: 1, overflow: "auto", padding: "8px" }} />
+        <div id="styles-panel" className="gjs-tab-content" style={{ flex: 1, overflow: "auto", padding: "8px", display: "none" }} />
+        <div id="layers-panel" className="gjs-tab-content" style={{ flex: 1, overflow: "auto", padding: "8px", display: "none" }} />
+      </div>
+
+      {/* Editor canvas */}
+      <div
+        ref={editorContainerRef}
+        style={{ flex: 1, height: "100%", overflow: "hidden" }}
+      />
+
+      {/* Inject custom styles for GrapesJS */}
+      <style>{`
+        /* Clean up GrapesJS default chrome */
+        .gjs-one-bg { background-color: #ffffff !important; }
+        .gjs-two-color { color: #334155 !important; }
+        .gjs-three-bg { background-color: #f8fafc !important; }
+        .gjs-four-color, .gjs-four-color-h:hover { color: #2563eb !important; }
+        .gjs-cv-canvas { background-color: #f1f5f9 !important; }
+
+        /* Hide GrapesJS default top panels — we have our own top bar */
+        .gjs-pn-panels { display: none !important; }
+
+        /* Block styling */
+        .gjs-blocks-cs { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 6px !important; }
+        .gjs-block {
+          padding: 10px 6px !important;
+          min-height: auto !important;
+          border: 1px solid #e2e8f0 !important;
+          border-radius: 6px !important;
+          background: #f8fafc !important;
+          cursor: grab !important;
+          text-align: center !important;
+          font-size: 12px !important;
+          transition: all 0.15s !important;
+        }
+        .gjs-block:hover {
+          border-color: #2563eb !important;
+          background: #eff6ff !important;
+        }
+        .gjs-block__media { display: none !important; }
+        .gjs-block-label {
+          font-size: 11px !important;
+          font-weight: 500 !important;
+          color: #475569 !important;
+        }
+
+        /* Category headers */
+        .gjs-block-category .gjs-title {
+          font-size: 12px !important;
+          font-weight: 600 !important;
+          color: #1e293b !important;
+          padding: 8px 4px !important;
+          border-bottom: 1px solid #e2e8f0 !important;
+          background: transparent !important;
+          text-transform: uppercase !important;
+          letter-spacing: 0.5px !important;
+        }
+
+        /* Style manager */
+        .gjs-sm-sector .gjs-sm-sector-title {
+          font-size: 12px !important;
+          font-weight: 600 !important;
+          color: #1e293b !important;
+          padding: 8px 4px !important;
+          border-bottom: 1px solid #e2e8f0 !important;
+          background: transparent !important;
+        }
+        .gjs-field { border: 1px solid #e2e8f0 !important; border-radius: 4px !important; }
+        .gjs-field input { font-size: 12px !important; }
+
+        /* Layer manager */
+        .gjs-layers { font-size: 12px !important; }
+        .gjs-layer-name { font-size: 12px !important; }
+
+        /* Canvas frame */
+        .gjs-frame-wrapper { overflow: auto !important; }
+      `}</style>
+    </div>
   );
 }
