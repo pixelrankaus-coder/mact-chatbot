@@ -29,27 +29,8 @@ import {
   LayoutList,
 } from "lucide-react";
 
-// Default email HTML template for new emails
-const DEFAULT_EMAIL_HTML = `
-<table style="width:100%;max-width:600px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;">
-  <tr>
-    <td style="background-color:#1a1a1a;padding:20px;text-align:center;border-radius:8px 8px 0 0;">
-      <img src="https://mact.au/wp-content/uploads/mact-logo-white.png" alt="MACt" style="width:140px;" />
-    </td>
-  </tr>
-  <tr>
-    <td style="background-color:#ffffff;padding:30px;font-size:15px;line-height:1.6;color:#333333;">
-      <p>Hi {{first_name}},</p>
-      <p>Your email content goes here. Drag blocks from the left to build your email.</p>
-    </td>
-  </tr>
-  <tr>
-    <td style="background-color:#f8fafc;padding:15px 30px;text-align:center;border-top:1px solid #e2e8f0;border-radius:0 0 8px 8px;">
-      <p style="font-size:12px;color:#94a3b8;margin:0;">MACt &bull; Unit 3C, 919-925 Nudgee Road, Banyo QLD 4014</p>
-    </td>
-  </tr>
-</table>
-`;
+// Empty starting template — user builds from scratch with blocks
+const DEFAULT_EMAIL_HTML = ``;
 
 // Block definitions with icons — Klaviyo-style
 const BLOCK_DEFS = {
