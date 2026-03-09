@@ -84,6 +84,72 @@ export interface CustomerRecipient {
   last_product?: string;
 }
 
+// Post-processing: exclusion segments + smart sending (skip recently emailed)
+async function applyFilters(
+  recipients: CustomerRecipient[],
+  segmentFilter?: Record<string, unknown>
+): Promise<CustomerRecipient[]> {
+  if (!segmentFilter) return recipients;
+  let filtered = recipients;
+
+  // Exclude segments: resolve each exclusion segment and remove matching emails
+  const excludeSegments = segmentFilter.exclude_segments as string[] | undefined;
+  if (excludeSegments && excludeSegments.length > 0) {
+    const excludeEmails = new Set<string>();
+    for (const slug of excludeSegments) {
+      try {
+        // Pass no filter to avoid infinite recursion
+        const excluded = await getSegmentRecipientsInternal(slug);
+        excluded.forEach((r) => excludeEmails.add(r.email.toLowerCase()));
+      } catch (err) {
+        console.warn(`[Segments] Failed to resolve exclusion segment "${slug}":`, err);
+      }
+    }
+    const before = filtered.length;
+    filtered = filtered.filter((r) => !excludeEmails.has(r.email.toLowerCase()));
+    console.log(`[Segments] Excluded ${before - filtered.length} recipients from ${excludeSegments.length} exclusion segment(s)`);
+  }
+
+  // Smart sending: skip recipients who received an email in the last N hours
+  const smartSendingHours = segmentFilter.smart_sending_hours as number | undefined;
+  if (smartSendingHours && smartSendingHours > 0) {
+    const supabase = getSupabase();
+    const cutoff = new Date(Date.now() - smartSendingHours * 60 * 60 * 1000).toISOString();
+
+    // Get emails sent recently (status: sent, delivered, opened, clicked)
+    const { data: recentEmails } = await supabase
+      .from("outreach_emails")
+      .select("recipient_email")
+      .in("status", ["sent", "delivered", "opened", "clicked"])
+      .gte("sent_at", cutoff);
+
+    if (recentEmails && recentEmails.length > 0) {
+      const recentSet = new Set(recentEmails.map((e) => e.recipient_email.toLowerCase()));
+      const before = filtered.length;
+      filtered = filtered.filter((r) => !recentSet.has(r.email.toLowerCase()));
+      console.log(`[Segments] Smart Sending: skipped ${before - filtered.length} recipients emailed in past ${smartSendingHours}h`);
+    }
+  }
+
+  return filtered;
+}
+
+// Internal version without filters (used by exclusion resolution to avoid recursion)
+async function getSegmentRecipientsInternal(
+  segment: string
+): Promise<CustomerRecipient[]> {
+  const slug = SEGMENT_SLUG_MAP[segment] || segment;
+  try {
+    const result = await resolveSegmentBySlug(slug);
+    if (result) {
+      return result.members.map(unifiedToRecipient);
+    }
+  } catch {
+    // fall through
+  }
+  return [];
+}
+
 export async function getSegmentRecipients(
   segment: SegmentType | string,
   segmentFilter?: Record<string, unknown>
@@ -105,7 +171,9 @@ export async function getSegmentRecipients(
       }
     }
     console.log(`[Segments] Multi-segment resolved ${slugs.length} segments: ${allRecipients.length} unique recipients`);
-    return allRecipients;
+
+    // Apply exclusions and smart sending to the combined result
+    return applyFilters(allRecipients, segmentFilter);
   }
 
   // Try DB-backed segment engine first (for new segments and migrated legacy ones)
@@ -115,7 +183,7 @@ export async function getSegmentRecipients(
       const result = await resolveSegmentBySlug(slug);
       if (result) {
         console.log(`[Segments] Resolved "${segment}" via DB engine: ${result.members.length} members`);
-        return result.members.map(unifiedToRecipient);
+        return applyFilters(result.members.map(unifiedToRecipient), segmentFilter);
       }
     } catch (err) {
       console.warn(`[Segments] DB engine failed for "${segment}", falling back to hardcoded:`, err);
@@ -416,7 +484,7 @@ export async function getSegmentRecipients(
     last_product: stats.last_product || undefined,
   }));
 
-  return recipients;
+  return applyFilters(recipients, segmentFilter);
 }
 
 export async function getSegmentCount(

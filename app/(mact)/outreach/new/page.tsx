@@ -18,6 +18,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import {
   ArrowLeft,
   ArrowRight,
@@ -34,6 +35,9 @@ import {
   RefreshCcw,
   Search,
   X,
+  ShieldCheck,
+  Ban,
+  Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { OutreachTemplate, OutreachSignature } from "@/types/outreach";
@@ -66,6 +70,14 @@ const SEND_RATES = [
   { value: 25, label: "25/hour", description: "Conservative" },
   { value: 50, label: "50/hour", description: "Recommended" },
   { value: 100, label: "100/hour", description: "Faster" },
+];
+
+const SMART_SENDING_HOURS = [
+  { value: 10, label: "10 hours" },
+  { value: 16, label: "16 hours" },
+  { value: 24, label: "24 hours" },
+  { value: 48, label: "48 hours" },
+  { value: 72, label: "3 days" },
 ];
 
 const RESEND_DELAYS = [
@@ -114,6 +126,9 @@ function NewCampaignContent() {
   const [segmentSearch, setSegmentSearch] = useState("");
   const [customEmails, setCustomEmails] = useState<string>("");
   const [showSegmentDropdown, setShowSegmentDropdown] = useState(false);
+  const [excludedSegments, setExcludedSegments] = useState<string[]>([]);
+  const [showExcludeDropdown, setShowExcludeDropdown] = useState(false);
+  const [showExcludeSection, setShowExcludeSection] = useState(false);
 
   // Parse custom emails and get count
   const parsedCustomEmails = customEmails
@@ -154,6 +169,10 @@ function NewCampaignContent() {
   const campaignName = campaignDesc
     ? `${datePrefix}_${campaignDesc}_${campaignType}`
     : "";
+
+  // Smart Sending (skip recently emailed)
+  const [smartSendingEnabled, setSmartSendingEnabled] = useState(true);
+  const [smartSendingHours, setSmartSendingHours] = useState(16);
 
   // Auto-resend to non-openers
   const [autoResendEnabled, setAutoResendEnabled] = useState(false);
@@ -296,10 +315,11 @@ function NewCampaignContent() {
             name: autoName,
             template_id: selectedTemplate,
             segment: selectedSegments.filter(s => s !== "custom").join(",") || (isCustomSelected ? "custom" : ""),
-            segment_filter:
-              isCustomSelected
-                ? { emails: parsedCustomEmails }
-                : undefined,
+            segment_filter: {
+              ...(isCustomSelected ? { emails: parsedCustomEmails } : {}),
+              ...(excludedSegments.length > 0 ? { exclude_segments: excludedSegments } : {}),
+              ...(smartSendingEnabled ? { smart_sending_hours: smartSendingHours } : {}),
+            },
             from_name: fromName,
             from_email: fromEmail,
             reply_to: replyTo,
@@ -680,6 +700,149 @@ function NewCampaignContent() {
                     </p>
                   </div>
                 )}
+              </div>
+
+              {/* Don't send to — exclusion segments */}
+              <div className="space-y-2">
+                {!showExcludeSection ? (
+                  <button
+                    onClick={() => setShowExcludeSection(true)}
+                    className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span className="font-medium">Don&apos;t send to</span>
+                  </button>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium flex items-center gap-2">
+                        <Ban className="h-4 w-4 text-red-500" />
+                        Don&apos;t send to
+                      </Label>
+                      {excludedSegments.length === 0 && (
+                        <button
+                          onClick={() => setShowExcludeSection(false)}
+                          className="text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Excluded segment chips */}
+                    {excludedSegments.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        {excludedSegments.map((segId) => {
+                          const info = segments.find(s => s.id === segId);
+                          return (
+                            <div key={segId} className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">
+                              <Ban className="h-3.5 w-3.5 text-red-500" />
+                              <span className="text-sm font-medium text-red-700">
+                                {info?.name}
+                              </span>
+                              <span className="text-xs text-red-400">
+                                ({info?.count?.toLocaleString() ?? "..."})
+                              </span>
+                              <button
+                                onClick={() => setExcludedSegments(prev => prev.filter(id => id !== segId))}
+                                className="ml-0.5 text-red-400 hover:text-red-600"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Exclusion segment dropdown */}
+                    <div className="relative">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          onFocus={() => setShowExcludeDropdown(true)}
+                          placeholder="Search segments to exclude..."
+                          className="pl-10"
+                        />
+                      </div>
+
+                      {showExcludeDropdown && (
+                        <>
+                          <div
+                            className="fixed inset-0 z-10"
+                            onClick={() => setShowExcludeDropdown(false)}
+                          />
+                          <div className="absolute z-20 mt-1 w-full bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                            <div className="px-3 py-2 text-xs font-medium text-muted-foreground border-b bg-slate-50">
+                              Exclude from this campaign
+                            </div>
+                            {segments
+                              .filter(s => s.id !== "custom" && !selectedSegments.includes(s.id))
+                              .map((seg) => {
+                                const isExcluded = excludedSegments.includes(seg.id);
+                                return (
+                                  <button
+                                    key={seg.id}
+                                    onClick={() => {
+                                      setExcludedSegments(prev =>
+                                        isExcluded
+                                          ? prev.filter(id => id !== seg.id)
+                                          : [...prev, seg.id]
+                                      );
+                                    }}
+                                    className={`w-full flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 text-left transition-colors border-b last:border-b-0 ${isExcluded ? "bg-red-50/50" : ""}`}
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <Checkbox checked={isExcluded} className="pointer-events-none" />
+                                      <span className="text-sm">{seg.name}</span>
+                                    </div>
+                                    <Badge variant="secondary" className="text-xs">
+                                      {seg.count?.toLocaleString() ?? "—"}
+                                    </Badge>
+                                  </button>
+                                );
+                              })}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Smart Sending toggle */}
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Switch
+                      checked={smartSendingEnabled}
+                      onCheckedChange={setSmartSendingEnabled}
+                    />
+                    <span className="text-sm font-medium">Turn on Smart Sending</span>
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  This campaign will not be sent to profiles who received a message from you in the past{" "}
+                  <Select
+                    value={smartSendingHours.toString()}
+                    onValueChange={(v) => setSmartSendingHours(parseInt(v))}
+                  >
+                    <SelectTrigger className="inline-flex w-auto h-7 px-2 text-sm font-medium">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SMART_SENDING_HOURS.map((h) => (
+                        <SelectItem key={h.value} value={h.value.toString()}>
+                          {h.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>.{" "}
+                  Smart Sending timeframes can be updated in{" "}
+                  <Link href="/outreach/settings" className="text-blue-600 hover:underline">
+                    account settings
+                  </Link>.
+                </p>
               </div>
             </div>
           )}
