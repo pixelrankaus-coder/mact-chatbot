@@ -1,7 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSale } from "@/lib/cin7";
+import { getSale, getCustomer } from "@/lib/cin7";
 import { getWooOrder } from "@/lib/woocommerce";
 import { cin7ToUnifiedOrder, wooToUnifiedOrder } from "@/lib/order-merge";
+
+async function buildCin7OrderResponse(cin7Sale: NonNullable<Awaited<ReturnType<typeof getSale>>>) {
+  const order = cin7ToUnifiedOrder(cin7Sale);
+
+  // Fetch customer payment info if we have a customer ID
+  if (cin7Sale.CustomerID) {
+    try {
+      const customer = await getCustomer(cin7Sale.CustomerID);
+      if (customer) {
+        order.paymentInfo = {
+          paymentTerm: customer.PaymentTerm || undefined,
+          creditLimit: customer.CreditLimit || undefined,
+          accountReceivable: customer.AccountReceivable || undefined,
+        };
+      }
+    } catch {
+      // Non-critical — continue without payment info
+    }
+  }
+
+  return order;
+}
 
 export async function GET(
   req: NextRequest,
@@ -34,7 +56,7 @@ export async function GET(
       }
 
       return NextResponse.json({
-        order: cin7ToUnifiedOrder(cin7Sale),
+        order: await buildCin7OrderResponse(cin7Sale),
       });
     }
 
@@ -42,7 +64,7 @@ export async function GET(
     const cin7Sale = await getSale(id);
     if (cin7Sale) {
       return NextResponse.json({
-        order: cin7ToUnifiedOrder(cin7Sale),
+        order: await buildCin7OrderResponse(cin7Sale),
       });
     }
 

@@ -56,6 +56,22 @@ export function cin7ToUnifiedOrder(sale: Cin7Sale): UnifiedOrder {
   const shipInfo = sale.Fulfilments?.[0]?.Ship;
   const trackingLine = shipInfo?.Lines?.[0];
 
+  // Map invoices from Cin7 data
+  const invoices = (sale.Invoices || []).map((inv) => ({
+    invoiceNumber: inv.InvoiceNumber,
+    status: inv.Status,
+    invoiceDate: inv.InvoiceDate,
+    total: inv.Total,
+    paid: inv.Paid,
+    lines: (inv.Lines || []).map((line) => ({
+      name: line.Name || "",
+      sku: line.SKU,
+      quantity: line.Quantity,
+      price: line.Price,
+      total: line.Total,
+    })),
+  }));
+
   return {
     id: `cin7-${sale.ID}`,
     cin7Id: sale.ID,
@@ -69,6 +85,7 @@ export function cin7ToUnifiedOrder(sale: Cin7Sale): UnifiedOrder {
     customerName: sale.Customer || "",
     customerEmail: sale.Email || "",
     customerId: sale.CustomerID,
+    contactName: sale.Contact || undefined,
     shippingAddress: sale.ShippingAddress
       ? {
           address1: [sale.ShippingAddress.Line1, sale.ShippingAddress.Line2]
@@ -90,6 +107,7 @@ export function cin7ToUnifiedOrder(sale: Cin7Sale): UnifiedOrder {
       price: line.Price,
       total: line.Total,
     })),
+    invoices: invoices.length > 0 ? invoices : undefined,
   };
 }
 

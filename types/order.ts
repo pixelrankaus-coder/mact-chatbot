@@ -55,8 +55,34 @@ export interface UnifiedOrder {
   // Line items
   items: UnifiedOrderItem[];
 
+  // Invoice data (Cin7 only)
+  invoices?: InvoiceData[];
+
+  // Customer payment info
+  paymentInfo?: CustomerPaymentInfo;
+
+  // Contact name
+  contactName?: string;
+
   // Metadata
   lastUpdated?: string;
+}
+
+// Invoice data from Cin7 sale
+export interface InvoiceData {
+  invoiceNumber: string;
+  status: string;
+  invoiceDate: string;
+  total: number;
+  paid: number;
+  lines: UnifiedOrderItem[];
+}
+
+// Customer payment info
+export interface CustomerPaymentInfo {
+  paymentTerm?: string;
+  creditLimit?: number;
+  accountReceivable?: number;
 }
 
 export type OrderSource = "cin7" | "woocommerce" | "all";
