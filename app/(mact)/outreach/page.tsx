@@ -2,11 +2,14 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -29,6 +32,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
 import {
   Plus,
   Mail,
@@ -53,6 +63,9 @@ import {
   ArrowRight,
   Link2,
   MessageSquare,
+  MessageCircleIcon,
+  SmartphoneIcon,
+  BellIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { OutreachCampaign } from "@/types/outreach";
@@ -94,6 +107,7 @@ const statusConfig: Record<
 };
 
 export default function OutreachPage() {
+  const router = useRouter();
   const [campaigns, setCampaigns] = useState<OutreachCampaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -104,6 +118,21 @@ export default function OutreachPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [segmentFilter, setSegmentFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
+
+  // Create Campaign Sheet state
+  const [showCreateSheet, setShowCreateSheet] = useState(false);
+  const [createChannel, setCreateChannel] = useState("email");
+  const [createDate, setCreateDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [createTags, setCreateTags] = useState("");
+
+  const handleCreateContinue = () => {
+    if (createChannel !== "email") {
+      toast.error("Only Email campaigns are supported right now");
+      return;
+    }
+    setShowCreateSheet(false);
+    router.push(`/outreach/new?channel=${createChannel}&date=${createDate}&tags=${encodeURIComponent(createTags)}`);
+  };
 
   useEffect(() => {
     fetchCampaigns();
@@ -388,12 +417,10 @@ export default function OutreachPage() {
               <span className="hidden lg:inline">Settings</span>
             </Button>
           </Link>
-          <Link href="/outreach/new">
-            <Button size="sm">
-              <Plus className="h-4 w-4" />
-              <span className="hidden lg:inline">New Campaign</span>
-            </Button>
-          </Link>
+          <Button size="sm" onClick={() => setShowCreateSheet(true)}>
+            <Plus className="h-4 w-4" />
+            <span className="hidden lg:inline">New Campaign</span>
+          </Button>
         </div>
       </div>
 
@@ -549,12 +576,10 @@ export default function OutreachPage() {
               <p className="text-muted-foreground mb-4">
                 Create your first outreach campaign to start winning back customers
               </p>
-              <Link href="/outreach/new">
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Campaign
-                </Button>
-              </Link>
+              <Button onClick={() => setShowCreateSheet(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Campaign
+              </Button>
             </div>
           ) : (
             <div className="rounded-md border">
@@ -769,6 +794,125 @@ export default function OutreachPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Create Campaign Slide-in Sheet */}
+      <Sheet open={showCreateSheet} onOpenChange={setShowCreateSheet}>
+        <SheetContent side="right" className="sm:max-w-md w-full overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="text-xl">Create campaign</SheetTitle>
+            <SheetDescription className="sr-only">
+              Set up your new campaign
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="flex flex-col gap-8 px-4 pb-4">
+            {/* Date */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">
+                Date <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                type="date"
+                value={createDate}
+                onChange={(e) => setCreateDate(e.target.value)}
+              />
+            </div>
+
+            {/* Channel Type */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Type</Label>
+              <RadioGroup
+                value={createChannel}
+                onValueChange={setCreateChannel}
+                className="space-y-2"
+              >
+                {/* Email */}
+                <label
+                  className={`flex items-center gap-3 p-4 rounded-lg border-2 cursor-pointer transition-colors ${
+                    createChannel === "email"
+                      ? "border-blue-600 bg-blue-50"
+                      : "border-slate-200 hover:border-slate-300"
+                  }`}
+                >
+                  <RadioGroupItem value="email" />
+                  <Mail className="h-5 w-5 text-slate-600" />
+                  <span className="font-medium">Email</span>
+                </label>
+
+                {/* Text Message */}
+                <label
+                  className={`flex items-center gap-3 p-4 rounded-lg border-2 cursor-pointer transition-colors ${
+                    createChannel === "sms"
+                      ? "border-blue-600 bg-blue-50"
+                      : "border-slate-200 hover:border-slate-300"
+                  }`}
+                >
+                  <RadioGroupItem value="sms" />
+                  <MessageCircleIcon className="h-5 w-5 text-slate-600" />
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">Text message</span>
+                    <Badge variant="outline" className="text-xs text-muted-foreground">Coming Soon</Badge>
+                  </div>
+                </label>
+
+                {/* WhatsApp */}
+                <label
+                  className={`flex items-center gap-3 p-4 rounded-lg border-2 cursor-pointer transition-colors ${
+                    createChannel === "whatsapp"
+                      ? "border-blue-600 bg-blue-50"
+                      : "border-slate-200 hover:border-slate-300"
+                  }`}
+                >
+                  <RadioGroupItem value="whatsapp" />
+                  <SmartphoneIcon className="h-5 w-5 text-slate-600" />
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">WhatsApp</span>
+                    <Badge variant="outline" className="text-xs text-muted-foreground">Coming Soon</Badge>
+                  </div>
+                </label>
+
+                {/* Push */}
+                <label
+                  className={`flex items-center gap-3 p-4 rounded-lg border-2 cursor-pointer transition-colors ${
+                    createChannel === "push"
+                      ? "border-blue-600 bg-blue-50"
+                      : "border-slate-200 hover:border-slate-300"
+                  }`}
+                >
+                  <RadioGroupItem value="push" />
+                  <BellIcon className="h-5 w-5 text-slate-600" />
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">Push</span>
+                    <Badge variant="outline" className="text-xs text-muted-foreground">Coming Soon</Badge>
+                  </div>
+                </label>
+              </RadioGroup>
+            </div>
+
+            {/* Campaign Tags */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Campaign tags</Label>
+              <Input
+                value={createTags}
+                onChange={(e) => setCreateTags(e.target.value)}
+                placeholder="e.g. product-launch, q1-2026"
+              />
+              <p className="text-xs text-muted-foreground">
+                Separate multiple tags with commas
+              </p>
+            </div>
+
+            {/* Continue Button */}
+            <Button
+              className="w-full"
+              size="lg"
+              onClick={handleCreateContinue}
+            >
+              Continue
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

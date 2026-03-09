@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useMemo, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +32,8 @@ import {
   UserPlus,
   FlaskConical,
   RefreshCcw,
+  Search,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { OutreachTemplate, OutreachSignature } from "@/types/outreach";
@@ -41,6 +43,7 @@ interface Segment {
   name: string;
   description: string;
   count?: number;
+  type?: string;
 }
 
 interface PreviewRecipient {
@@ -53,7 +56,7 @@ interface PreviewRecipient {
 }
 
 const STEPS = [
-  { id: 1, name: "Segment", icon: Users },
+  { id: 1, name: "Recipients", icon: Users },
   { id: 2, name: "Template", icon: FileText },
   { id: 3, name: "Preview", icon: Eye },
   { id: 4, name: "Launch", icon: Send },
@@ -92,17 +95,25 @@ function slugify(text: string): string {
     .replace(/^-|-$/g, "");
 }
 
-export default function NewCampaignPage() {
+function NewCampaignContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
 
-  // Step 1: Segment
+  // Passed from the Create Campaign sheet
+  const channel = searchParams.get("channel") || "email";
+  const campaignDate = searchParams.get("date") || new Date().toISOString().split("T")[0];
+  const campaignTags = searchParams.get("tags") || "";
+
+  // Step 1: Recipients
   const [segments, setSegments] = useState<Segment[]>([]);
   const [selectedSegment, setSelectedSegment] = useState<string>("");
   const [loadingSegments, setLoadingSegments] = useState(true);
+  const [segmentSearch, setSegmentSearch] = useState("");
   const [customEmails, setCustomEmails] = useState<string>("");
+  const [showSegmentDropdown, setShowSegmentDropdown] = useState(false);
 
   // Parse custom emails and get count
   const parsedCustomEmails = customEmails
@@ -111,7 +122,7 @@ export default function NewCampaignPage() {
     .filter((e) => e && e.includes("@"));
   const customEmailCount = parsedCustomEmails.length;
 
-  // Step 2: Template
+  // Step 3: Template
   const [templates, setTemplates] = useState<OutreachTemplate[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
   const [loadingTemplates, setLoadingTemplates] = useState(true);
@@ -120,7 +131,7 @@ export default function NewCampaignPage() {
   const [signatures, setSignatures] = useState<OutreachSignature[]>([]);
   const [selectedSignatureId, setSelectedSignatureId] = useState<string>("");
 
-  // Step 3: Preview
+  // Step 4: Preview
   const [campaignDesc, setCampaignDesc] = useState("");
   const [campaignType, setCampaignType] = useState("product");
   const [fromName, setFromName] = useState("");
@@ -131,7 +142,7 @@ export default function NewCampaignPage() {
   const [totalRecipients, setTotalRecipients] = useState(0);
   const [previewIndex, setPreviewIndex] = useState(0);
 
-  // Step 4: Schedule
+  // Step 5: Schedule
   const [sendNow, setSendNow] = useState(true);
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("09:00");
@@ -148,6 +159,17 @@ export default function NewCampaignPage() {
   const [autoResendEnabled, setAutoResendEnabled] = useState(false);
   const [resendDelayHours, setResendDelayHours] = useState(72);
   const [resendSubject, setResendSubject] = useState("");
+
+  // Filtered segments for search
+  const filteredSegments = useMemo(() => {
+    if (!segmentSearch.trim()) return segments;
+    const q = segmentSearch.toLowerCase();
+    return segments.filter(
+      (s) =>
+        s.name.toLowerCase().includes(q) ||
+        s.description?.toLowerCase().includes(q)
+    );
+  }, [segments, segmentSearch]);
 
   // Fetch segments, templates, settings, and signatures on mount
   useEffect(() => {
@@ -166,7 +188,6 @@ export default function NewCampaignPage() {
         setFromEmail(data.default_from_email || "c.born@mact.au");
         setReplyTo(data.default_reply_to || "c.born@reply.mact.au");
         setSendRate(data.max_emails_per_hour || 50);
-        // Pre-select campaign default signature
         if (data.default_signature_id) {
           setSelectedSignatureId(data.default_signature_id);
         }
@@ -221,7 +242,7 @@ export default function NewCampaignPage() {
       const data = await res.json();
       setAllRecipients(data.all_recipients || []);
       setTotalRecipients(data.total_recipients || 0);
-      setPreviewIndex(0); // Reset to first recipient
+      setPreviewIndex(0);
     } catch (error) {
       console.error("Failed to fetch preview:", error);
     }
@@ -237,8 +258,9 @@ export default function NewCampaignPage() {
   };
 
   const handleNext = async () => {
+    // Step 1: Recipients validation
     if (step === 1 && !selectedSegment) {
-      toast.error("Please select a segment");
+      toast.error("Please select an audience");
       return;
     }
 
@@ -247,21 +269,19 @@ export default function NewCampaignPage() {
       return;
     }
 
+    // Step 2: Template validation + create draft campaign
     if (step === 2 && !selectedTemplate) {
       toast.error("Please select a template");
       return;
     }
 
     if (step === 2) {
-      // Create draft campaign before moving to step 3
       setLoading(true);
       try {
         const segmentInfo = segments.find((s) => s.id === selectedSegment);
         const templateInfo = templates.find((t) => t.id === selectedTemplate);
 
-        // Auto-generate description from segment + template if empty
         const autoDesc = campaignDesc || slugify(`${segmentInfo?.name || "campaign"}-${templateInfo?.name || "email"}`);
-        // Infer type from segment
         const autoType = campaignType || (selectedSegment === "dormant" ? "winback" : "product");
         const autoName = `${datePrefix}_${autoDesc}_${autoType}`;
         if (!campaignDesc) {
@@ -295,10 +315,7 @@ export default function NewCampaignPage() {
         }
 
         setTotalRecipients(data.total_recipients);
-
-        // Fetch preview
         await fetchPreview(data.campaign.id);
-        // Store campaign id for later
         sessionStorage.setItem("draft_campaign_id", data.campaign.id);
       } catch (error) {
         console.error("Failed to create draft:", error);
@@ -340,7 +357,6 @@ export default function NewCampaignPage() {
         throw new Error("Campaign not found");
       }
 
-      // Update campaign with final settings
       let scheduledAt = null;
       if (!saveAsDraft && !sendNow && scheduledDate && scheduledTime) {
         scheduledAt = new Date(`${scheduledDate}T${scheduledTime}`).toISOString();
@@ -371,12 +387,9 @@ export default function NewCampaignPage() {
       }
 
       if (!saveAsDraft && sendNow) {
-        // Start sending immediately
         const sendRes = await fetch(
           `/api/outreach/campaigns/${campaignId}/send`,
-          {
-            method: "POST",
-          }
+          { method: "POST" }
         );
 
         if (!sendRes.ok) {
@@ -408,6 +421,13 @@ export default function NewCampaignPage() {
     (t) => t.id === selectedTemplate
   );
 
+  // Estimated recipients for Step 2
+  const estimatedRecipients = selectedSegmentInfo
+    ? selectedSegment === "custom"
+      ? customEmailCount
+      : selectedSegmentInfo.count ?? 0
+    : 0;
+
   return (
     <div className="container mx-auto py-6 px-4 max-w-4xl">
       {/* Header */}
@@ -418,9 +438,9 @@ export default function NewCampaignPage() {
           </Button>
         </Link>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold">New Campaign</h1>
-          <p className="text-sm text-slate-500">
-            Create a new outreach campaign
+          <h1 className="text-2xl font-bold">Create Campaign</h1>
+          <p className="text-sm text-muted-foreground">
+            Set up and launch your outreach campaign
           </p>
         </div>
       </div>
@@ -463,7 +483,7 @@ export default function NewCampaignPage() {
                 </span>
                 {index < STEPS.length - 1 && (
                   <div
-                    className={`w-12 h-0.5 mx-4 ${
+                    className={`w-8 h-0.5 mx-3 ${
                       isComplete ? "bg-green-600" : "bg-slate-200"
                     }`}
                   />
@@ -477,99 +497,183 @@ export default function NewCampaignPage() {
       {/* Step Content */}
       <Card>
         <CardContent className="pt-6">
-          {/* Step 1: Select Segment */}
+          {/* ============================================ */}
+          {/* Step 1: Recipients — Audience / Segment Picker */}
+          {/* ============================================ */}
           {step === 1 && (
             <div className="space-y-6">
-              <div>
-                <h2 className="text-lg font-semibold mb-2">
-                  Who do you want to reach?
-                </h2>
-                <p className="text-sm text-slate-500">
-                  Select a customer segment for your campaign
-                </p>
-              </div>
-
-              {loadingSegments ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
-                </div>
-              ) : (
-                <RadioGroup
-                  value={selectedSegment}
-                  onValueChange={setSelectedSegment}
-                  className="space-y-3"
-                >
-                  {segments.map((segment) => (
-                    <label
-                      key={segment.id}
-                      className={`flex items-center justify-between p-4 rounded-lg border cursor-pointer transition-colors ${
-                        selectedSegment === segment.id
-                          ? segment.id === "custom"
-                            ? "border-purple-600 bg-purple-50"
-                            : "border-blue-600 bg-blue-50"
-                          : "border-slate-200 hover:border-slate-300"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <RadioGroupItem value={segment.id} />
-                        <div className="flex items-center gap-2">
-                          {segment.id === "custom" && (
-                            <UserPlus className="h-4 w-4 text-purple-600" />
-                          )}
-                          <div>
-                            <p className="font-medium">{segment.name}</p>
-                            <p className="text-sm text-slate-500">
-                              {segment.description}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                      <Badge
-                        variant="secondary"
-                        className={
-                          segment.id === "custom"
-                            ? "bg-purple-100 text-purple-700"
-                            : ""
-                        }
-                      >
-                        {segment.id === "custom"
-                          ? `${customEmailCount} recipients`
-                          : segment.count !== undefined
-                            ? `${segment.count} customers`
-                            : "Loading..."}
-                      </Badge>
-                    </label>
-                  ))}
-                </RadioGroup>
-              )}
-
-              {/* Custom emails textarea */}
-              {selectedSegment === "custom" && (
-                <div className="mt-4 space-y-2">
-                  <Label htmlFor="customEmails">Email Addresses</Label>
-                  <Textarea
-                    id="customEmails"
-                    value={customEmails}
-                    onChange={(e) => setCustomEmails(e.target.value)}
-                    placeholder="Enter email addresses (one per line)&#10;&#10;example@test.com&#10;another@test.com"
-                    className="min-h-[120px] font-mono text-sm"
-                  />
-                  <p className="text-xs text-slate-500">
-                    {customEmailCount} valid email{customEmailCount !== 1 ? "s" : ""} entered
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold mb-1">Audience</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Choose who will receive this campaign
                   </p>
                 </div>
-              )}
+                <div className="text-right">
+                  <p className="text-3xl font-bold">{estimatedRecipients.toLocaleString()}</p>
+                  <p className="text-sm text-muted-foreground">Estimated recipients</p>
+                </div>
+              </div>
+
+              {/* Send to */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Send to</Label>
+
+                {/* Selected segment chip */}
+                {selectedSegment && selectedSegment !== "custom" && (
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                      <Users className="h-4 w-4 text-blue-600" />
+                      <span className="text-sm font-medium text-blue-700">
+                        {selectedSegmentInfo?.name}
+                      </span>
+                      <span className="text-xs text-blue-500">
+                        ({selectedSegmentInfo?.count?.toLocaleString() ?? "..."} contacts)
+                      </span>
+                      <button
+                        onClick={() => { setSelectedSegment(""); setSegmentSearch(""); }}
+                        className="ml-1 text-blue-400 hover:text-blue-600"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Segment selector dropdown */}
+                {!selectedSegment || selectedSegment === "custom" ? (
+                  <div className="relative">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        value={segmentSearch}
+                        onChange={(e) => {
+                          setSegmentSearch(e.target.value);
+                          setShowSegmentDropdown(true);
+                          if (selectedSegment && selectedSegment !== "custom") {
+                            setSelectedSegment("");
+                          }
+                        }}
+                        onFocus={() => setShowSegmentDropdown(true)}
+                        placeholder="Search for a list or segment..."
+                        className="pl-10"
+                      />
+                    </div>
+
+                    {showSegmentDropdown && (
+                      <>
+                        {/* Backdrop to close dropdown */}
+                        <div
+                          className="fixed inset-0 z-10"
+                          onClick={() => setShowSegmentDropdown(false)}
+                        />
+                        <div className="absolute z-20 mt-1 w-full bg-white border rounded-lg shadow-lg max-h-80 overflow-y-auto">
+                          {loadingSegments ? (
+                            <div className="flex items-center justify-center py-6">
+                              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                            </div>
+                          ) : (
+                            <>
+                              {/* List header */}
+                              <div className="px-3 py-2 text-xs font-medium text-muted-foreground border-b bg-slate-50">
+                                Segments
+                              </div>
+                              {filteredSegments
+                                .filter((s) => s.id !== "custom")
+                                .map((segment) => (
+                                  <button
+                                    key={segment.id}
+                                    onClick={() => {
+                                      setSelectedSegment(segment.id);
+                                      setSegmentSearch("");
+                                      setShowSegmentDropdown(false);
+                                    }}
+                                    className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 text-left transition-colors border-b last:border-b-0"
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <Users className="h-4 w-4 text-slate-400" />
+                                      <div>
+                                        <p className="text-sm font-medium">{segment.name}</p>
+                                        {segment.description && (
+                                          <p className="text-xs text-muted-foreground">{segment.description}</p>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <Badge variant="secondary" className="text-xs">
+                                      {segment.count?.toLocaleString() ?? "—"}
+                                    </Badge>
+                                  </button>
+                                ))}
+
+                              {filteredSegments.filter((s) => s.id !== "custom").length === 0 && (
+                                <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+                                  No segments found
+                                </div>
+                              )}
+
+                              {/* Custom / Manual option */}
+                              <div className="border-t">
+                                <button
+                                  onClick={() => {
+                                    setSelectedSegment("custom");
+                                    setSegmentSearch("");
+                                    setShowSegmentDropdown(false);
+                                  }}
+                                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-purple-50 text-left transition-colors"
+                                >
+                                  <UserPlus className="h-4 w-4 text-purple-500" />
+                                  <div>
+                                    <p className="text-sm font-medium text-purple-700">Custom / Manual Entry</p>
+                                    <p className="text-xs text-muted-foreground">Enter email addresses manually</p>
+                                  </div>
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ) : null}
+
+                {/* Custom emails textarea */}
+                {selectedSegment === "custom" && (
+                  <div className="mt-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="customEmails" className="text-sm">Email Addresses</Label>
+                      <button
+                        onClick={() => { setSelectedSegment(""); setCustomEmails(""); }}
+                        className="text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        Switch to segment
+                      </button>
+                    </div>
+                    <Textarea
+                      id="customEmails"
+                      value={customEmails}
+                      onChange={(e) => setCustomEmails(e.target.value)}
+                      placeholder={"Enter email addresses (one per line)\n\nexample@test.com\nanother@test.com"}
+                      className="min-h-[120px] font-mono text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {customEmailCount} valid email{customEmailCount !== 1 ? "s" : ""} entered
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
+          {/* ============================================ */}
           {/* Step 2: Select Template */}
+          {/* ============================================ */}
           {step === 2 && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-lg font-semibold mb-2">
+                <h2 className="text-lg font-semibold mb-1">
                   Choose an email template
                 </h2>
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-muted-foreground">
                   Select the template for your campaign emails
                 </p>
               </div>
@@ -581,7 +685,7 @@ export default function NewCampaignPage() {
               ) : templates.length === 0 ? (
                 <div className="text-center py-8">
                   <Mail className="h-12 w-12 mx-auto text-slate-300 mb-4" />
-                  <p className="text-slate-500 mb-4">
+                  <p className="text-muted-foreground mb-4">
                     No templates yet. Create one first.
                   </p>
                   <Link href="/outreach/templates/new">
@@ -606,7 +710,7 @@ export default function NewCampaignPage() {
                       <RadioGroupItem value={template.id} className="mt-1" />
                       <div className="ml-3">
                         <p className="font-medium">{template.name}</p>
-                        <p className="text-sm text-slate-500 mt-1">
+                        <p className="text-sm text-muted-foreground mt-1">
                           Subject: {template.subject}
                         </p>
                         <p className="text-xs text-slate-400 mt-2">
@@ -620,15 +724,17 @@ export default function NewCampaignPage() {
             </div>
           )}
 
+          {/* ============================================ */}
           {/* Step 3: Preview & Configure */}
+          {/* ============================================ */}
           {step === 3 && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-lg font-semibold mb-2">
+                <h2 className="text-lg font-semibold mb-1">
                   Preview & Configure
                 </h2>
-                <p className="text-sm text-slate-500">
-                  Review your campaign settings and preview exactly what each recipient will see
+                <p className="text-sm text-muted-foreground">
+                  Review your campaign settings and preview what each recipient will see
                 </p>
               </div>
 
@@ -647,10 +753,7 @@ export default function NewCampaignPage() {
                     placeholder="flowoid-scc-launch"
                     className="font-mono text-sm"
                   />
-                  <Select
-                    value={campaignType}
-                    onValueChange={setCampaignType}
-                  >
+                  <Select value={campaignType} onValueChange={setCampaignType}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -680,7 +783,6 @@ export default function NewCampaignPage() {
                     onChange={(e) => setFromName(e.target.value)}
                   />
                 </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="fromEmail">From Email</Label>
                   <Input
@@ -689,7 +791,6 @@ export default function NewCampaignPage() {
                     onChange={(e) => setFromEmail(e.target.value)}
                   />
                 </div>
-
                 <div className="space-y-2">
                   <Label>Send Rate</Label>
                   <Select
@@ -701,10 +802,7 @@ export default function NewCampaignPage() {
                     </SelectTrigger>
                     <SelectContent>
                       {SEND_RATES.map((rate) => (
-                        <SelectItem
-                          key={rate.value}
-                          value={rate.value.toString()}
-                        >
+                        <SelectItem key={rate.value} value={rate.value.toString()}>
                           {rate.label} - {rate.description}
                         </SelectItem>
                       ))}
@@ -732,7 +830,7 @@ export default function NewCampaignPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-muted-foreground">
                     Manage signatures in{" "}
                     <Link href="/outreach/settings" className="text-blue-600 hover:underline">
                       Outreach Settings
@@ -744,29 +842,28 @@ export default function NewCampaignPage() {
               {/* Summary Bar */}
               <div className="flex items-center gap-6 bg-slate-50 rounded-lg p-3 text-sm">
                 <div>
-                  <span className="text-slate-500">Segment:</span>{" "}
+                  <span className="text-muted-foreground">Segment:</span>{" "}
                   <span className="font-medium">{selectedSegmentInfo?.name}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500">Template:</span>{" "}
+                  <span className="text-muted-foreground">Template:</span>{" "}
                   <span className="font-medium">{selectedTemplateInfo?.name}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500">Recipients:</span>{" "}
+                  <span className="text-muted-foreground">Recipients:</span>{" "}
                   <span className="font-medium">{totalRecipients}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500">Est. Time:</span>{" "}
+                  <span className="text-muted-foreground">Est. Time:</span>{" "}
                   <span className="font-medium">{getEstimatedTime()}</span>
                 </div>
               </div>
 
               {/* Full Email Preview with Navigation */}
               <div className="border rounded-lg">
-                {/* Preview Header with Navigation */}
                 <div className="flex items-center justify-between bg-slate-100 px-4 py-3 border-b">
                   <div className="flex items-center gap-2">
-                    <Mail className="h-4 w-4 text-slate-500" />
+                    <Mail className="h-4 w-4 text-muted-foreground" />
                     <span className="font-medium">Email Preview</span>
                     {allRecipients.length > 0 && (
                       <Badge variant="secondary">
@@ -800,25 +897,23 @@ export default function NewCampaignPage() {
 
                 {allRecipients.length > 0 && allRecipients[previewIndex] ? (
                   <div>
-                    {/* Email Headers */}
                     <div className="bg-white px-4 py-3 border-b space-y-1 text-sm">
                       <div>
-                        <span className="text-slate-500 w-16 inline-block">To:</span>
+                        <span className="text-muted-foreground w-16 inline-block">To:</span>
                         <span className="font-medium text-blue-600">
                           {allRecipients[previewIndex].name} &lt;{allRecipients[previewIndex].email}&gt;
                         </span>
                       </div>
                       <div>
-                        <span className="text-slate-500 w-16 inline-block">From:</span>
+                        <span className="text-muted-foreground w-16 inline-block">From:</span>
                         <span>{fromName} &lt;{fromEmail}&gt;</span>
                       </div>
                       <div>
-                        <span className="text-slate-500 w-16 inline-block">Subject:</span>
+                        <span className="text-muted-foreground w-16 inline-block">Subject:</span>
                         <span className="font-medium">{allRecipients[previewIndex].preview.subject}</span>
                       </div>
                     </div>
 
-                    {/* Email Body - Full HTML Preview */}
                     <div className="bg-white p-4">
                       <div
                         className="border rounded-lg overflow-hidden"
@@ -833,9 +928,8 @@ export default function NewCampaignPage() {
                       </div>
                     </div>
 
-                    {/* Personalization Data (Collapsible) */}
                     <details className="border-t">
-                      <summary className="px-4 py-2 text-sm text-slate-500 cursor-pointer hover:bg-slate-50">
+                      <summary className="px-4 py-2 text-sm text-muted-foreground cursor-pointer hover:bg-slate-50">
                         View Personalization Data
                       </summary>
                       <div className="px-4 py-2 bg-slate-50 text-xs font-mono">
@@ -855,14 +949,16 @@ export default function NewCampaignPage() {
             </div>
           )}
 
+          {/* ============================================ */}
           {/* Step 4: Schedule & Launch */}
+          {/* ============================================ */}
           {step === 4 && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-lg font-semibold mb-2">
+                <h2 className="text-lg font-semibold mb-1">
                   Schedule & Launch
                 </h2>
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-muted-foreground">
                   Choose when to send your campaign
                 </p>
               </div>
@@ -881,9 +977,9 @@ export default function NewCampaignPage() {
                       <FlaskConical className="h-4 w-4 text-purple-600" />
                       <span className="font-medium">Simulation Mode (Dry Run)</span>
                     </div>
-                    <p className="text-sm text-slate-500 mt-1">
+                    <p className="text-sm text-muted-foreground mt-1">
                       Test your campaign without sending real emails. All emails will be marked as
-                      &quot;sent&quot; but no actual delivery will occur. Great for testing templates and workflows.
+                      &quot;sent&quot; but no actual delivery will occur.
                     </p>
                     {isDryRun && (
                       <div className="mt-2 p-2 bg-purple-100 rounded text-sm text-purple-700">
@@ -912,7 +1008,7 @@ export default function NewCampaignPage() {
                       <Send className="h-4 w-4" />
                       Send Now
                     </p>
-                    <p className="text-sm text-slate-500">
+                    <p className="text-sm text-muted-foreground">
                       Start sending immediately at {sendRate} emails/hour
                     </p>
                   </div>
@@ -931,7 +1027,7 @@ export default function NewCampaignPage() {
                       <Clock className="h-4 w-4" />
                       Schedule
                     </p>
-                    <p className="text-sm text-slate-500">
+                    <p className="text-sm text-muted-foreground">
                       Choose a specific date and time
                     </p>
                   </div>
@@ -976,7 +1072,7 @@ export default function NewCampaignPage() {
                       <RefreshCcw className="h-4 w-4 text-amber-600" />
                       <span className="font-medium">Send follow-up to non-openers</span>
                     </div>
-                    <p className="text-sm text-slate-500 mt-1">
+                    <p className="text-sm text-muted-foreground mt-1">
                       Automatically re-send with a new subject line to recipients who
                       don&apos;t open the original email.
                     </p>
@@ -993,7 +1089,7 @@ export default function NewCampaignPage() {
                         onChange={(e) => setResendSubject(e.target.value)}
                         placeholder="e.g., Did you see this? {{first_name}}"
                       />
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs text-muted-foreground">
                         Supports the same variables as your template (e.g. {"{{first_name}}"})
                       </p>
                     </div>
@@ -1027,45 +1123,43 @@ export default function NewCampaignPage() {
                 <CardContent>
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <p className="text-slate-500">Name</p>
+                      <p className="text-muted-foreground">Name</p>
                       <p className="font-medium">{campaignName}</p>
                     </div>
                     <div>
-                      <p className="text-slate-500">Segment</p>
+                      <p className="text-muted-foreground">Segment</p>
                       <p className="font-medium">{selectedSegmentInfo?.name}</p>
                     </div>
                     <div>
-                      <p className="text-slate-500">Template</p>
-                      <p className="font-medium">
-                        {selectedTemplateInfo?.name}
-                      </p>
+                      <p className="text-muted-foreground">Template</p>
+                      <p className="font-medium">{selectedTemplateInfo?.name}</p>
                     </div>
                     <div>
-                      <p className="text-slate-500">Recipients</p>
+                      <p className="text-muted-foreground">Recipients</p>
                       <p className="font-medium">{totalRecipients}</p>
                     </div>
                     <div>
-                      <p className="text-slate-500">From</p>
+                      <p className="text-muted-foreground">From</p>
                       <p className="font-medium">
                         {fromName} &lt;{fromEmail}&gt;
                       </p>
                     </div>
                     <div>
-                      <p className="text-slate-500">Signature</p>
+                      <p className="text-muted-foreground">Signature</p>
                       <p className="font-medium">
                         {signatures.find(s => s.id === selectedSignatureId)?.name || "Default"}
                       </p>
                     </div>
                     <div>
-                      <p className="text-slate-500">Send Rate</p>
+                      <p className="text-muted-foreground">Send Rate</p>
                       <p className="font-medium">{sendRate}/hour</p>
                     </div>
                     <div>
-                      <p className="text-slate-500">Est. Duration</p>
+                      <p className="text-muted-foreground">Est. Duration</p>
                       <p className="font-medium">{getEstimatedTime()}</p>
                     </div>
                     <div>
-                      <p className="text-slate-500">Scheduled</p>
+                      <p className="text-muted-foreground">Scheduled</p>
                       <p className="font-medium">
                         {sendNow
                           ? "Send immediately"
@@ -1076,7 +1170,7 @@ export default function NewCampaignPage() {
                     </div>
                     {isDryRun && (
                       <div className="col-span-2">
-                        <p className="text-slate-500">Mode</p>
+                        <p className="text-muted-foreground">Mode</p>
                         <p className="font-medium text-purple-600 flex items-center gap-1">
                           <FlaskConical className="h-4 w-4" />
                           Simulation (No real emails)
@@ -1085,7 +1179,7 @@ export default function NewCampaignPage() {
                     )}
                     {autoResendEnabled && (
                       <div className="col-span-2">
-                        <p className="text-slate-500">Follow-up to Non-Openers</p>
+                        <p className="text-muted-foreground">Follow-up to Non-Openers</p>
                         <p className="font-medium text-amber-600 flex items-center gap-1">
                           <RefreshCcw className="h-4 w-4" />
                           Resend after {RESEND_DELAYS.find(d => d.value === resendDelayHours)?.label} with new subject
@@ -1144,5 +1238,13 @@ export default function NewCampaignPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function NewCampaignPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>}>
+      <NewCampaignContent />
+    </Suspense>
   );
 }
