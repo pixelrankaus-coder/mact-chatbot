@@ -20,6 +20,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   ArrowLeft,
   ArrowRight,
   Users,
@@ -38,6 +44,9 @@ import {
   ShieldCheck,
   Ban,
   Plus,
+  LayoutGrid,
+  List,
+  MoreVertical,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { OutreachTemplate, OutreachSignature } from "@/types/outreach";
@@ -137,10 +146,15 @@ function NewCampaignContent() {
     .filter((e) => e && e.includes("@"));
   const customEmailCount = parsedCustomEmails.length;
 
-  // Step 3: Template
+  // Step 2: Template + Message config
   const [templates, setTemplates] = useState<OutreachTemplate[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
   const [loadingTemplates, setLoadingTemplates] = useState(true);
+  const [templateSearch, setTemplateSearch] = useState("");
+  const [templateViewMode, setTemplateViewMode] = useState<"grid" | "list">("grid");
+  const [subjectLine, setSubjectLine] = useState("");
+  const [previewText, setPreviewText] = useState("");
+  const [useAsReplyTo, setUseAsReplyTo] = useState(true);
 
   // Signatures
   const [signatures, setSignatures] = useState<OutreachSignature[]>([]);
@@ -179,6 +193,17 @@ function NewCampaignContent() {
   const [resendDelayHours, setResendDelayHours] = useState(72);
   const [resendSubject, setResendSubject] = useState("");
 
+  // Filtered templates for search
+  const filteredTemplates = useMemo(() => {
+    if (!templateSearch.trim()) return templates;
+    const q = templateSearch.toLowerCase();
+    return templates.filter(
+      (t) =>
+        t.name.toLowerCase().includes(q) ||
+        t.subject.toLowerCase().includes(q)
+    );
+  }, [templates, templateSearch]);
+
   // Filtered segments for search
   const filteredSegments = useMemo(() => {
     if (!segmentSearch.trim()) return segments;
@@ -189,6 +214,16 @@ function NewCampaignContent() {
         s.description?.toLowerCase().includes(q)
     );
   }, [segments, segmentSearch]);
+
+  // Auto-fill subject when template is selected
+  useEffect(() => {
+    if (selectedTemplate) {
+      const tmpl = templates.find(t => t.id === selectedTemplate);
+      if (tmpl && !subjectLine) {
+        setSubjectLine(tmpl.subject);
+      }
+    }
+  }, [selectedTemplate, templates, subjectLine]);
 
   // Fetch segments, templates, settings, and signatures on mount
   useEffect(() => {
@@ -288,9 +323,13 @@ function NewCampaignContent() {
       return;
     }
 
-    // Step 2: Template validation + create draft campaign
+    // Step 2: Template + message validation
     if (step === 2 && !selectedTemplate) {
       toast.error("Please select a template");
+      return;
+    }
+    if (step === 2 && !subjectLine.trim()) {
+      toast.error("Please enter a subject line");
       return;
     }
 
@@ -457,7 +496,7 @@ function NewCampaignContent() {
   })();
 
   return (
-    <div className="container mx-auto py-6 px-4 max-w-4xl">
+    <div className="container mx-auto py-6 px-4 max-w-5xl">
       {/* Header */}
       <div className="flex items-center gap-4 mb-6">
         <Link href="/outreach">
@@ -848,62 +887,211 @@ function NewCampaignContent() {
           )}
 
           {/* ============================================ */}
-          {/* Step 2: Select Template */}
+          {/* Step 2: Message — Template + Email Config */}
           {/* ============================================ */}
           {step === 2 && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-lg font-semibold mb-1">
-                  Choose an email template
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  Select the template for your campaign emails
-                </p>
+            <div className="flex gap-6 min-h-[500px]">
+              {/* Left side: Template picker */}
+              <div className="flex-1 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold">Templates</h2>
+                  <div className="flex items-center gap-2">
+                    <Link href="/outreach/templates/new" target="_blank">
+                      <Button size="sm">Create</Button>
+                    </Link>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="icon" className="h-8 w-8">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem asChild>
+                          <Link href="/outreach/templates/new" target="_blank">
+                            Switch to text only editor
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href="/outreach/templates/new?mode=html" target="_blank">
+                            Switch to HTML editor
+                          </Link>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
+
+                {/* Search + View Toggle */}
+                <div className="flex items-center gap-3">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      value={templateSearch}
+                      onChange={(e) => setTemplateSearch(e.target.value)}
+                      placeholder="Search"
+                      className="pl-10 h-9"
+                    />
+                  </div>
+                  <div className="flex items-center border rounded-md">
+                    <button
+                      onClick={() => setTemplateViewMode("grid")}
+                      className={`p-1.5 ${templateViewMode === "grid" ? "bg-slate-100" : "hover:bg-slate-50"}`}
+                    >
+                      <LayoutGrid className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => setTemplateViewMode("list")}
+                      className={`p-1.5 ${templateViewMode === "list" ? "bg-slate-100" : "hover:bg-slate-50"}`}
+                    >
+                      <List className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Template List */}
+                {loadingTemplates ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+                  </div>
+                ) : filteredTemplates.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Mail className="h-12 w-12 mx-auto text-slate-300 mb-4" />
+                    <p className="text-muted-foreground mb-4">
+                      {templates.length === 0 ? "No templates yet" : "No templates match your search"}
+                    </p>
+                    {templates.length === 0 && (
+                      <Link href="/outreach/templates/new" target="_blank">
+                        <Button>Create Template</Button>
+                      </Link>
+                    )}
+                  </div>
+                ) : templateViewMode === "grid" ? (
+                  /* Grid View */
+                  <div className="grid grid-cols-2 gap-3 overflow-y-auto max-h-[400px] pr-1">
+                    {filteredTemplates.map((template) => (
+                      <button
+                        key={template.id}
+                        onClick={() => {
+                          setSelectedTemplate(template.id);
+                          if (!subjectLine || subjectLine === templates.find(t => t.id === selectedTemplate)?.subject) {
+                            setSubjectLine(template.subject);
+                          }
+                        }}
+                        className={`text-left rounded-lg border-2 overflow-hidden transition-all ${
+                          selectedTemplate === template.id
+                            ? "border-blue-600 ring-1 ring-blue-600"
+                            : "border-slate-200 hover:border-slate-300"
+                        }`}
+                      >
+                        {/* Template preview card */}
+                        <div className="bg-slate-50 px-3 py-4 min-h-[140px] text-xs text-slate-500 overflow-hidden">
+                          <p className="font-medium text-slate-700 text-sm mb-1 truncate">{template.name}</p>
+                          <p className="text-xs text-slate-400 mb-2 truncate">Subject: {template.subject}</p>
+                          <div className="text-[10px] leading-tight text-slate-400 line-clamp-4">
+                            {template.body?.replace(/\{\{[^}]+\}\}/g, "[...]").substring(0, 200)}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  /* List View */
+                  <div className="space-y-2 overflow-y-auto max-h-[400px] pr-1">
+                    {filteredTemplates.map((template) => (
+                      <button
+                        key={template.id}
+                        onClick={() => {
+                          setSelectedTemplate(template.id);
+                          if (!subjectLine || subjectLine === templates.find(t => t.id === selectedTemplate)?.subject) {
+                            setSubjectLine(template.subject);
+                          }
+                        }}
+                        className={`w-full text-left flex items-center p-3 rounded-lg border-2 transition-all ${
+                          selectedTemplate === template.id
+                            ? "border-blue-600 bg-blue-50"
+                            : "border-slate-200 hover:border-slate-300"
+                        }`}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{template.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            Subject: {template.subject}
+                          </p>
+                        </div>
+                        <Badge variant="secondary" className="text-xs ml-2 shrink-0">
+                          {template.variables?.length || 0} vars
+                        </Badge>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              {loadingTemplates ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+              {/* Right side: Email message config */}
+              <div className="w-72 shrink-0 border-l pl-6 space-y-5">
+                <div className="flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-muted-foreground" />
+                  <h3 className="font-semibold">Email message</h3>
                 </div>
-              ) : templates.length === 0 ? (
-                <div className="text-center py-8">
-                  <Mail className="h-12 w-12 mx-auto text-slate-300 mb-4" />
-                  <p className="text-muted-foreground mb-4">
-                    No templates yet. Create one first.
-                  </p>
-                  <Link href="/outreach/templates/new">
-                    <Button>Create Template</Button>
-                  </Link>
+
+                <div className="space-y-2">
+                  <Label htmlFor="subjectLine" className="text-sm">
+                    Subject line <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="subjectLine"
+                    value={subjectLine}
+                    onChange={(e) => setSubjectLine(e.target.value)}
+                    placeholder="Enter subject line..."
+                    className="text-sm"
+                  />
                 </div>
-              ) : (
-                <RadioGroup
-                  value={selectedTemplate}
-                  onValueChange={setSelectedTemplate}
-                  className="space-y-3"
-                >
-                  {templates.map((template) => (
-                    <label
-                      key={template.id}
-                      className={`flex items-start p-4 rounded-lg border cursor-pointer transition-colors ${
-                        selectedTemplate === template.id
-                          ? "border-blue-600 bg-blue-50"
-                          : "border-slate-200 hover:border-slate-300"
-                      }`}
-                    >
-                      <RadioGroupItem value={template.id} className="mt-1" />
-                      <div className="ml-3">
-                        <p className="font-medium">{template.name}</p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Subject: {template.subject}
-                        </p>
-                        <p className="text-xs text-slate-400 mt-2">
-                          {template.variables?.length || 0} variables
-                        </p>
-                      </div>
-                    </label>
-                  ))}
-                </RadioGroup>
-              )}
+
+                <div className="space-y-2">
+                  <Label htmlFor="previewText" className="text-sm">
+                    Preview text
+                  </Label>
+                  <Input
+                    id="previewText"
+                    value={previewText}
+                    onChange={(e) => setPreviewText(e.target.value)}
+                    placeholder="Optional preview text..."
+                    className="text-sm"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="senderName" className="text-sm">
+                    Sender name <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="senderName"
+                    value={fromName}
+                    onChange={(e) => setFromName(e.target.value)}
+                    className="text-sm"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="senderEmail" className="text-sm">
+                    Sender email <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="senderEmail"
+                    value={fromEmail}
+                    onChange={(e) => setFromEmail(e.target.value)}
+                    className="text-sm"
+                  />
+                </div>
+
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={useAsReplyTo}
+                    onCheckedChange={(checked) => setUseAsReplyTo(checked === true)}
+                  />
+                  <span className="text-sm">Use as reply-to</span>
+                </label>
+              </div>
             </div>
           )}
 
