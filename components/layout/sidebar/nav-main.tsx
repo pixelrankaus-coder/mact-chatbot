@@ -35,6 +35,8 @@ import {
   ScrollTextIcon,
   LightbulbIcon,
   ZapIcon,
+  UsersRoundIcon,
+  FilterIcon,
   type LucideIcon
 } from "lucide-react";
 import Link from "next/link";
@@ -107,6 +109,16 @@ export const navItems: NavGroup[] = [
         title: "Outreach Analytics",
         href: "/outreach/analytics",
         icon: BarChart3Icon
+      },
+      {
+        title: "Segments",
+        href: "/outreach/segments",
+        icon: FilterIcon
+      },
+      {
+        title: "Contacts",
+        href: "/outreach/contacts",
+        icon: UsersRoundIcon
       },
       {
         title: "PPC Performance",

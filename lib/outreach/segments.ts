@@ -1,4 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
+import {
+  resolveSegmentBySlug,
+  getAllSegmentsWithCounts,
+  type UnifiedContact,
+} from "./segment-engine";
 
 // Server-side Supabase client
 function getSupabase() {
@@ -10,6 +15,28 @@ function getSupabase() {
 }
 
 export type SegmentType = "dormant" | "vip" | "active" | "all" | "custom";
+
+// Map old segment type strings to DB slugs
+const SEGMENT_SLUG_MAP: Record<string, string> = {
+  dormant: "dormant",
+  vip: "vip",
+  active: "active",
+  all: "all-customers",
+};
+
+// Convert UnifiedContact to CustomerRecipient for backward compat
+function unifiedToRecipient(contact: UnifiedContact): CustomerRecipient {
+  return {
+    id: contact.cin7_customer_id || contact.woo_customer_id || contact.contact_id || `contact-${contact.email}`,
+    email: contact.email,
+    name: contact.name,
+    company: contact.company || undefined,
+    total_spent: contact.total_spent,
+    order_count: contact.order_count,
+    last_order_date: contact.last_order_date || undefined,
+    last_product: contact.last_product || undefined,
+  };
+}
 
 export interface SegmentInfo {
   id: SegmentType;
@@ -58,9 +85,23 @@ export interface CustomerRecipient {
 }
 
 export async function getSegmentRecipients(
-  segment: SegmentType,
+  segment: SegmentType | string,
   segmentFilter?: Record<string, unknown>
 ): Promise<CustomerRecipient[]> {
+  // Try DB-backed segment engine first (for new segments and migrated legacy ones)
+  if (segment !== "custom") {
+    const slug = SEGMENT_SLUG_MAP[segment] || segment;
+    try {
+      const result = await resolveSegmentBySlug(slug);
+      if (result) {
+        console.log(`[Segments] Resolved "${segment}" via DB engine: ${result.members.length} members`);
+        return result.members.map(unifiedToRecipient);
+      }
+    } catch (err) {
+      console.warn(`[Segments] DB engine failed for "${segment}", falling back to hardcoded:`, err);
+    }
+  }
+
   // Handle custom/test segment with manually entered emails
   // Look up actual customer data from both Cin7 and WooCommerce
   if (segment === "custom" && segmentFilter?.emails) {
@@ -367,6 +408,26 @@ export async function getSegmentCount(
 }
 
 export async function getSegmentsWithCounts(): Promise<SegmentInfo[]> {
+  // Try DB-backed segments first
+  try {
+    const dbSegments = await getAllSegmentsWithCounts();
+    if (dbSegments.length > 0) {
+      return [
+        ...dbSegments.map((s) => ({
+          id: s.slug as SegmentType,
+          name: s.name,
+          description: s.description || "",
+          count: s.member_count,
+        })),
+        // Always include custom option
+        { id: "custom" as SegmentType, name: "Custom / Test", description: "Enter email addresses manually", count: 0 },
+      ];
+    }
+  } catch (err) {
+    console.warn("[Segments] DB segments unavailable, using hardcoded:", err);
+  }
+
+  // Fallback to hardcoded
   const segmentsWithCounts = await Promise.all(
     SEGMENTS.map(async (segment) => {
       const count = await getSegmentCount(segment.id);
