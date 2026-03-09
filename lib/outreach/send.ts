@@ -221,26 +221,43 @@ export async function sendSingleEmail(emailId: string): Promise<SendResult> {
   const isFollowUp = !!email.campaign.parent_campaign_id;
   const utmCampaignName = email.campaign.name;
 
-  const bodyHtml = bodyToEmailHtml(body, {
-    campaignName: utmCampaignName,
-    isFollowUp,
-  });
-
-  // Append payment block if enabled on template or campaign
-  let paymentBlockHtml = "";
-  const campaignMeta = (email.campaign.metadata || {}) as Record<string, unknown>;
+  // Check if this is a visual (Unlayer) template — body is already complete HTML
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const templateData = email.campaign.template as Record<string, any>;
-  if (campaignMeta.include_payment_block || templateData?.include_payment_block) {
-    const personalization = (email.personalization || {}) as Record<string, unknown>;
-    const invoiceNumber = String(personalization.invoice_number || "");
-    const amountDue = parseFloat(String(personalization.amount_due || 0));
-    if (invoiceNumber || amountDue > 0) {
-      paymentBlockHtml = buildPaymentBlock({ invoiceNumber, amountDue });
-    }
-  }
+  const isVisualTemplate = !!templateData?.design_json;
 
-  const htmlEmail = `<!DOCTYPE html>
+  let htmlEmail: string;
+
+  if (isVisualTemplate) {
+    // Visual template: body is complete HTML from Unlayer
+    // Inject signature before closing </body> tag if present
+    let fullHtml = body;
+    if (signatureHtml) {
+      fullHtml = fullHtml.replace(
+        /<\/body>/i,
+        `<div style="max-width: 600px; margin: 0 auto; padding: 0 20px;">${signatureHtml}</div></body>`
+      );
+    }
+    htmlEmail = fullHtml;
+  } else {
+    const bodyHtml = bodyToEmailHtml(body, {
+      campaignName: utmCampaignName,
+      isFollowUp,
+    });
+
+    // Append payment block if enabled on template or campaign
+    let paymentBlockHtml = "";
+    const campaignMeta = (email.campaign.metadata || {}) as Record<string, unknown>;
+    if (campaignMeta.include_payment_block || templateData?.include_payment_block) {
+      const personalization = (email.personalization || {}) as Record<string, unknown>;
+      const invoiceNumber = String(personalization.invoice_number || "");
+      const amountDue = parseFloat(String(personalization.amount_due || 0));
+      if (invoiceNumber || amountDue > 0) {
+        paymentBlockHtml = buildPaymentBlock({ invoiceNumber, amountDue });
+      }
+    }
+
+    htmlEmail = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
@@ -258,6 +275,7 @@ export async function sendSingleEmail(emailId: string): Promise<SendResult> {
   </div>
 </body>
 </html>`;
+  }
 
   // Create plain text version (strip HTML tags for email clients that prefer plain text)
   const plainText = body

@@ -23,6 +23,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Plus,
   Pencil,
   Trash2,
@@ -30,6 +36,9 @@ import {
   ArrowLeft,
   Loader2,
   Variable,
+  ChevronDown,
+  Paintbrush,
+  Type,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { OutreachTemplate } from "@/types/outreach";
@@ -106,12 +115,35 @@ export default function TemplatesPage() {
             Manage your email templates for outreach campaigns
           </p>
         </div>
-        <Link href="/outreach/templates/new">
-          <Button className="gap-2">
-            <Plus className="h-4 w-4" />
-            New Template
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link href="/outreach/templates/builder">
+            <Button className="gap-2">
+              <Plus className="h-4 w-4" />
+              New Template
+            </Button>
+          </Link>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" className="h-9 w-9">
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <Link href="/outreach/templates/builder" className="flex items-center gap-2">
+                  <Paintbrush className="h-4 w-4" />
+                  Visual Builder (drag &amp; drop)
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/outreach/templates/new" className="flex items-center gap-2">
+                  <Type className="h-4 w-4" />
+                  Text Editor (simple)
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       <Card>
@@ -157,7 +189,15 @@ export default function TemplatesPage() {
                 {templates.map((template) => (
                   <TableRow key={template.id}>
                     <TableCell className="font-medium">
-                      {template.name}
+                      <div className="flex items-center gap-2">
+                        {template.name}
+                        {template.design_json && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-medium bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">
+                            <Paintbrush className="h-2.5 w-2.5" />
+                            Visual
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="max-w-xs truncate text-slate-600">
                       {template.subject}
@@ -173,7 +213,7 @@ export default function TemplatesPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <Link href={`/outreach/templates/${template.id}`}>
+                        <Link href={template.design_json ? `/outreach/templates/builder?id=${template.id}` : `/outreach/templates/${template.id}`}>
                           <Button variant="ghost" size="icon">
                             <Pencil className="h-4 w-4" />
                           </Button>

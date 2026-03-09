@@ -127,6 +127,7 @@ function NewCampaignContent() {
   const channel = searchParams.get("channel") || "email";
   const campaignDate = searchParams.get("date") || new Date().toISOString().split("T")[0];
   const campaignTags = searchParams.get("tags") || "";
+  const returnedTemplateId = searchParams.get("templateId");
 
   // Step 1: Recipients
   const [segments, setSegments] = useState<Segment[]>([]);
@@ -232,6 +233,18 @@ function NewCampaignContent() {
     fetchSettings();
     fetchSignatures();
   }, []);
+
+  // Auto-select template when returning from builder
+  useEffect(() => {
+    if (returnedTemplateId && templates.length > 0) {
+      setSelectedTemplate(returnedTemplateId);
+      const tmpl = templates.find(t => t.id === returnedTemplateId);
+      if (tmpl) {
+        setSubjectLine(tmpl.subject);
+      }
+      if (step === 1) setStep(2);
+    }
+  }, [returnedTemplateId, templates]);
 
   const fetchSettings = async () => {
     try {
@@ -896,7 +909,7 @@ function NewCampaignContent() {
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-semibold">Templates</h2>
                   <div className="flex items-center gap-2">
-                    <Link href="/outreach/templates/new" target="_blank">
+                    <Link href="/outreach/templates/builder?return=/outreach/new">
                       <Button size="sm">Create</Button>
                     </Link>
                     <DropdownMenu>
@@ -908,12 +921,12 @@ function NewCampaignContent() {
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem asChild>
                           <Link href="/outreach/templates/new" target="_blank">
-                            Switch to text only editor
+                            Text editor (simple)
                           </Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem asChild>
-                          <Link href="/outreach/templates/new?mode=html" target="_blank">
-                            Switch to HTML editor
+                          <Link href="/outreach/templates/builder?return=/outreach/new">
+                            Visual builder (drag &amp; drop)
                           </Link>
                         </DropdownMenuItem>
                       </DropdownMenuContent>

@@ -44,7 +44,7 @@ export async function PUT(
     const supabase = await createClient();
     const body = await request.json();
 
-    const { name, subject, body: templateBody, include_payment_block } = body;
+    const { name, subject, body: templateBody, include_payment_block, design_json } = body;
 
     // Validate
     const validation = validateTemplate({ name, subject, body: templateBody });
@@ -66,6 +66,7 @@ export async function PUT(
         body: templateBody.trim(),
         variables,
         include_payment_block: include_payment_block ?? false,
+        ...(design_json !== undefined ? { design_json } : {}),
         updated_at: new Date().toISOString(),
       })
       .eq("id", id)

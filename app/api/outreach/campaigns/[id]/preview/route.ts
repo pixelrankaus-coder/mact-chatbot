@@ -20,8 +20,25 @@ function getSupabase() {
 function buildHtmlEmail(
   body: string,
   signatureHtml: string,
-  options?: { includePaymentBlock?: boolean; invoiceNumber?: string; amountDue?: number }
+  options?: {
+    includePaymentBlock?: boolean;
+    invoiceNumber?: string;
+    amountDue?: number;
+    isVisualTemplate?: boolean;
+  }
 ): string {
+  // Visual template: body is already complete HTML from Unlayer
+  if (options?.isVisualTemplate) {
+    let fullHtml = body;
+    if (signatureHtml) {
+      fullHtml = fullHtml.replace(
+        /<\/body>/i,
+        `<div style="max-width: 600px; margin: 0 auto; padding: 0 20px;">${signatureHtml}</div></body>`
+      );
+    }
+    return fullHtml;
+  }
+
   const bodyHtml = bodyToEmailHtml(body);
 
   let paymentBlockHtml = "";
@@ -200,10 +217,12 @@ export async function GET(
 
       // Build full HTML email exactly as it will be sent
       const campaignMeta = (campaign.metadata || {}) as Record<string, unknown>;
+      const isVisualTemplate = !!campaign.template?.design_json;
       const htmlPreview = buildHtmlEmail(preview.body, signatureHtml, {
         includePaymentBlock: !!(campaignMeta.include_payment_block || campaign.template?.include_payment_block),
         invoiceNumber: String(personalizationAny.invoice_number || ""),
         amountDue: parseFloat(String(personalizationAny.amount_due || 0)),
+        isVisualTemplate,
       });
 
       return {

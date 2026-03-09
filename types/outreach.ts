@@ -14,6 +14,7 @@ export interface OutreachTemplate {
   name: string;
   subject: string;
   body: string;
+  design_json?: Record<string, unknown> | null;
   variables: string[];
   include_payment_block?: boolean;
   created_at: string;
