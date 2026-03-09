@@ -43,12 +43,25 @@ function esc(s: string): string {
 const SOCIAL_ICONS: Record<string, { label: string; color: string }> = {
   facebook: { label: "Facebook", color: "#1877F2" },
   instagram: { label: "Instagram", color: "#E4405F" },
-  twitter: { label: "X", color: "#000000" },
+  twitter: { label: "Twitter", color: "#1DA1F2" },
+  x: { label: "X", color: "#000000" },
   linkedin: { label: "LinkedIn", color: "#0A66C2" },
   youtube: { label: "YouTube", color: "#FF0000" },
   tiktok: { label: "TikTok", color: "#000000" },
+  snapchat: { label: "Snapchat", color: "#FFFC00" },
+  pinterest: { label: "Pinterest", color: "#E60023" },
+  android: { label: "Android", color: "#3DDC84" },
   website: { label: "Website", color: "#555555" },
+  custom: { label: "Custom", color: "#888888" },
 };
+
+function getSocialColor(platform: string, iconStyle: string): string {
+  const info = SOCIAL_ICONS[platform] || SOCIAL_ICONS.custom;
+  if (iconStyle === "black") return "#000000";
+  if (iconStyle === "grey") return "#999999";
+  if (iconStyle === "white") return "#ffffff";
+  return info.color;
+}
 
 // ─── Block Renderers ─────────────────────────────────────────────────────────
 
@@ -102,11 +115,18 @@ function renderSpacer(p: SpacerBlockProps): string {
 }
 
 function renderSocial(p: SocialBlockProps): string {
+  const spacing = p.spacing ?? 10;
   const icons = p.links
     .filter((l) => l.url)
     .map((l) => {
-      const info = SOCIAL_ICONS[l.platform] || { label: l.platform, color: "#555" };
-      return `<a href="${esc(l.url)}" target="_blank" style="display:inline-block;margin:0 6px;text-decoration:none;"><span style="display:inline-block;width:${px(p.iconSize)};height:${px(p.iconSize)};border-radius:50%;background-color:${info.color};color:#fff;font-size:${Math.round(p.iconSize * 0.45)}px;line-height:${px(p.iconSize)};text-align:center;font-family:Arial,sans-serif;font-weight:bold;">${info.label.charAt(0).toUpperCase()}</span></a>`;
+      const info = SOCIAL_ICONS[l.platform] || SOCIAL_ICONS.custom;
+      const bgColor = getSocialColor(l.platform, p.iconStyle || "color");
+      const textColor = (p.iconStyle === "white" || l.platform === "snapchat") ? "#000" : "#fff";
+      const border = p.iconStyle === "white" ? "border:1px solid #ddd;" : "";
+      if (l.customIconUrl) {
+        return `<a href="${esc(l.url)}" target="_blank" style="display:inline-block;margin:0 ${spacing / 2}px;text-decoration:none;"><img src="${esc(l.customIconUrl)}" alt="${esc(l.label || info.label)}" width="${p.iconSize}" height="${p.iconSize}" style="display:block;border-radius:50%;width:${px(p.iconSize)};height:${px(p.iconSize)};object-fit:cover;" /></a>`;
+      }
+      return `<a href="${esc(l.url)}" target="_blank" style="display:inline-block;margin:0 ${spacing / 2}px;text-decoration:none;"><span style="display:inline-block;width:${px(p.iconSize)};height:${px(p.iconSize)};border-radius:50%;background-color:${bgColor};color:${textColor};font-size:${Math.round(p.iconSize * 0.45)}px;line-height:${px(p.iconSize)};text-align:center;font-family:Arial,sans-serif;font-weight:bold;${border}">${info.label.charAt(0).toUpperCase()}</span></a>`;
     })
     .join("");
   return `<tr><td style="padding:${padStr(p.padding)};${bgStyle(p.backgroundColor)}text-align:${p.alignment};">${icons}</td></tr>`;

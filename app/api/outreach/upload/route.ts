@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase";
 
+// Increase body size limit for image uploads (default is 4.5MB on Vercel)
+export const maxDuration = 30;
+
 /**
  * POST /api/outreach/upload
  * Upload an image for use in email templates.

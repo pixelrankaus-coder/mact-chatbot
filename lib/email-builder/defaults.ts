@@ -107,6 +107,7 @@ export const DEFAULT_PROPS: { [K in BlockType]: () => BlockPropsMap[K] } = {
     iconSize: 32,
     iconStyle: "color" as const,
     alignment: "center",
+    spacing: 10,
     padding: padXY(20, 16),
     backgroundColor: "",
   }),
@@ -200,6 +201,31 @@ export const DEFAULT_PROPS: { [K in BlockType]: () => BlockPropsMap[K] } = {
   }),
 };
 
+// ─── Column Layout Presets ───────────────────────────────────────────────────
+
+export interface ColumnLayoutPreset {
+  label: string;
+  widths: number[];
+}
+
+export const COLUMN_LAYOUT_PRESETS: Record<number, ColumnLayoutPreset[]> = {
+  1: [{ label: "Full width", widths: [100] }],
+  2: [
+    { label: "Equal", widths: [50, 50] },
+    { label: "33% | 67%", widths: [33, 67] },
+    { label: "67% | 33%", widths: [67, 33] },
+    { label: "25% | 75%", widths: [25, 75] },
+    { label: "75% | 25%", widths: [75, 25] },
+  ],
+  3: [
+    { label: "Equal", widths: [33.33, 33.33, 33.34] },
+    { label: "50% | 25% | 25%", widths: [50, 25, 25] },
+    { label: "25% | 50% | 25%", widths: [25, 50, 25] },
+    { label: "25% | 25% | 50%", widths: [25, 25, 50] },
+  ],
+  4: [{ label: "Equal", widths: [25, 25, 25, 25] }],
+};
+
 // ─── Create a New Block ──────────────────────────────────────────────────────
 
 export function createBlock<T extends BlockType>(type: T) {
@@ -207,6 +233,23 @@ export function createBlock<T extends BlockType>(type: T) {
     id: uid(),
     type,
     props: DEFAULT_PROPS[type](),
+  };
+}
+
+export function createColumnsBlock(widths: number[]) {
+  return {
+    id: uid(),
+    type: "columns" as const,
+    props: {
+      columns: widths.map((w) => ({
+        id: uid(),
+        width: w,
+        blocks: [] as EmailBlock[],
+      })),
+      gap: 16,
+      padding: padXY(20, 10),
+      backgroundColor: "",
+    },
   };
 }
 

@@ -42,12 +42,25 @@ function padStyle(p: Padding): React.CSSProperties {
 const SOCIAL_ICONS: Record<string, { label: string; color: string; letter: string }> = {
   facebook: { label: "Facebook", color: "#1877F2", letter: "f" },
   instagram: { label: "Instagram", color: "#E4405F", letter: "I" },
-  twitter: { label: "X", color: "#000000", letter: "X" },
+  twitter: { label: "Twitter", color: "#1DA1F2", letter: "t" },
+  x: { label: "X", color: "#000000", letter: "X" },
   linkedin: { label: "LinkedIn", color: "#0A66C2", letter: "in" },
   youtube: { label: "YouTube", color: "#FF0000", letter: "Y" },
   tiktok: { label: "TikTok", color: "#000000", letter: "T" },
+  snapchat: { label: "Snapchat", color: "#FFFC00", letter: "S" },
+  pinterest: { label: "Pinterest", color: "#E60023", letter: "P" },
+  android: { label: "Android", color: "#3DDC84", letter: "A" },
   website: { label: "Website", color: "#555555", letter: "W" },
+  custom: { label: "Custom", color: "#888888", letter: "?" },
 };
+
+function getSocialIconColor(platform: string, iconStyle: string): string {
+  const info = SOCIAL_ICONS[platform] || SOCIAL_ICONS.custom;
+  if (iconStyle === "black") return "#000000";
+  if (iconStyle === "grey") return "#999999";
+  if (iconStyle === "white") return "#ffffff";
+  return info.color;
+}
 
 // ─── Canvas Block Renderers ─────────────────────────────────────────────────
 
@@ -159,9 +172,10 @@ export function ButtonRenderer({ props: p }: RendererProps<ButtonBlockProps>) {
 interface ColumnsRendererProps extends RendererProps<ColumnsBlockProps> {
   renderBlock: (block: EmailBlock, columnId: string) => React.ReactNode;
   onDropInColumn?: (columnId: string, blockType: string) => void;
+  onDropFileInColumn?: (columnId: string, file: File) => void;
 }
 
-export function ColumnsRenderer({ props: p, renderBlock, onDropInColumn }: ColumnsRendererProps) {
+export function ColumnsRenderer({ props: p, renderBlock, onDropInColumn, onDropFileInColumn }: ColumnsRendererProps) {
   return (
     <div
       style={{
@@ -188,6 +202,12 @@ export function ColumnsRenderer({ props: p, renderBlock, onDropInColumn }: Colum
             e.preventDefault();
             e.stopPropagation();
             e.currentTarget.classList.remove("ring-2", "ring-blue-400", "ring-inset");
+            // Check for file drops first
+            const files = e.dataTransfer.files;
+            if (files.length > 0 && files[0].type.startsWith("image/") && onDropFileInColumn) {
+              onDropFileInColumn(col.id, files[0]);
+              return;
+            }
             const blockType = e.dataTransfer.getData("text/block-type");
             if (blockType && onDropInColumn) {
               onDropInColumn(col.id, blockType);
@@ -244,6 +264,7 @@ export function SpacerRenderer({ props: p }: RendererProps<SpacerBlockProps>) {
 }
 
 export function SocialRenderer({ props: p }: RendererProps<SocialBlockProps>) {
+  const spacing = p.spacing ?? 10;
   return (
     <div
       style={{
@@ -255,7 +276,30 @@ export function SocialRenderer({ props: p }: RendererProps<SocialBlockProps>) {
       {p.links
         .filter((l) => l.url)
         .map((l, i) => {
-          const info = SOCIAL_ICONS[l.platform] || { label: l.platform, color: "#555", letter: "?" };
+          const info = SOCIAL_ICONS[l.platform] || SOCIAL_ICONS.custom;
+          const bgColor = getSocialIconColor(l.platform, p.iconStyle || "color");
+          const textColor = (p.iconStyle === "white" || l.platform === "snapchat") ? "#000" : "#fff";
+
+          if (l.customIconUrl) {
+            return (
+              <img
+                key={i}
+                src={l.customIconUrl}
+                alt={l.label || info.label}
+                style={{
+                  width: p.iconSize,
+                  height: p.iconSize,
+                  borderRadius: "50%",
+                  margin: `0 ${spacing / 2}px`,
+                  objectFit: "cover",
+                  cursor: "pointer",
+                  display: "inline-block",
+                  verticalAlign: "middle",
+                }}
+              />
+            );
+          }
+
           return (
             <span
               key={i}
@@ -266,12 +310,13 @@ export function SocialRenderer({ props: p }: RendererProps<SocialBlockProps>) {
                 width: p.iconSize,
                 height: p.iconSize,
                 borderRadius: "50%",
-                backgroundColor: info.color,
-                color: "#fff",
+                backgroundColor: bgColor,
+                color: textColor,
                 fontSize: Math.round(p.iconSize * 0.4),
                 fontWeight: "bold",
-                margin: "0 6px",
+                margin: `0 ${spacing / 2}px`,
                 cursor: "pointer",
+                border: p.iconStyle === "white" ? "1px solid #ddd" : "none",
               }}
             >
               {info.letter}
@@ -536,9 +581,10 @@ export function QuoteRenderer({ props: p }: RendererProps<QuoteBlockProps>) {
 interface SectionRendererProps extends RendererProps<SectionBlockProps> {
   renderBlock: (block: EmailBlock, columnId: string) => React.ReactNode;
   onDropInColumn?: (columnId: string, blockType: string) => void;
+  onDropFileInColumn?: (columnId: string, file: File) => void;
 }
 
-export function SectionRenderer({ props: p, renderBlock, onDropInColumn }: SectionRendererProps) {
+export function SectionRenderer({ props: p, renderBlock, onDropInColumn, onDropFileInColumn }: SectionRendererProps) {
   const sectionId = "section-inner";
   return (
     <div
@@ -563,6 +609,11 @@ export function SectionRenderer({ props: p, renderBlock, onDropInColumn }: Secti
           e.preventDefault();
           e.stopPropagation();
           e.currentTarget.classList.remove("ring-2", "ring-blue-400", "ring-inset");
+          const files = e.dataTransfer.files;
+          if (files.length > 0 && files[0].type.startsWith("image/") && onDropFileInColumn) {
+            onDropFileInColumn(sectionId, files[0]);
+            return;
+          }
           const blockType = e.dataTransfer.getData("text/block-type");
           if (blockType && onDropInColumn) {
             onDropInColumn(sectionId, blockType);
@@ -590,6 +641,7 @@ interface BlockRendererProps {
   onUpdate?: (partial: Record<string, unknown>) => void;
   renderNestedBlock?: (block: EmailBlock, columnId: string) => React.ReactNode;
   onDropInColumn?: (columnId: string, blockType: string) => void;
+  onDropFileInColumn?: (columnId: string, file: File) => void;
 }
 
 export function BlockRenderer({
@@ -599,6 +651,7 @@ export function BlockRenderer({
   onUpdate,
   renderNestedBlock,
   onDropInColumn,
+  onDropFileInColumn,
 }: BlockRendererProps) {
   const common = { design, selected, onUpdate };
 
@@ -616,6 +669,7 @@ export function BlockRenderer({
           {...common}
           renderBlock={renderNestedBlock || (() => null)}
           onDropInColumn={onDropInColumn}
+          onDropFileInColumn={onDropFileInColumn}
         />
       );
     case "section":
@@ -625,6 +679,7 @@ export function BlockRenderer({
           {...common}
           renderBlock={renderNestedBlock || (() => null)}
           onDropInColumn={onDropInColumn}
+          onDropFileInColumn={onDropFileInColumn}
         />
       );
     case "divider":

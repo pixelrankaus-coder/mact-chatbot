@@ -49,6 +49,8 @@ import {
   Upload,
   Loader2,
   ImageIcon,
+  GripVertical,
+  ChevronDown,
 } from "lucide-react";
 import {
   Popover,
@@ -233,6 +235,48 @@ function SectionHeader({ title }: { title: string }) {
 
 // ─── Image Upload Component ─────────────────────────────────────────────────
 
+/** Compress image client-side to stay under Vercel's 4.5MB body limit */
+function compressImage(file: File, maxWidth = 1200, quality = 0.85): Promise<File> {
+  return new Promise((resolve) => {
+    // Skip SVGs and small files
+    if (file.type === "image/svg+xml" || file.size < 500_000) {
+      resolve(file);
+      return;
+    }
+    const img = new window.Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (width > maxWidth) {
+        height = Math.round((height * maxWidth) / width);
+        width = maxWidth;
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => {
+          if (blob && blob.size < file.size) {
+            resolve(new File([blob], file.name, { type: "image/jpeg" }));
+          } else {
+            resolve(file); // Original was smaller, keep it
+          }
+        },
+        "image/jpeg",
+        quality
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(file);
+    };
+    img.src = url;
+  });
+}
+
 function ImageUpload({
   value,
   onChange,
@@ -244,24 +288,32 @@ function ImageUpload({
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleUpload = async (file: File) => {
     setUploading(true);
+    setError(null);
     try {
+      const compressed = await compressImage(file);
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", compressed);
       const res = await fetch("/api/outreach/upload", {
         method: "POST",
         body: formData,
       });
+      if (res.status === 413) {
+        setError("Image too large. Try a smaller file (under 4MB).");
+        return;
+      }
       const data = await res.json();
       if (res.ok && data.url) {
         onChange(data.url);
       } else {
-        console.error("Upload failed:", data.error);
+        setError(data.error || "Upload failed");
       }
     } catch (err) {
       console.error("Upload error:", err);
+      setError("Upload failed. Please try again.");
     } finally {
       setUploading(false);
     }
@@ -328,6 +380,9 @@ function ImageUpload({
           e.target.value = "";
         }}
       />
+      {error && (
+        <p className="text-xs text-red-500 font-medium">{error}</p>
+      )}
       <div className="flex items-center gap-1">
         <Input
           value={value}
@@ -613,6 +668,107 @@ function SpacerPanel({
   );
 }
 
+const SOCIAL_PLATFORMS: { value: SocialLink["platform"]; label: string }[] = [
+  { value: "custom", label: "Custom" },
+  { value: "facebook", label: "Facebook" },
+  { value: "youtube", label: "YouTube" },
+  { value: "instagram", label: "Instagram" },
+  { value: "twitter", label: "Twitter" },
+  { value: "x", label: "X" },
+  { value: "tiktok", label: "TikTok" },
+  { value: "snapchat", label: "Snapchat" },
+  { value: "pinterest", label: "Pinterest" },
+  { value: "linkedin", label: "LinkedIn" },
+  { value: "android", label: "Android" },
+  { value: "website", label: "Website" },
+];
+
+function SocialLinkAccordion({
+  link,
+  index,
+  expanded,
+  onToggle,
+  onChange,
+  onDelete,
+}: {
+  link: SocialLink;
+  index: number;
+  expanded: boolean;
+  onToggle: () => void;
+  onChange: (partial: Partial<SocialLink>) => void;
+  onDelete: () => void;
+}) {
+  const platformLabel = SOCIAL_PLATFORMS.find((pl) => pl.value === link.platform)?.label || link.platform;
+
+  return (
+    <div className="border rounded-lg overflow-hidden">
+      <div
+        className="flex items-center gap-2 px-3 py-2.5 bg-white cursor-pointer hover:bg-slate-50"
+        onClick={onToggle}
+      >
+        <GripVertical className="h-3.5 w-3.5 text-slate-300 shrink-0 cursor-grab" />
+        <ChevronDown className={`h-4 w-4 text-slate-400 shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`} />
+        <span className="text-sm font-medium text-slate-700 flex-1 truncate">
+          {link.label || platformLabel}
+        </span>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 shrink-0"
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+        >
+          <Trash2 className="h-3.5 w-3.5 text-slate-400 hover:text-red-500" />
+        </Button>
+      </div>
+      {expanded && (
+        <div className="px-3 pb-3 space-y-2.5 border-t bg-slate-50/50">
+          <div className="pt-2.5">
+            <Label className="text-xs text-muted-foreground">Platform</Label>
+            <Select
+              value={link.platform}
+              onValueChange={(v) => onChange({ platform: v as SocialLink["platform"] })}
+            >
+              <SelectTrigger className="h-8 text-xs mt-1"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {SOCIAL_PLATFORMS.map((pl) => (
+                  <SelectItem key={pl.value} value={pl.value}>{pl.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">URL</Label>
+            <Input
+              value={link.url}
+              onChange={(e) => onChange({ url: e.target.value })}
+              className="h-8 text-xs mt-1"
+              placeholder="https://..."
+            />
+          </div>
+          {link.platform === "custom" && (
+            <>
+              <div>
+                <Label className="text-xs text-muted-foreground">Label</Label>
+                <Input
+                  value={link.label || ""}
+                  onChange={(e) => onChange({ label: e.target.value })}
+                  className="h-8 text-xs mt-1"
+                  placeholder="Icon label"
+                />
+              </div>
+              <ImageUpload
+                value={link.customIconUrl || ""}
+                onChange={(url) => onChange({ customIconUrl: url })}
+                label="Custom Icon"
+              />
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SocialPanel({
   props: p,
   onUpdate,
@@ -620,7 +776,7 @@ function SocialPanel({
   props: SocialBlockProps;
   onUpdate: (partial: Partial<SocialBlockProps>) => void;
 }) {
-  const platforms = ["facebook", "instagram", "twitter", "linkedin", "youtube", "tiktok", "website"] as const;
+  const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
 
   const updateLink = (idx: number, partial: Partial<SocialLink>) => {
     const links = p.links.map((l, i) => (i === idx ? { ...l, ...partial } : l));
@@ -628,51 +784,83 @@ function SocialPanel({
   };
 
   return (
-    <div className="space-y-3">
-      {p.links.map((link, i) => (
-        <div key={i} className="flex items-center gap-1.5">
-          <Select
-            value={link.platform}
-            onValueChange={(v) => updateLink(i, { platform: v as SocialLink["platform"] })}
-          >
-            <SelectTrigger className="h-7 text-xs w-24"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {platforms.map((pl) => (
-                <SelectItem key={pl} value={pl}>{pl}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Input
-            value={link.url}
-            onChange={(e) => updateLink(i, { url: e.target.value })}
-            className="h-7 text-xs flex-1"
-            placeholder="URL"
+    <div className="space-y-4">
+      {/* Social link accordions */}
+      <div className="space-y-2">
+        {p.links.map((link, i) => (
+          <SocialLinkAccordion
+            key={i}
+            link={link}
+            index={i}
+            expanded={expandedIdx === i}
+            onToggle={() => setExpandedIdx(expandedIdx === i ? null : i)}
+            onChange={(partial) => updateLink(i, partial)}
+            onDelete={() => {
+              onUpdate({ links: p.links.filter((_, j) => j !== i) });
+              if (expandedIdx === i) setExpandedIdx(null);
+            }}
           />
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 shrink-0"
-            onClick={() => onUpdate({ links: p.links.filter((_, j) => j !== i) })}
-          >
-            <Trash2 className="h-3 w-3 text-red-500" />
-          </Button>
+        ))}
+      </div>
+
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 text-xs"
+          onClick={() => {
+            onUpdate({
+              links: [...p.links, { platform: "website", url: "https://" }],
+            });
+            setExpandedIdx(p.links.length);
+          }}
+        >
+          <Plus className="h-3 w-3 mr-1" />
+          Add Icon
+        </Button>
+      </div>
+
+      <Separator />
+
+      {/* Icon styles section */}
+      <div className="space-y-3">
+        <div className="text-xs font-semibold text-slate-700">Icon styles</div>
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <Label className="text-xs text-muted-foreground">Size</Label>
+            <Select
+              value={p.iconSize <= 24 ? "small" : p.iconSize <= 32 ? "medium" : "large"}
+              onValueChange={(v) => onUpdate({ iconSize: v === "small" ? 24 : v === "medium" ? 32 : 48 })}
+            >
+              <SelectTrigger className="h-8 text-xs mt-1"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="small">Small</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="large">Large</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex-1">
+            <Label className="text-xs text-muted-foreground">Style</Label>
+            <Select
+              value={p.iconStyle || "color"}
+              onValueChange={(v) => onUpdate({ iconStyle: v as SocialBlockProps["iconStyle"] })}
+            >
+              <SelectTrigger className="h-8 text-xs mt-1"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="color">Icon default</SelectItem>
+                <SelectItem value="black">Black</SelectItem>
+                <SelectItem value="grey">Grey</SelectItem>
+                <SelectItem value="white">White</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-      ))}
-      <Button
-        variant="outline"
-        size="sm"
-        className="h-7 text-xs"
-        onClick={() =>
-          onUpdate({
-            links: [...p.links, { platform: "website", url: "https://" }],
-          })
-        }
-      >
-        <Plus className="h-3 w-3 mr-1" />
-        Add link
-      </Button>
-      <NumberInput label="Icon size" value={p.iconSize} onChange={(v) => onUpdate({ iconSize: v })} min={16} max={64} />
-      <AlignmentInput value={p.alignment} onChange={(v) => onUpdate({ alignment: v })} />
+        <AlignmentInput value={p.alignment} onChange={(v) => onUpdate({ alignment: v })} />
+        <NumberInput label="Spacing" value={p.spacing ?? 10} onChange={(v) => onUpdate({ spacing: v })} min={0} max={40} />
+      </div>
+
+      <Separator />
       <ColorInput label="Background" value={p.backgroundColor} onChange={(v) => onUpdate({ backgroundColor: v })} />
       <PaddingInput value={p.padding} onChange={(v) => onUpdate({ padding: v })} />
     </div>

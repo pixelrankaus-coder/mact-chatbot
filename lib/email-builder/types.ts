@@ -101,15 +101,18 @@ export interface SpacerBlockProps {
 }
 
 export interface SocialLink {
-  platform: "facebook" | "instagram" | "twitter" | "linkedin" | "youtube" | "tiktok" | "website";
+  platform: "facebook" | "instagram" | "twitter" | "linkedin" | "youtube" | "tiktok" | "website" | "x" | "snapchat" | "pinterest" | "android" | "custom";
   url: string;
+  customIconUrl?: string;
+  label?: string;
 }
 
 export interface SocialBlockProps {
   links: SocialLink[];
   iconSize: number;
-  iconStyle: "color" | "dark" | "light";
+  iconStyle: "color" | "black" | "grey" | "white";
   alignment: Alignment;
+  spacing: number;
   padding: Padding;
   backgroundColor: string;
 }

@@ -111,6 +111,7 @@ interface SortableBlockProps {
   onMoveDown: () => void;
   onUpdateProps: (partial: Record<string, unknown>) => void;
   onAddBlockToColumn: (parentId: string, colId: string, type: BlockType) => void;
+  onDropFileInColumn: (parentId: string, colId: string, file: File) => void;
   onSelectNested: (blockId: string, parentId: string, colId: string) => void;
   selectedBlockId: string | null;
   onDeleteNested: (blockId: string) => void;
@@ -130,6 +131,7 @@ function SortableBlock({
   onMoveDown,
   onUpdateProps,
   onAddBlockToColumn,
+  onDropFileInColumn,
   onSelectNested,
   selectedBlockId,
   onDeleteNested,
@@ -236,6 +238,7 @@ function SortableBlock({
         onUpdate={onUpdateProps}
         renderNestedBlock={renderNestedBlock}
         onDropInColumn={(colId, type) => onAddBlockToColumn(block.id, colId, type as BlockType)}
+        onDropFileInColumn={(colId, file) => onDropFileInColumn(block.id, colId, file)}
       />
     </div>
   );
@@ -246,9 +249,11 @@ function SortableBlock({
 function DropZone({
   index,
   onDrop,
+  onDropFile,
 }: {
   index: number;
   onDrop: (type: BlockType, index: number) => void;
+  onDropFile?: (file: File, index: number) => void;
 }) {
   const [active, setActive] = useState(false);
 
@@ -258,7 +263,7 @@ function DropZone({
       onDragOver={(e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (e.dataTransfer.types.includes("text/block-type")) {
+        if (e.dataTransfer.types.includes("text/block-type") || e.dataTransfer.types.includes("Files")) {
           setActive(true);
         }
       }}
@@ -267,6 +272,12 @@ function DropZone({
         e.preventDefault();
         e.stopPropagation();
         setActive(false);
+        // Check for file drops
+        const files = e.dataTransfer.files;
+        if (files.length > 0 && files[0].type.startsWith("image/") && onDropFile) {
+          onDropFile(files[0], index);
+          return;
+        }
         const type = e.dataTransfer.getData("text/block-type") as BlockType;
         if (type) onDrop(type, index);
       }}
@@ -280,7 +291,7 @@ function DropZone({
 
 // ─── Empty State ─────────────────────────────────────────────────────────────
 
-function EmptyCanvas({ onDrop }: { onDrop: (type: BlockType) => void }) {
+function EmptyCanvas({ onDrop, onDropFile }: { onDrop: (type: BlockType) => void; onDropFile?: (file: File) => void }) {
   const [active, setActive] = useState(false);
   return (
     <div
@@ -291,7 +302,7 @@ function EmptyCanvas({ onDrop }: { onDrop: (type: BlockType) => void }) {
       }`}
       onDragOver={(e) => {
         e.preventDefault();
-        if (e.dataTransfer.types.includes("text/block-type")) {
+        if (e.dataTransfer.types.includes("text/block-type") || e.dataTransfer.types.includes("Files")) {
           setActive(true);
         }
       }}
@@ -299,12 +310,17 @@ function EmptyCanvas({ onDrop }: { onDrop: (type: BlockType) => void }) {
       onDrop={(e) => {
         e.preventDefault();
         setActive(false);
+        const files = e.dataTransfer.files;
+        if (files.length > 0 && files[0].type.startsWith("image/") && onDropFile) {
+          onDropFile(files[0]);
+          return;
+        }
         const type = e.dataTransfer.getData("text/block-type") as BlockType;
         if (type) onDrop(type);
       }}
     >
       <div className="text-slate-400 text-center">
-        <p className="text-sm font-medium mb-1">Drag a block here to get started</p>
+        <p className="text-sm font-medium mb-1">Drag a block or image here to get started</p>
         <p className="text-xs">Or click any block in the sidebar</p>
       </div>
     </div>
@@ -325,6 +341,8 @@ interface BuilderCanvasProps {
   onUpdateBlockProps: (id: string, partial: Record<string, unknown>) => void;
   onAddBlock: (type: BlockType, index?: number) => void;
   onAddBlockToColumn: (parentId: string, colId: string, type: BlockType) => void;
+  onDropFile?: (file: File, index?: number) => void;
+  onDropFileInColumn?: (parentId: string, colId: string, file: File) => void;
 }
 
 export function BuilderCanvas({
@@ -339,6 +357,8 @@ export function BuilderCanvas({
   onUpdateBlockProps,
   onAddBlock,
   onAddBlockToColumn,
+  onDropFile,
+  onDropFileInColumn,
 }: BuilderCanvasProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
 
@@ -373,14 +393,14 @@ export function BuilderCanvas({
       onClick={() => onSelectBlock(null)}
     >
       <div
-        className="mx-auto my-6"
+        className="mx-auto my-6 px-6"
         style={{
-          maxWidth: design.bodySettings.contentWidth,
+          maxWidth: design.bodySettings.contentWidth + 48,
           fontFamily: design.bodySettings.fontFamily,
         }}
       >
         {design.blocks.length === 0 ? (
-          <EmptyCanvas onDrop={(type) => onAddBlock(type)} />
+          <EmptyCanvas onDrop={(type) => onAddBlock(type)} onDropFile={onDropFile ? (f) => onDropFile(f) : undefined} />
         ) : (
           <DndContext
             sensors={sensors}
@@ -392,8 +412,8 @@ export function BuilderCanvas({
               items={design.blocks.map((b) => b.id)}
               strategy={verticalListSortingStrategy}
             >
-              <div className="bg-white shadow-sm relative" style={{ paddingLeft: 32 }}>
-                <DropZone index={0} onDrop={(type, idx) => onAddBlock(type, idx)} />
+              <div className="bg-white shadow-sm relative" style={{ paddingLeft: 32, paddingRight: 16 }}>
+                <DropZone index={0} onDrop={(type, idx) => onAddBlock(type, idx)} onDropFile={onDropFile ? (f, idx) => onDropFile(f, idx) : undefined} />
                 {design.blocks.map((block, i) => (
                   <React.Fragment key={block.id}>
                     <SortableBlock
@@ -407,6 +427,7 @@ export function BuilderCanvas({
                       onMoveDown={() => onMoveBlock(block.id, "down")}
                       onUpdateProps={(partial) => onUpdateBlockProps(block.id, partial)}
                       onAddBlockToColumn={onAddBlockToColumn}
+                      onDropFileInColumn={onDropFileInColumn || (() => {})}
                       onSelectNested={(blockId, parentId, colId) => onSelectNested(blockId, parentId, colId)}
                       selectedBlockId={selectedBlockId}
                       onDeleteNested={onDeleteBlock}
@@ -417,6 +438,7 @@ export function BuilderCanvas({
                     <DropZone
                       index={i + 1}
                       onDrop={(type, idx) => onAddBlock(type, idx)}
+                      onDropFile={onDropFile ? (f, idx) => onDropFile(f, idx) : undefined}
                     />
                   </React.Fragment>
                 ))}

@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import type { EmailDesign, EmailBlock, BlockType, ColumnsBlockProps, SectionBlockProps } from "@/lib/email-builder/types";
-import { emptyDesign, createBlock, uid } from "@/lib/email-builder/defaults";
+import { emptyDesign, createBlock, createColumnsBlock, uid } from "@/lib/email-builder/defaults";
 import { exportToHtml } from "@/lib/email-builder/html-export";
 
 const MAX_HISTORY = 50;
@@ -61,6 +61,24 @@ export function useEmailBuilder() {
   const addBlock = useCallback(
     (type: BlockType, index?: number) => {
       const block = createBlock(type);
+      updateDesign((d) => {
+        const blocks = [...d.blocks];
+        if (index !== undefined) {
+          blocks.splice(index, 0, block);
+        } else {
+          blocks.push(block);
+        }
+        return { ...d, blocks };
+      });
+      setSelectedBlockId(block.id);
+      setSelectedColumnCtx(null);
+    },
+    [updateDesign]
+  );
+
+  const addColumnsBlock = useCallback(
+    (widths: number[], index?: number) => {
+      const block = createColumnsBlock(widths);
       updateDesign((d) => {
         const blocks = [...d.blocks];
         if (index !== undefined) {
@@ -334,6 +352,7 @@ export function useEmailBuilder() {
     setSelectedBlockId,
     setSelectedColumnCtx,
     addBlock,
+    addColumnsBlock,
     addBlockToColumn,
     removeBlock,
     duplicateBlock,
