@@ -93,7 +93,7 @@ export default function NewTemplatePage() {
   };
 
   return (
-    <div className="container mx-auto py-6 px-4 max-w-6xl">
+    <div className="container mx-auto py-6 px-4 max-w-[1500px]">
       <div className="flex items-center gap-4 mb-6">
         <Link href="/outreach/templates">
           <Button variant="ghost" size="icon">

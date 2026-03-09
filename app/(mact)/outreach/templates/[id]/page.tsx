@@ -124,7 +124,7 @@ export default function EditTemplatePage({
 
   if (loading) {
     return (
-      <div className="container mx-auto py-6 px-4 max-w-6xl">
+      <div className="container mx-auto py-6 px-4 max-w-[1500px]">
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
         </div>
@@ -133,7 +133,7 @@ export default function EditTemplatePage({
   }
 
   return (
-    <div className="container mx-auto py-6 px-4 max-w-6xl">
+    <div className="container mx-auto py-6 px-4 max-w-[1500px]">
       <div className="flex items-center gap-4 mb-6">
         <Link href="/outreach/templates">
           <Button variant="ghost" size="icon">
