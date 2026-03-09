@@ -34,14 +34,12 @@ import {
   Rows3,
   Sparkles,
   LayoutList,
-  Undo2,
-  Redo2,
   Braces,
 } from "lucide-react";
 
-// Klaviyo-style starter template: header bar, empty content zone, social icons, footer
+// Klaviyo-style starter template
 const STARTER_TEMPLATE = `
-<table style="width:100%;max-width:600px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;" data-gjs-type="mj-body">
+<table style="width:100%;max-width:600px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;">
   <tr>
     <td style="background-color:#f8f8f8;padding:24px 20px;text-align:center;">
       <img src="https://placehold.co/120x40/f8f8f8/1a1a1a?text=LOGO" alt="Logo" style="width:120px;" />
@@ -68,7 +66,6 @@ const STARTER_TEMPLATE = `
 </table>
 `;
 
-// Merge tags for template variables
 const MERGE_TAGS = [
   { label: "First Name", value: "{{first_name}}" },
   { label: "Last Name", value: "{{last_name}}" },
@@ -85,7 +82,6 @@ const MERGE_TAGS = [
   { label: "Amount Due", value: "{{amount_due}}" },
 ];
 
-// Block definitions with icons — Klaviyo-style
 const BLOCK_DEFS = {
   blocks: {
     label: "Blocks",
@@ -254,19 +250,79 @@ export default function GrapesEditorComponent({ onEditor, existingDesign, onUndo
       content: `<table style="${W}"><tr><td style="padding:15px;"><p style="font-size:14px;color:#64748b;text-align:center;padding:20px;border:1px dashed #cbd5e1;border-radius:4px;">Custom HTML Block</p></td></tr></table>`,
     });
 
-    // Make all top-level components draggable/sortable
-    editor.on("component:add", (component: ReturnType<Editor["getWrapper"]>) => {
-      if (component && component.parent()?.is("wrapper")) {
-        component.set({
-          draggable: true,
-          droppable: true,
-          hoverable: true,
-          selectable: true,
-          removable: true,
-          copyable: true,
-          moveable: true,
-        });
-      }
+    // Force all components to be fully controllable (selectable, removable, etc.)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const makeControllable = (component: any) => {
+      if (!component) return;
+      component.set({
+        hoverable: true,
+        selectable: true,
+        removable: true,
+        copyable: true,
+        draggable: true,
+        droppable: false,
+        toolbar: [
+          { command: "tlb-move-up", label: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>` },
+          { command: "tlb-move-down", label: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>` },
+          { command: "tlb-clone", label: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>` },
+          { command: "tlb-delete", label: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>` },
+        ],
+      });
+    };
+
+    // Apply to all components when added
+    editor.on("component:add", makeControllable);
+
+    // Custom commands for move up / move down
+    editor.Commands.add("tlb-move-up", {
+      run(ed: Editor) {
+        const selected = ed.getSelected();
+        if (!selected) return;
+        const parent = selected.parent();
+        if (!parent) return;
+        const index = parent.components().indexOf(selected);
+        if (index > 0) {
+          // Move component up by removing and re-inserting
+          const html = selected.toHTML();
+          const styles = selected.getStyle();
+          parent.components().remove(selected);
+          const newComp = parent.components().add(html, { at: index - 1 });
+          if (newComp && styles) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (newComp as any).setStyle?.(styles);
+          }
+          // Re-select and make controllable
+          if (newComp) {
+            makeControllable(newComp);
+            ed.select(newComp);
+          }
+        }
+      },
+    });
+
+    editor.Commands.add("tlb-move-down", {
+      run(ed: Editor) {
+        const selected = ed.getSelected();
+        if (!selected) return;
+        const parent = selected.parent();
+        if (!parent) return;
+        const children = parent.components();
+        const index = children.indexOf(selected);
+        if (index < children.length - 1) {
+          const html = selected.toHTML();
+          const styles = selected.getStyle();
+          parent.components().remove(selected);
+          const newComp = parent.components().add(html, { at: index + 1 });
+          if (newComp && styles) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (newComp as any).setStyle?.(styles);
+          }
+          if (newComp) {
+            makeControllable(newComp);
+            ed.select(newComp);
+          }
+        }
+      },
     });
 
     // Load existing design or starter template
@@ -276,11 +332,16 @@ export default function GrapesEditorComponent({ onEditor, existingDesign, onUndo
       editor.setComponents(STARTER_TEMPLATE);
     }
 
-    // Clear undo history after loading default template
+    // Make all existing components controllable after load
     setTimeout(() => {
+      const wrapper = editor.getWrapper();
+      if (wrapper) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        wrapper.components().forEach((comp: any) => makeControllable(comp));
+      }
       editor.UndoManager.clear();
       updateUndoRedo();
-    }, 100);
+    }, 200);
 
     editorInstanceRef.current = editor;
     setEditorReady(true);
@@ -293,7 +354,7 @@ export default function GrapesEditorComponent({ onEditor, existingDesign, onUndo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Click to add block at end
+  // Click to add block — always appends at the end of the wrapper's top-level children
   const handleBlockClick = useCallback((blockId: string) => {
     const editor = editorInstanceRef.current;
     if (!editor) return;
@@ -307,55 +368,59 @@ export default function GrapesEditorComponent({ onEditor, existingDesign, onUndo
     const wrapper = editor.getWrapper();
     if (!wrapper) return;
 
-    wrapper.append(content);
+    // Append and make controllable
+    const added = wrapper.components().add(content);
+    if (added) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const comp = Array.isArray(added) ? added[0] : added as any;
+      if (comp) {
+        comp.set({
+          hoverable: true,
+          selectable: true,
+          removable: true,
+          copyable: true,
+          draggable: true,
+          droppable: false,
+          toolbar: [
+            { command: "tlb-move-up", label: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>` },
+            { command: "tlb-move-down", label: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>` },
+            { command: "tlb-clone", label: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>` },
+            { command: "tlb-delete", label: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>` },
+          ],
+        });
+        editor.select(comp);
+      }
+    }
 
+    // Scroll to bottom
     const canvasEl = editor.Canvas.getBody();
     if (canvasEl) {
       setTimeout(() => { canvasEl.scrollTop = canvasEl.scrollHeight; }, 100);
     }
   }, []);
 
-  // Proxy drag from our custom card to GrapesJS's hidden block manager
-  const handleBlockMouseDown = useCallback((e: React.MouseEvent, blockId: string) => {
-    const editor = editorInstanceRef.current;
-    if (!editor) return;
-
-    const hiddenPanel = document.getElementById("gjs-hidden-blocks");
-    if (!hiddenPanel) return;
-
-    const gjsBlockEl = hiddenPanel.querySelector(`.gjs-block[data-gjs-block="${blockId}"]`) as HTMLElement;
-    if (!gjsBlockEl) return;
-
-    const mouseDownEvent = new MouseEvent("mousedown", {
-      bubbles: true, cancelable: true,
-      clientX: e.clientX, clientY: e.clientY,
-      button: 0,
-    });
-    gjsBlockEl.dispatchEvent(mouseDownEvent);
-  }, []);
-
-  // Insert merge tag into the active RTE
+  // Insert merge tag
   const insertMergeTag = useCallback((tag: string) => {
     const editor = editorInstanceRef.current;
     if (!editor) return;
 
-    // Try inserting into active RTE (rich text editor)
     const rte = editor.RichTextEditor;
     const activeRte = rte?.getToolbarEl()?.style.display !== "none";
     if (activeRte) {
       document.execCommand("insertText", false, tag);
     } else {
-      // If no RTE active, add as text block
       const wrapper = editor.getWrapper();
       if (wrapper) {
-        wrapper.append(`<table style="width:100%;max-width:600px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;"><tr><td style="padding:15px 30px;"><p style="font-size:15px;color:#333;">${tag}</p></td></tr></table>`);
+        wrapper.components().add(
+          `<table style="width:100%;max-width:600px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;"><tr><td style="padding:15px 30px;"><p style="font-size:15px;color:#333;">${tag}</p></td></tr></table>`
+        );
       }
     }
   }, []);
 
   return (
     <div className="flex h-full w-full">
-      {/* Hidden container for GrapesJS block manager */}
+      {/* Hidden block manager */}
       <div id="gjs-hidden-blocks" style={{ position: "absolute", left: "-9999px", width: "1px", height: "1px", overflow: "hidden" }} />
 
       {/* Left sidebar */}
@@ -416,6 +481,11 @@ export default function GrapesEditorComponent({ onEditor, existingDesign, onUndo
 
               <Separator className="mb-4" />
 
+              {/* Tip */}
+              <p className="text-[11px] text-muted-foreground mb-4">
+                Click a block to add it. Then use the toolbar buttons (arrows to reorder, trash to delete).
+              </p>
+
               {Object.entries(BLOCK_DEFS).map(([key, section]) => (
                 <div key={key} className="mb-6">
                   <h3 className="text-sm font-semibold text-foreground mb-3">
@@ -427,12 +497,11 @@ export default function GrapesEditorComponent({ onEditor, existingDesign, onUndo
                       return (
                         <div
                           key={block.id}
-                          onMouseDown={(e) => handleBlockMouseDown(e, block.id)}
                           onClick={() => handleBlockClick(block.id)}
                           className={cn(
-                            "flex flex-col items-center justify-center gap-1.5 p-3 rounded-lg border cursor-grab",
+                            "flex flex-col items-center justify-center gap-1.5 p-3 rounded-lg border cursor-pointer",
                             "bg-card hover:bg-accent hover:border-primary/30 transition-all",
-                            "active:cursor-grabbing select-none relative"
+                            "active:scale-95 select-none relative"
                           )}
                         >
                           {"isNew" in block && block.isNew && (
@@ -443,16 +512,6 @@ export default function GrapesEditorComponent({ onEditor, existingDesign, onUndo
                               </span>
                             </div>
                           )}
-                          <div className="absolute top-1 right-1 opacity-30">
-                            <svg width="10" height="10" viewBox="0 0 10 10">
-                              <circle cx="2" cy="2" r="1" fill="currentColor" />
-                              <circle cx="6" cy="2" r="1" fill="currentColor" />
-                              <circle cx="2" cy="6" r="1" fill="currentColor" />
-                              <circle cx="6" cy="6" r="1" fill="currentColor" />
-                              <circle cx="2" cy="10" r="1" fill="currentColor" />
-                              <circle cx="6" cy="10" r="1" fill="currentColor" />
-                            </svg>
-                          </div>
                           <Icon className="h-6 w-6 text-muted-foreground" strokeWidth={1.5} />
                           <span className="text-[11px] font-medium text-muted-foreground leading-tight text-center">
                             {block.label}
@@ -472,9 +531,7 @@ export default function GrapesEditorComponent({ onEditor, existingDesign, onUndo
           <ScrollArea className="flex-1">
             <div id="gjs-styles-panel" className="p-4" />
             {!editorReady && (
-              <div className="p-4 text-sm text-muted-foreground text-center">
-                Loading styles...
-              </div>
+              <div className="p-4 text-sm text-muted-foreground text-center">Loading styles...</div>
             )}
           </ScrollArea>
         )}
@@ -493,46 +550,49 @@ export default function GrapesEditorComponent({ onEditor, existingDesign, onUndo
         .gjs-three-bg { background-color: #f8fafc !important; }
         .gjs-four-color, .gjs-four-color-h:hover { color: hsl(var(--primary)) !important; }
 
-        /* Styles panel */
         #gjs-styles-panel .gjs-sm-sector .gjs-sm-sector-title {
           font-size: 13px !important; font-weight: 600 !important;
-          color: hsl(var(--foreground)) !important;
-          padding: 10px 0 !important;
-          border-bottom: 1px solid hsl(var(--border)) !important;
-          background: transparent !important;
+          color: hsl(var(--foreground)) !important; padding: 10px 0 !important;
+          border-bottom: 1px solid hsl(var(--border)) !important; background: transparent !important;
         }
         #gjs-styles-panel .gjs-field {
           border: 1px solid hsl(var(--border)) !important;
-          border-radius: 6px !important;
-          background: hsl(var(--background)) !important;
+          border-radius: 6px !important; background: hsl(var(--background)) !important;
         }
         #gjs-styles-panel .gjs-field input { font-size: 12px !important; color: hsl(var(--foreground)) !important; }
         #gjs-styles-panel .gjs-sm-label { font-size: 12px !important; color: hsl(var(--muted-foreground)) !important; }
 
-        /* Selection */
         .gjs-selected { outline: 2px solid hsl(var(--primary)) !important; }
         .gjs-hovered { outline: 1px dashed hsl(var(--primary) / 0.5) !important; }
 
-        /* Toolbar — component action buttons */
+        /* Toolbar — move up, move down, clone, delete */
         .gjs-toolbar {
           background: hsl(var(--primary)) !important;
-          border-radius: 6px !important;
-          padding: 2px !important;
+          border-radius: 8px !important;
+          padding: 4px !important;
+          display: flex !important;
           gap: 2px !important;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
         }
         .gjs-toolbar-item {
           color: white !important;
-          width: 28px !important;
-          height: 28px !important;
+          width: 32px !important;
+          height: 32px !important;
           display: flex !important;
           align-items: center !important;
           justify-content: center !important;
-          border-radius: 4px !important;
-          font-size: 14px !important;
+          border-radius: 6px !important;
+          cursor: pointer !important;
+          transition: background 0.15s !important;
         }
-        .gjs-toolbar-item:hover { background: rgba(255,255,255,0.2) !important; }
+        .gjs-toolbar-item:hover {
+          background: rgba(255,255,255,0.25) !important;
+        }
+        .gjs-toolbar-item svg {
+          width: 16px !important;
+          height: 16px !important;
+        }
 
-        /* RTE */
         .gjs-rte-toolbar {
           background: hsl(var(--card)) !important;
           border: 1px solid hsl(var(--border)) !important;
@@ -540,26 +600,20 @@ export default function GrapesEditorComponent({ onEditor, existingDesign, onUndo
           box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
         }
 
-        /* Drag placeholder */
         .gjs-placeholder {
           border: 2px dashed hsl(var(--primary)) !important;
           background: hsl(var(--primary) / 0.05) !important;
         }
 
-        /* Badge (component label) */
         .gjs-badge {
           background: hsl(var(--primary)) !important;
           font-size: 10px !important;
           padding: 2px 6px !important;
           border-radius: 4px !important;
         }
-
-        /* Component hover shows grab cursor */
-        .gjs-comp-selected, .gjs-comp-hover { cursor: move !important; }
       `}</style>
     </div>
   );
 }
 
-// Export for use in page.tsx
 export { type Editor };
