@@ -33,30 +33,26 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Suspense } from "react";
+import type { EmailBuilderHandle } from "./email-builder";
 
-// Dynamic import GrapesJS editor to avoid SSR issues
-const GrapesJSEditor = dynamic(
-  () => import("./grapes-editor"),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="flex items-center justify-center h-full bg-slate-50">
-        <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
-      </div>
-    ),
-  }
-);
+// Dynamic import to avoid SSR issues with dnd-kit
+const EmailBuilder = dynamic(() => import("./email-builder"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center h-full bg-slate-50">
+      <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
+    </div>
+  ),
+});
 
 function BuilderContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const editorRef = useRef<any>(null);
+  const editorRef = useRef<EmailBuilderHandle | null>(null);
 
   const editId = searchParams.get("id");
   const returnTo = searchParams.get("return") || "/outreach/templates";
 
-  const [editorReady, setEditorReady] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(!!editId);
   const [templateName, setTemplateName] = useState("");
@@ -74,14 +70,8 @@ function BuilderContent() {
     if (editId) {
       fetchTemplate(editId);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editId]);
-
-  // Load design into editor when ready
-  useEffect(() => {
-    if (editorReady && editorRef.current && existingDesign) {
-      editorRef.current.loadProjectData(existingDesign);
-    }
-  }, [editorReady, existingDesign]);
 
   const fetchTemplate = async (id: string) => {
     try {
@@ -102,9 +92,8 @@ function BuilderContent() {
     }
   };
 
-  const handleEditorReady = useCallback((editor: unknown) => {
-    editorRef.current = editor;
-    setEditorReady(true);
+  const handleEditorReady = useCallback((handle: EmailBuilderHandle) => {
+    editorRef.current = handle;
   }, []);
 
   const handleUndoRedo = useCallback((undo: boolean, redo: boolean) => {
@@ -112,26 +101,17 @@ function BuilderContent() {
     setCanRedo(redo);
   }, []);
 
-  const handleUndo = () => {
-    if (editorRef.current) {
-      editorRef.current.UndoManager.undo();
-    }
-  };
-
-  const handleRedo = () => {
-    if (editorRef.current) {
-      editorRef.current.UndoManager.redo();
-    }
-  };
+  const handleUndo = () => editorRef.current?.undo();
+  const handleRedo = () => editorRef.current?.redo();
 
   const getHtml = (): string => {
     if (!editorRef.current) return "";
-    return editorRef.current.runCommand("gjs-get-inlined-html") || "";
+    return editorRef.current.getHtml();
   };
 
-  const getProjectData = (): Record<string, unknown> => {
+  const getDesignJson = (): Record<string, unknown> => {
     if (!editorRef.current) return {};
-    return editorRef.current.getProjectData();
+    return editorRef.current.getDesignJson() as Record<string, unknown>;
   };
 
   const handlePreview = () => {
@@ -166,7 +146,7 @@ function BuilderContent() {
 
     try {
       const html = getHtml();
-      const designJson = getProjectData();
+      const designJson = getDesignJson();
 
       const url = editId
         ? `/api/outreach/templates/${editId}`
@@ -202,13 +182,6 @@ function BuilderContent() {
       toast.error(error instanceof Error ? error.message : "Failed to save");
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleViewModeChange = (mode: "desktop" | "mobile") => {
-    setViewMode(mode);
-    if (editorRef.current) {
-      editorRef.current.setDevice(mode === "mobile" ? "Mobile portrait" : "Desktop");
     }
   };
 
@@ -300,7 +273,7 @@ function BuilderContent() {
           <div className="flex items-center gap-1">
             <div className="flex items-center border rounded-lg overflow-hidden">
               <button
-                onClick={() => handleViewModeChange("desktop")}
+                onClick={() => setViewMode("desktop")}
                 className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${
                   viewMode === "desktop"
                     ? "bg-slate-900 text-white"
@@ -311,7 +284,7 @@ function BuilderContent() {
                 Desktop
               </button>
               <button
-                onClick={() => handleViewModeChange("mobile")}
+                onClick={() => setViewMode("mobile")}
                 className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${
                   viewMode === "mobile"
                     ? "bg-slate-900 text-white"
@@ -348,9 +321,9 @@ function BuilderContent() {
           />
         </div>
 
-        {/* GrapesJS Editor */}
+        {/* Email Builder */}
         <div className="flex-1" style={{ minHeight: 0 }}>
-          <GrapesJSEditor
+          <EmailBuilder
             onEditor={handleEditorReady}
             existingDesign={existingDesign}
             onUndoRedo={handleUndoRedo}

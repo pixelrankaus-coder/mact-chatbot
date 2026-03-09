@@ -1,0 +1,437 @@
+"use client";
+
+import React, { useState, useCallback } from "react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import type { EmailBlock, EmailDesign, BlockType, ColumnsBlockProps } from "@/lib/email-builder/types";
+import { BlockRenderer } from "@/lib/email-builder/block-renderers";
+import {
+  Trash2,
+  Copy,
+  ChevronUp,
+  ChevronDown,
+  GripVertical,
+} from "lucide-react";
+
+// ─── Block Toolbar ───────────────────────────────────────────────────────────
+
+function BlockToolbar({
+  onDelete,
+  onDuplicate,
+  onMoveUp,
+  onMoveDown,
+  label,
+}: {
+  onDelete: () => void;
+  onDuplicate: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  label: string;
+}) {
+  return (
+    <div className="absolute -top-8 left-1/2 -translate-x-1/2 flex items-center gap-0.5 bg-white border rounded-md shadow-sm px-1 py-0.5 z-20 opacity-0 group-hover/block:opacity-100 transition-opacity">
+      <span className="text-[10px] text-muted-foreground px-1.5 font-medium">
+        {label}
+      </span>
+      <button
+        onClick={(e) => { e.stopPropagation(); onMoveUp(); }}
+        className="p-0.5 hover:bg-slate-100 rounded"
+        title="Move up"
+      >
+        <ChevronUp className="h-3.5 w-3.5 text-slate-500" />
+      </button>
+      <button
+        onClick={(e) => { e.stopPropagation(); onMoveDown(); }}
+        className="p-0.5 hover:bg-slate-100 rounded"
+        title="Move down"
+      >
+        <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+      </button>
+      <button
+        onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
+        className="p-0.5 hover:bg-slate-100 rounded"
+        title="Duplicate"
+      >
+        <Copy className="h-3.5 w-3.5 text-slate-500" />
+      </button>
+      <button
+        onClick={(e) => { e.stopPropagation(); onDelete(); }}
+        className="p-0.5 hover:bg-red-50 rounded"
+        title="Delete"
+      >
+        <Trash2 className="h-3.5 w-3.5 text-red-500" />
+      </button>
+    </div>
+  );
+}
+
+// ─── Sortable Block Wrapper ──────────────────────────────────────────────────
+
+const BLOCK_LABELS: Record<string, string> = {
+  text: "Text",
+  image: "Image",
+  button: "Button",
+  columns: "Columns",
+  divider: "Divider",
+  spacer: "Spacer",
+  social: "Social",
+  header: "Header",
+  footer: "Footer",
+  hero: "Hero",
+  product: "Product",
+  coupon: "Coupon",
+  video: "Video",
+  html: "HTML",
+  quote: "Quote",
+};
+
+interface SortableBlockProps {
+  block: EmailBlock;
+  design: EmailDesign;
+  selected: boolean;
+  onSelect: () => void;
+  onDelete: () => void;
+  onDuplicate: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onUpdateProps: (partial: Record<string, unknown>) => void;
+  onAddBlockToColumn: (parentId: string, colId: string, type: BlockType) => void;
+  onSelectNested: (blockId: string, parentId: string, colId: string) => void;
+  selectedBlockId: string | null;
+  onDeleteNested: (blockId: string) => void;
+  onDuplicateNested: (blockId: string) => void;
+  onMoveNested: (blockId: string, dir: "up" | "down") => void;
+  onUpdateNestedProps: (blockId: string, partial: Record<string, unknown>) => void;
+}
+
+function SortableBlock({
+  block,
+  design,
+  selected,
+  onSelect,
+  onDelete,
+  onDuplicate,
+  onMoveUp,
+  onMoveDown,
+  onUpdateProps,
+  onAddBlockToColumn,
+  onSelectNested,
+  selectedBlockId,
+  onDeleteNested,
+  onDuplicateNested,
+  onMoveNested,
+  onUpdateNestedProps,
+}: SortableBlockProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: block.id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
+
+  // Nested block renderer for columns
+  const renderNestedBlock = (nestedBlock: EmailBlock, columnId: string) => {
+    const isNestedSelected = selectedBlockId === nestedBlock.id;
+    return (
+      <div
+        key={nestedBlock.id}
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelectNested(nestedBlock.id, block.id, columnId);
+        }}
+        className={`relative group/nested cursor-pointer transition-all ${
+          isNestedSelected
+            ? "ring-2 ring-blue-500 ring-inset"
+            : "hover:ring-1 hover:ring-blue-300 hover:ring-inset"
+        }`}
+      >
+        {isNestedSelected && (
+          <div className="absolute -top-7 left-1/2 -translate-x-1/2 flex items-center gap-0.5 bg-white border rounded-md shadow-sm px-1 py-0.5 z-20">
+            <span className="text-[10px] text-muted-foreground px-1 font-medium">
+              {BLOCK_LABELS[nestedBlock.type]}
+            </span>
+            <button onClick={(e) => { e.stopPropagation(); onMoveNested(nestedBlock.id, "up"); }} className="p-0.5 hover:bg-slate-100 rounded">
+              <ChevronUp className="h-3 w-3 text-slate-500" />
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); onMoveNested(nestedBlock.id, "down"); }} className="p-0.5 hover:bg-slate-100 rounded">
+              <ChevronDown className="h-3 w-3 text-slate-500" />
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); onDuplicateNested(nestedBlock.id); }} className="p-0.5 hover:bg-slate-100 rounded">
+              <Copy className="h-3 w-3 text-slate-500" />
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); onDeleteNested(nestedBlock.id); }} className="p-0.5 hover:bg-red-50 rounded">
+              <Trash2 className="h-3 w-3 text-red-500" />
+            </button>
+          </div>
+        )}
+        <BlockRenderer
+          block={nestedBlock}
+          design={design}
+          selected={isNestedSelected}
+          onUpdate={(partial) => onUpdateNestedProps(nestedBlock.id, partial)}
+        />
+      </div>
+    );
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect();
+      }}
+      className={`relative group/block cursor-pointer transition-all ${
+        selected
+          ? "ring-2 ring-blue-500"
+          : "hover:ring-1 hover:ring-blue-300"
+      }`}
+    >
+      {/* Drag handle */}
+      <div
+        {...attributes}
+        {...listeners}
+        className="absolute -left-8 top-1/2 -translate-y-1/2 p-1 cursor-grab opacity-0 group-hover/block:opacity-100 transition-opacity z-10 active:cursor-grabbing"
+      >
+        <GripVertical className="h-4 w-4 text-slate-400" />
+      </div>
+
+      {/* Toolbar */}
+      <BlockToolbar
+        label={BLOCK_LABELS[block.type] || block.type}
+        onDelete={onDelete}
+        onDuplicate={onDuplicate}
+        onMoveUp={onMoveUp}
+        onMoveDown={onMoveDown}
+      />
+
+      <BlockRenderer
+        block={block}
+        design={design}
+        selected={selected}
+        onUpdate={onUpdateProps}
+        renderNestedBlock={renderNestedBlock}
+        onDropInColumn={(colId, type) => onAddBlockToColumn(block.id, colId, type as BlockType)}
+      />
+    </div>
+  );
+}
+
+// ─── Drop Zone Between Blocks ────────────────────────────────────────────────
+
+function DropZone({
+  index,
+  onDrop,
+}: {
+  index: number;
+  onDrop: (type: BlockType, index: number) => void;
+}) {
+  const [active, setActive] = useState(false);
+
+  return (
+    <div
+      className={`relative h-3 transition-all ${active ? "h-12" : ""}`}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.dataTransfer.types.includes("text/block-type")) {
+          setActive(true);
+        }
+      }}
+      onDragLeave={() => setActive(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setActive(false);
+        const type = e.dataTransfer.getData("text/block-type") as BlockType;
+        if (type) onDrop(type, index);
+      }}
+    >
+      {active && (
+        <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 h-1 bg-blue-400 rounded-full" />
+      )}
+    </div>
+  );
+}
+
+// ─── Empty State ─────────────────────────────────────────────────────────────
+
+function EmptyCanvas({ onDrop }: { onDrop: (type: BlockType) => void }) {
+  const [active, setActive] = useState(false);
+  return (
+    <div
+      className={`flex flex-col items-center justify-center h-64 border-2 border-dashed rounded-lg transition-colors ${
+        active
+          ? "border-blue-400 bg-blue-50"
+          : "border-slate-200 bg-white"
+      }`}
+      onDragOver={(e) => {
+        e.preventDefault();
+        if (e.dataTransfer.types.includes("text/block-type")) {
+          setActive(true);
+        }
+      }}
+      onDragLeave={() => setActive(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setActive(false);
+        const type = e.dataTransfer.getData("text/block-type") as BlockType;
+        if (type) onDrop(type);
+      }}
+    >
+      <div className="text-slate-400 text-center">
+        <p className="text-sm font-medium mb-1">Drag a block here to get started</p>
+        <p className="text-xs">Or click any block in the sidebar</p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Canvas ──────────────────────────────────────────────────────────────────
+
+interface BuilderCanvasProps {
+  design: EmailDesign;
+  selectedBlockId: string | null;
+  onSelectBlock: (id: string | null) => void;
+  onSelectNested: (blockId: string, parentId: string, colId: string) => void;
+  onDeleteBlock: (id: string) => void;
+  onDuplicateBlock: (id: string) => void;
+  onMoveBlock: (id: string, dir: "up" | "down") => void;
+  onReorderBlocks: (oldIndex: number, newIndex: number) => void;
+  onUpdateBlockProps: (id: string, partial: Record<string, unknown>) => void;
+  onAddBlock: (type: BlockType, index?: number) => void;
+  onAddBlockToColumn: (parentId: string, colId: string, type: BlockType) => void;
+}
+
+export function BuilderCanvas({
+  design,
+  selectedBlockId,
+  onSelectBlock,
+  onSelectNested,
+  onDeleteBlock,
+  onDuplicateBlock,
+  onMoveBlock,
+  onReorderBlocks,
+  onUpdateBlockProps,
+  onAddBlock,
+  onAddBlockToColumn,
+}: BuilderCanvasProps) {
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  );
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
+  }, []);
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      setActiveId(null);
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+      const oldIndex = design.blocks.findIndex((b) => b.id === active.id);
+      const newIndex = design.blocks.findIndex((b) => b.id === over.id);
+      if (oldIndex !== -1 && newIndex !== -1) {
+        onReorderBlocks(oldIndex, newIndex);
+      }
+    },
+    [design.blocks, onReorderBlocks]
+  );
+
+  const activeBlock = activeId ? design.blocks.find((b) => b.id === activeId) : null;
+
+  return (
+    <div
+      className="flex-1 overflow-auto"
+      style={{ backgroundColor: design.bodySettings.backgroundColor }}
+      onClick={() => onSelectBlock(null)}
+    >
+      <div
+        className="mx-auto my-6"
+        style={{
+          maxWidth: design.bodySettings.contentWidth,
+          fontFamily: design.bodySettings.fontFamily,
+        }}
+      >
+        {design.blocks.length === 0 ? (
+          <EmptyCanvas onDrop={(type) => onAddBlock(type)} />
+        ) : (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={design.blocks.map((b) => b.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="bg-white shadow-sm relative" style={{ paddingLeft: 32 }}>
+                <DropZone index={0} onDrop={(type, idx) => onAddBlock(type, idx)} />
+                {design.blocks.map((block, i) => (
+                  <React.Fragment key={block.id}>
+                    <SortableBlock
+                      block={block}
+                      design={design}
+                      selected={selectedBlockId === block.id}
+                      onSelect={() => onSelectBlock(block.id)}
+                      onDelete={() => onDeleteBlock(block.id)}
+                      onDuplicate={() => onDuplicateBlock(block.id)}
+                      onMoveUp={() => onMoveBlock(block.id, "up")}
+                      onMoveDown={() => onMoveBlock(block.id, "down")}
+                      onUpdateProps={(partial) => onUpdateBlockProps(block.id, partial)}
+                      onAddBlockToColumn={onAddBlockToColumn}
+                      onSelectNested={(blockId, parentId, colId) => onSelectNested(blockId, parentId, colId)}
+                      selectedBlockId={selectedBlockId}
+                      onDeleteNested={onDeleteBlock}
+                      onDuplicateNested={onDuplicateBlock}
+                      onMoveNested={(id, dir) => onMoveBlock(id, dir)}
+                      onUpdateNestedProps={onUpdateBlockProps}
+                    />
+                    <DropZone
+                      index={i + 1}
+                      onDrop={(type, idx) => onAddBlock(type, idx)}
+                    />
+                  </React.Fragment>
+                ))}
+              </div>
+            </SortableContext>
+
+            <DragOverlay>
+              {activeBlock ? (
+                <div className="opacity-70 shadow-lg rounded overflow-hidden pointer-events-none bg-white" style={{ maxWidth: design.bodySettings.contentWidth }}>
+                  <BlockRenderer block={activeBlock} design={design} />
+                </div>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
+        )}
+      </div>
+    </div>
+  );
+}
