@@ -440,12 +440,13 @@ function BuilderContent() {
         />
       </div>
 
-      {/* Unlayer Editor — fills remaining space */}
-      <div className="flex-1 min-h-0">
+      {/* Unlayer Editor — fills remaining space. Unlayer needs explicit pixel height, not %. */}
+      <div className="flex-1" style={{ minHeight: 0 }}>
         <EmailEditor
           ref={emailEditorRef}
           onReady={onEditorReady}
-          style={{ height: "100%" }}
+          minHeight="100%"
+          style={{ height: "calc(100vh - 90px)" }}
           options={{
             displayMode: "email",
             projectId: undefined,
