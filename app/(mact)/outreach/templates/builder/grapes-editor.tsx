@@ -6,6 +6,13 @@ import newsletterPreset from "grapesjs-preset-newsletter";
 import "grapesjs/dist/css/grapes.min.css";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
 import {
   Type,
   Image,
@@ -27,10 +34,56 @@ import {
   Rows3,
   Sparkles,
   LayoutList,
+  Undo2,
+  Redo2,
+  Braces,
 } from "lucide-react";
 
-// Empty starting template — user builds from scratch with blocks
-const DEFAULT_EMAIL_HTML = ``;
+// Klaviyo-style starter template: header bar, empty content zone, social icons, footer
+const STARTER_TEMPLATE = `
+<table style="width:100%;max-width:600px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;" data-gjs-type="mj-body">
+  <tr>
+    <td style="background-color:#f8f8f8;padding:24px 20px;text-align:center;">
+      <img src="https://placehold.co/120x40/f8f8f8/1a1a1a?text=LOGO" alt="Logo" style="width:120px;" />
+    </td>
+  </tr>
+  <tr>
+    <td style="background-color:#ffffff;padding:40px 30px;text-align:center;min-height:120px;">
+      <p style="font-size:16px;color:#94a3b8;margin:0;">Drop content here</p>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:20px;text-align:center;background-color:#ffffff;border-top:1px solid #f1f5f9;">
+      <a href="#" style="display:inline-block;margin:0 6px;"><img src="https://placehold.co/24x24/1a1a1a/ffffff?text=X" alt="Twitter" style="width:24px;height:24px;" /></a>
+      <a href="#" style="display:inline-block;margin:0 6px;"><img src="https://placehold.co/24x24/1a1a1a/ffffff?text=f" alt="Facebook" style="width:24px;height:24px;" /></a>
+      <a href="#" style="display:inline-block;margin:0 6px;"><img src="https://placehold.co/24x24/1a1a1a/ffffff?text=in" alt="Instagram" style="width:24px;height:24px;" /></a>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:16px 20px;text-align:center;background-color:#ffffff;">
+      <p style="font-size:11px;color:#94a3b8;margin:0 0 4px;">No longer want to receive these emails? <a href="{{unsubscribe_url}}" style="color:#94a3b8;">Unsubscribe</a>.</p>
+      <p style="font-size:11px;color:#94a3b8;margin:0;">{{company_name}} {{company_address}}</p>
+    </td>
+  </tr>
+</table>
+`;
+
+// Merge tags for template variables
+const MERGE_TAGS = [
+  { label: "First Name", value: "{{first_name}}" },
+  { label: "Last Name", value: "{{last_name}}" },
+  { label: "Company", value: "{{company}}" },
+  { label: "Last Product", value: "{{last_product}}" },
+  { label: "Last Order Date", value: "{{last_order_date}}" },
+  { label: "Days Since Order", value: "{{days_since_order}}" },
+  { label: "Total Spent", value: "{{total_spent}}" },
+  { label: "Order Count", value: "{{order_count}}" },
+  { label: "Coupon Code", value: "{{coupon_code}}" },
+  { label: "Order Number", value: "{{order_number}}" },
+  { label: "Invoice Number", value: "{{invoice_number}}" },
+  { label: "Invoice Total", value: "{{invoice_total}}" },
+  { label: "Amount Due", value: "{{amount_due}}" },
+];
 
 // Block definitions with icons — Klaviyo-style
 const BLOCK_DEFS = {
@@ -69,9 +122,10 @@ const BLOCK_DEFS = {
 interface GrapesEditorProps {
   onEditor: (editor: Editor) => void;
   existingDesign?: Record<string, unknown> | null;
+  onUndoRedo?: (canUndo: boolean, canRedo: boolean) => void;
 }
 
-export default function GrapesEditorComponent({ onEditor, existingDesign }: GrapesEditorProps) {
+export default function GrapesEditorComponent({ onEditor, existingDesign, onUndoRedo }: GrapesEditorProps) {
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const editorInstanceRef = useRef<Editor | null>(null);
   const [activeTab, setActiveTab] = useState<"content" | "styles">("content");
@@ -110,7 +164,6 @@ export default function GrapesEditorComponent({ onEditor, existingDesign }: Grap
           "https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap",
         ],
       },
-      // Put the block manager in a hidden container — we render our own UI
       blockManager: {
         appendTo: "#gjs-hidden-blocks",
       },
@@ -139,90 +192,95 @@ export default function GrapesEditorComponent({ onEditor, existingDesign }: Grap
       },
     });
 
-    // Register our custom blocks (newsletter preset already adds: text, image, button, divider, sect100, sect50, sect30, sect37, quote, link, link-block, grid-items, list-items)
-    const bm = editor.Blocks;
+    // Track undo/redo state
+    const updateUndoRedo = () => {
+      if (onUndoRedo) {
+        const um = editor.UndoManager;
+        onUndoRedo(um.hasUndo(), um.hasRedo());
+      }
+    };
+    editor.on("change:changesCount", updateUndoRedo);
 
-    // All custom blocks wrapped in max-width:600px container for email consistency
+    // Register custom blocks
+    const bm = editor.Blocks;
     const W = "width:100%;max-width:600px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;";
 
     bm.add("spacer", {
-      label: "Spacer",
-      category: "",
+      label: "Spacer", category: "",
       content: `<table style="${W}"><tr><td><div style="height:40px;line-height:40px;font-size:1px;">&nbsp;</div></td></tr></table>`,
     });
-
     bm.add("header-block", {
-      label: "Header",
-      category: "",
-      content: `<table style="${W}background-color:#1a1a1a;"><tr><td style="padding:20px;text-align:center;"><img src="https://mact.au/wp-content/uploads/mact-logo-white.png" alt="MACt" style="width:140px;" /></td></tr></table>`,
+      label: "Header", category: "",
+      content: `<table style="${W}background-color:#f8f8f8;"><tr><td style="padding:24px 20px;text-align:center;"><img src="https://placehold.co/120x40/f8f8f8/1a1a1a?text=LOGO" alt="Logo" style="width:120px;" /></td></tr></table>`,
     });
-
     bm.add("hero-section", {
-      label: "Hero",
-      category: "",
+      label: "Hero", category: "",
       content: `<table style="${W}background-color:#f1f5f9;"><tr><td style="padding:40px 30px;text-align:center;"><h1 style="font-size:28px;font-weight:700;color:#1a1a1a;margin:0 0 15px;">Your Headline Here</h1><p style="font-size:16px;color:#64748b;margin:0 0 25px;line-height:1.6;">A compelling description that encourages readers to take action.</p><a href="#" style="display:inline-block;background-color:#2563eb;color:#ffffff;padding:12px 30px;border-radius:6px;text-decoration:none;font-weight:600;font-size:15px;">Call to Action</a></td></tr></table>`,
     });
-
     bm.add("two-column", {
-      label: "2 Columns",
-      category: "",
+      label: "2 Columns", category: "",
       content: `<table style="${W}"><tr><td style="width:50%;padding:15px;vertical-align:top;"><p style="font-size:14px;color:#333;">Column 1 content</p></td><td style="width:50%;padding:15px;vertical-align:top;"><p style="font-size:14px;color:#333;">Column 2 content</p></td></tr></table>`,
     });
-
     bm.add("three-column", {
-      label: "3 Columns",
-      category: "",
+      label: "3 Columns", category: "",
       content: `<table style="${W}"><tr><td style="width:33.33%;padding:15px;vertical-align:top;"><p>Column 1</p></td><td style="width:33.33%;padding:15px;vertical-align:top;"><p>Column 2</p></td><td style="width:33.33%;padding:15px;vertical-align:top;"><p>Column 3</p></td></tr></table>`,
     });
-
     bm.add("image-text", {
-      label: "Image + Text",
-      category: "",
+      label: "Image + Text", category: "",
       content: `<table style="${W}"><tr><td style="width:40%;padding:15px;vertical-align:top;"><img src="https://placehold.co/250x200/e2e8f0/64748b?text=Image" alt="Image" style="width:100%;border-radius:6px;" /></td><td style="width:60%;padding:15px;vertical-align:top;"><h3 style="font-size:18px;font-weight:600;color:#1a1a1a;margin:0 0 10px;">Feature Title</h3><p style="font-size:14px;color:#64748b;line-height:1.6;margin:0;">Description text here.</p></td></tr></table>`,
     });
-
     bm.add("product-card", {
-      label: "Product",
-      category: "",
+      label: "Product", category: "",
       content: `<table style="${W}max-width:280px;background-color:#ffffff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;"><tr><td style="padding:0;"><img src="https://placehold.co/280x200/f1f5f9/64748b?text=Product" alt="Product" style="width:100%;display:block;" /></td></tr><tr><td style="padding:15px;text-align:center;"><h4 style="font-size:16px;font-weight:600;color:#1a1a1a;margin:0 0 8px;">Product Name</h4><p style="font-size:14px;color:#64748b;margin:0 0 12px;">$49.99</p><a href="#" style="display:inline-block;background-color:#2563eb;color:#ffffff;padding:8px 20px;border-radius:4px;text-decoration:none;font-size:13px;font-weight:500;">Shop Now</a></td></tr></table>`,
     });
-
     bm.add("social-links", {
-      label: "Social links",
-      category: "",
-      content: `<table style="${W}"><tr><td style="padding:20px;text-align:center;"><a href="#" style="display:inline-block;margin:0 8px;text-decoration:none;color:#64748b;font-size:13px;">Facebook</a><a href="#" style="display:inline-block;margin:0 8px;text-decoration:none;color:#64748b;font-size:13px;">Instagram</a><a href="#" style="display:inline-block;margin:0 8px;text-decoration:none;color:#64748b;font-size:13px;">LinkedIn</a></td></tr></table>`,
+      label: "Social links", category: "",
+      content: `<table style="${W}"><tr><td style="padding:20px;text-align:center;"><a href="#" style="display:inline-block;margin:0 6px;"><img src="https://placehold.co/24x24/1a1a1a/ffffff?text=X" alt="Twitter" style="width:24px;height:24px;" /></a><a href="#" style="display:inline-block;margin:0 6px;"><img src="https://placehold.co/24x24/1a1a1a/ffffff?text=f" alt="Facebook" style="width:24px;height:24px;" /></a><a href="#" style="display:inline-block;margin:0 6px;"><img src="https://placehold.co/24x24/1a1a1a/ffffff?text=in" alt="Instagram" style="width:24px;height:24px;" /></a></td></tr></table>`,
     });
-
     bm.add("footer-block", {
-      label: "Footer",
-      category: "",
-      content: `<table style="${W}background-color:#f8fafc;border-top:1px solid #e2e8f0;"><tr><td style="padding:20px 30px;text-align:center;"><p style="font-size:12px;color:#94a3b8;margin:0 0 8px;">MACt &bull; Unit 3C, 919-925 Nudgee Road, Banyo QLD 4014</p><p style="font-size:11px;color:#94a3b8;margin:0;"><a href="{{unsubscribe_url}}" style="color:#94a3b8;">Unsubscribe</a></p></td></tr></table>`,
+      label: "Footer", category: "",
+      content: `<table style="${W}"><tr><td style="padding:16px 20px;text-align:center;"><p style="font-size:11px;color:#94a3b8;margin:0 0 4px;">No longer want to receive these emails? <a href="{{unsubscribe_url}}" style="color:#94a3b8;">Unsubscribe</a>.</p><p style="font-size:11px;color:#94a3b8;margin:0;">{{company_name}} {{company_address}}</p></td></tr></table>`,
     });
-
     bm.add("coupon-block", {
-      label: "Coupon",
-      category: "",
+      label: "Coupon", category: "",
       content: `<table style="${W}max-width:400px;border:2px dashed #2563eb;border-radius:8px;"><tr><td style="padding:25px;text-align:center;"><p style="font-size:12px;color:#64748b;margin:0 0 5px;text-transform:uppercase;letter-spacing:1px;">Your Discount Code</p><p style="font-size:28px;font-weight:700;color:#2563eb;margin:0 0 5px;letter-spacing:3px;">{{coupon_code}}</p><p style="font-size:13px;color:#94a3b8;margin:0;">Use at checkout for your exclusive offer</p></td></tr></table>`,
     });
-
     bm.add("video-block", {
-      label: "Video",
-      category: "",
-      content: `<table style="${W}"><tr><td style="padding:15px;text-align:center;"><a href="#" style="display:block;position:relative;"><img src="https://placehold.co/560x315/1a1a1a/ffffff?text=%E2%96%B6+Video" alt="Video" style="width:100%;max-width:560px;border-radius:8px;" /></a><p style="font-size:12px;color:#94a3b8;margin:8px 0 0;">Click to watch video</p></td></tr></table>`,
+      label: "Video", category: "",
+      content: `<table style="${W}"><tr><td style="padding:15px;text-align:center;"><a href="#" style="display:block;"><img src="https://placehold.co/560x315/1a1a1a/ffffff?text=%E2%96%B6+Video" alt="Video" style="width:100%;max-width:560px;border-radius:8px;" /></a></td></tr></table>`,
     });
-
     bm.add("html-block", {
-      label: "HTML",
-      category: "",
-      content: `<table style="${W}"><tr><td style="padding:15px;"><p style="font-size:14px;color:#64748b;text-align:center;padding:20px;border:1px dashed #cbd5e1;border-radius:4px;">Custom HTML Block — double click to edit</p></td></tr></table>`,
+      label: "HTML", category: "",
+      content: `<table style="${W}"><tr><td style="padding:15px;"><p style="font-size:14px;color:#64748b;text-align:center;padding:20px;border:1px dashed #cbd5e1;border-radius:4px;">Custom HTML Block</p></td></tr></table>`,
     });
 
-    // Load existing design or default
+    // Make all top-level components draggable/sortable
+    editor.on("component:add", (component: ReturnType<Editor["getWrapper"]>) => {
+      if (component && component.parent()?.is("wrapper")) {
+        component.set({
+          draggable: true,
+          droppable: true,
+          hoverable: true,
+          selectable: true,
+          removable: true,
+          copyable: true,
+          moveable: true,
+        });
+      }
+    });
+
+    // Load existing design or starter template
     if (existingDesign) {
       editor.loadProjectData(existingDesign as Parameters<Editor["loadProjectData"]>[0]);
     } else {
-      editor.setComponents(DEFAULT_EMAIL_HTML);
+      editor.setComponents(STARTER_TEMPLATE);
     }
+
+    // Clear undo history after loading default template
+    setTimeout(() => {
+      editor.UndoManager.clear();
+      updateUndoRedo();
+    }, 100);
 
     editorInstanceRef.current = editor;
     setEditorReady(true);
@@ -235,7 +293,7 @@ export default function GrapesEditorComponent({ onEditor, existingDesign }: Grap
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Handle clicking a block card — find the real GrapesJS block element in the hidden container and simulate a drag
+  // Click to add block at end
   const handleBlockClick = useCallback((blockId: string) => {
     const editor = editorInstanceRef.current;
     if (!editor) return;
@@ -246,81 +304,83 @@ export default function GrapesEditorComponent({ onEditor, existingDesign }: Grap
     const content = block.get("content");
     if (!content) return;
 
-    // Use the wrapper to append the component properly
     const wrapper = editor.getWrapper();
     if (!wrapper) return;
 
-    // Append as a proper component at the end of the email
     wrapper.append(content);
 
-    // Scroll canvas to bottom to show newly added block
     const canvasEl = editor.Canvas.getBody();
     if (canvasEl) {
-      setTimeout(() => {
-        canvasEl.scrollTop = canvasEl.scrollHeight;
-      }, 100);
+      setTimeout(() => { canvasEl.scrollTop = canvasEl.scrollHeight; }, 100);
     }
   }, []);
 
-  // Handle drag start from our custom block cards — use GrapesJS's sorter/drag system
+  // Proxy drag from our custom card to GrapesJS's hidden block manager
   const handleBlockMouseDown = useCallback((e: React.MouseEvent, blockId: string) => {
     const editor = editorInstanceRef.current;
     if (!editor) return;
 
-    // Find the real GrapesJS block element in the hidden panel and trigger mousedown on it
     const hiddenPanel = document.getElementById("gjs-hidden-blocks");
     if (!hiddenPanel) return;
 
     const gjsBlockEl = hiddenPanel.querySelector(`.gjs-block[data-gjs-block="${blockId}"]`) as HTMLElement;
     if (!gjsBlockEl) return;
 
-    // Create and dispatch a mousedown event on the real GrapesJS block
     const mouseDownEvent = new MouseEvent("mousedown", {
-      bubbles: true,
-      cancelable: true,
-      clientX: e.clientX,
-      clientY: e.clientY,
+      bubbles: true, cancelable: true,
+      clientX: e.clientX, clientY: e.clientY,
       button: 0,
     });
     gjsBlockEl.dispatchEvent(mouseDownEvent);
   }, []);
 
+  // Insert merge tag into the active RTE
+  const insertMergeTag = useCallback((tag: string) => {
+    const editor = editorInstanceRef.current;
+    if (!editor) return;
+
+    // Try inserting into active RTE (rich text editor)
+    const rte = editor.RichTextEditor;
+    const activeRte = rte?.getToolbarEl()?.style.display !== "none";
+    if (activeRte) {
+      document.execCommand("insertText", false, tag);
+    } else {
+      // If no RTE active, add as text block
+      const wrapper = editor.getWrapper();
+      if (wrapper) {
+        wrapper.append(`<table style="width:100%;max-width:600px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;"><tr><td style="padding:15px 30px;"><p style="font-size:15px;color:#333;">${tag}</p></td></tr></table>`);
+      }
+    }
+  }, []);
+
   return (
     <div className="flex h-full w-full">
-      {/* Hidden container for GrapesJS's real block manager */}
+      {/* Hidden container for GrapesJS block manager */}
       <div id="gjs-hidden-blocks" style={{ position: "absolute", left: "-9999px", width: "1px", height: "1px", overflow: "hidden" }} />
 
-      {/* Left sidebar — Klaviyo style */}
+      {/* Left sidebar */}
       <div className="w-[300px] min-w-[300px] h-full flex flex-col border-r bg-white">
-        {/* Tabs: Content / Styles */}
+        {/* Tabs */}
         <div className="flex border-b">
           <button
             onClick={() => setActiveTab("content")}
             className={cn(
               "flex-1 py-3 text-sm font-medium transition-colors relative",
-              activeTab === "content"
-                ? "text-foreground"
-                : "text-muted-foreground hover:text-foreground"
+              activeTab === "content" ? "text-foreground" : "text-muted-foreground hover:text-foreground"
             )}
           >
             Content
-            {activeTab === "content" && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
-            )}
+            {activeTab === "content" && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
           </button>
           <button
             onClick={() => setActiveTab("styles")}
             className={cn(
               "flex-1 py-3 text-sm font-medium transition-colors relative",
-              activeTab === "styles"
-                ? "text-foreground"
-                : "text-muted-foreground hover:text-foreground"
+              activeTab === "styles" ? "text-foreground" : "text-muted-foreground hover:text-foreground"
             )}
           >
             Styles
-            {activeTab === "styles" && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
-            )}
+            {activeTab === "styles" && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
           </button>
         </div>
 
@@ -328,6 +388,34 @@ export default function GrapesEditorComponent({ onEditor, existingDesign }: Grap
         {activeTab === "content" && (
           <ScrollArea className="flex-1">
             <div className="p-4">
+              {/* Merge tags */}
+              <div className="mb-4">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="w-full gap-2 text-xs">
+                      <Braces className="h-3.5 w-3.5" />
+                      Insert Merge Tag
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-56 p-1" align="start">
+                    <ScrollArea className="max-h-64">
+                      {MERGE_TAGS.map((tag) => (
+                        <button
+                          key={tag.value}
+                          onClick={() => insertMergeTag(tag.value)}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-accent rounded-sm transition-colors flex items-center justify-between"
+                        >
+                          <span>{tag.label}</span>
+                          <span className="text-[10px] text-muted-foreground font-mono">{tag.value}</span>
+                        </button>
+                      ))}
+                    </ScrollArea>
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              <Separator className="mb-4" />
+
               {Object.entries(BLOCK_DEFS).map(([key, section]) => (
                 <div key={key} className="mb-6">
                   <h3 className="text-sm font-semibold text-foreground mb-3">
@@ -355,7 +443,6 @@ export default function GrapesEditorComponent({ onEditor, existingDesign }: Grap
                               </span>
                             </div>
                           )}
-                          {/* Drag dots */}
                           <div className="absolute top-1 right-1 opacity-30">
                             <svg width="10" height="10" viewBox="0 0 10 10">
                               <circle cx="2" cy="2" r="1" fill="currentColor" />
@@ -380,7 +467,7 @@ export default function GrapesEditorComponent({ onEditor, existingDesign }: Grap
           </ScrollArea>
         )}
 
-        {/* Styles tab — GrapesJS style manager renders here */}
+        {/* Styles tab */}
         {activeTab === "styles" && (
           <ScrollArea className="flex-1">
             <div id="gjs-styles-panel" className="p-4" />
@@ -394,29 +481,21 @@ export default function GrapesEditorComponent({ onEditor, existingDesign }: Grap
       </div>
 
       {/* Editor canvas */}
-      <div
-        ref={editorContainerRef}
-        className="flex-1 h-full overflow-hidden"
-      />
+      <div ref={editorContainerRef} className="flex-1 h-full overflow-hidden" />
 
-      {/* Override GrapesJS default styles */}
+      {/* GrapesJS style overrides */}
       <style>{`
-        /* Hide GrapesJS default panels — we have our own sidebar + top bar */
         .gjs-pn-panels { display: none !important; }
-
-        /* Canvas */
         .gjs-cv-canvas { background-color: #f1f5f9 !important; }
         .gjs-frame-wrapper { overflow: auto !important; }
-
-        /* Style manager theme */
         .gjs-one-bg { background-color: #ffffff !important; }
         .gjs-two-color { color: #334155 !important; }
         .gjs-three-bg { background-color: #f8fafc !important; }
         .gjs-four-color, .gjs-four-color-h:hover { color: hsl(var(--primary)) !important; }
 
+        /* Styles panel */
         #gjs-styles-panel .gjs-sm-sector .gjs-sm-sector-title {
-          font-size: 13px !important;
-          font-weight: 600 !important;
+          font-size: 13px !important; font-weight: 600 !important;
           color: hsl(var(--foreground)) !important;
           padding: 10px 0 !important;
           border-bottom: 1px solid hsl(var(--border)) !important;
@@ -427,25 +506,31 @@ export default function GrapesEditorComponent({ onEditor, existingDesign }: Grap
           border-radius: 6px !important;
           background: hsl(var(--background)) !important;
         }
-        #gjs-styles-panel .gjs-field input {
-          font-size: 12px !important;
-          color: hsl(var(--foreground)) !important;
-        }
-        #gjs-styles-panel .gjs-sm-label {
-          font-size: 12px !important;
-          color: hsl(var(--muted-foreground)) !important;
-        }
+        #gjs-styles-panel .gjs-field input { font-size: 12px !important; color: hsl(var(--foreground)) !important; }
+        #gjs-styles-panel .gjs-sm-label { font-size: 12px !important; color: hsl(var(--muted-foreground)) !important; }
 
-        /* Selected component highlight */
+        /* Selection */
         .gjs-selected { outline: 2px solid hsl(var(--primary)) !important; }
         .gjs-hovered { outline: 1px dashed hsl(var(--primary) / 0.5) !important; }
 
-        /* Toolbar */
+        /* Toolbar — component action buttons */
         .gjs-toolbar {
           background: hsl(var(--primary)) !important;
           border-radius: 6px !important;
+          padding: 2px !important;
+          gap: 2px !important;
         }
-        .gjs-toolbar-item { color: white !important; }
+        .gjs-toolbar-item {
+          color: white !important;
+          width: 28px !important;
+          height: 28px !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          border-radius: 4px !important;
+          font-size: 14px !important;
+        }
+        .gjs-toolbar-item:hover { background: rgba(255,255,255,0.2) !important; }
 
         /* RTE */
         .gjs-rte-toolbar {
@@ -454,7 +539,27 @@ export default function GrapesEditorComponent({ onEditor, existingDesign }: Grap
           border-radius: 6px !important;
           box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
         }
+
+        /* Drag placeholder */
+        .gjs-placeholder {
+          border: 2px dashed hsl(var(--primary)) !important;
+          background: hsl(var(--primary) / 0.05) !important;
+        }
+
+        /* Badge (component label) */
+        .gjs-badge {
+          background: hsl(var(--primary)) !important;
+          font-size: 10px !important;
+          padding: 2px 6px !important;
+          border-radius: 4px !important;
+        }
+
+        /* Component hover shows grab cursor */
+        .gjs-comp-selected, .gjs-comp-hover { cursor: move !important; }
       `}</style>
     </div>
   );
 }
+
+// Export for use in page.tsx
+export { type Editor };

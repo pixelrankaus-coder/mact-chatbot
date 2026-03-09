@@ -9,6 +9,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -22,6 +28,8 @@ import {
   Monitor,
   Smartphone,
   Eye,
+  Undo2,
+  Redo2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Suspense } from "react";
@@ -58,6 +66,8 @@ function BuilderContent() {
   const [previewHtml, setPreviewHtml] = useState("");
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [existingDesign, setExistingDesign] = useState<Record<string, unknown> | null>(null);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
 
   // Load existing template if editing
   useEffect(() => {
@@ -96,6 +106,23 @@ function BuilderContent() {
     editorRef.current = editor;
     setEditorReady(true);
   }, []);
+
+  const handleUndoRedo = useCallback((undo: boolean, redo: boolean) => {
+    setCanUndo(undo);
+    setCanRedo(redo);
+  }, []);
+
+  const handleUndo = () => {
+    if (editorRef.current) {
+      editorRef.current.UndoManager.undo();
+    }
+  };
+
+  const handleRedo = () => {
+    if (editorRef.current) {
+      editorRef.current.UndoManager.redo();
+    }
+  };
 
   const getHtml = (): string => {
     if (!editorRef.current) return "";
@@ -164,7 +191,6 @@ function BuilderContent() {
 
       toast.success(editId ? "Template updated" : "Template created");
 
-      // If returning to campaign wizard, pass the template ID
       if (returnTo.includes("/outreach/new")) {
         const templateId = editId || result.template?.id;
         router.push(`${returnTo}${returnTo.includes("?") ? "&" : "?"}templateId=${templateId}`);
@@ -173,9 +199,7 @@ function BuilderContent() {
       }
     } catch (error) {
       console.error("Save error:", error);
-      toast.error(
-        error instanceof Error ? error.message : "Failed to save"
-      );
+      toast.error(error instanceof Error ? error.message : "Failed to save");
     } finally {
       setSaving(false);
     }
@@ -184,14 +208,30 @@ function BuilderContent() {
   const handleViewModeChange = (mode: "desktop" | "mobile") => {
     setViewMode(mode);
     if (editorRef.current) {
-      const editor = editorRef.current;
-      if (mode === "mobile") {
-        editor.setDevice("Mobile portrait");
-      } else {
-        editor.setDevice("Desktop");
-      }
+      editorRef.current.setDevice(mode === "mobile" ? "Mobile portrait" : "Desktop");
     }
   };
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+        e.preventDefault();
+        handleSave();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === "y" || (e.key === "z" && e.shiftKey))) {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [templateName, subject]);
 
   if (loading) {
     return (
@@ -202,179 +242,185 @@ function BuilderContent() {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-white">
-      {/* Top Bar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b bg-white z-10">
-        {/* Left: Back + Name */}
-        <div className="flex items-center gap-3">
-          <Link href={returnTo}>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
+    <TooltipProvider delayDuration={300}>
+      <div className="fixed inset-0 z-50 flex flex-col bg-white">
+        {/* Top Bar */}
+        <div className="flex items-center justify-between px-4 py-2 border-b bg-white z-10">
+          {/* Left: Back + Name + Undo/Redo */}
           <div className="flex items-center gap-2">
+            <Link href={returnTo}>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            </Link>
             <Input
               value={templateName}
               onChange={(e) => setTemplateName(e.target.value)}
               placeholder="Template name..."
-              className="h-8 w-56 text-sm font-medium border-dashed"
+              className="h-8 w-48 text-sm font-medium border-dashed"
             />
             {editId && (
               <Badge variant="secondary" className="text-xs">
                 Editing
               </Badge>
             )}
-          </div>
-        </div>
-
-        {/* Center: View toggle */}
-        <div className="flex items-center gap-1">
-          <span className="text-xs font-medium text-muted-foreground mr-2">Message</span>
-          <div className="flex items-center border rounded-lg overflow-hidden">
-            <button
-              onClick={() => handleViewModeChange("desktop")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${
-                viewMode === "desktop"
-                  ? "bg-slate-900 text-white"
-                  : "bg-white text-slate-600 hover:bg-slate-50"
-              }`}
-            >
-              <Monitor className="h-3.5 w-3.5" />
-              Desktop
-            </button>
-            <button
-              onClick={() => handleViewModeChange("mobile")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${
-                viewMode === "mobile"
-                  ? "bg-slate-900 text-white"
-                  : "bg-white text-slate-600 hover:bg-slate-50"
-              }`}
-            >
-              <Smartphone className="h-3.5 w-3.5" />
-              Mobile
-            </button>
-          </div>
-        </div>
-
-        {/* Right: Actions */}
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handlePreview}
-            className="gap-1.5"
-          >
-            <Eye className="h-3.5 w-3.5" />
-            Preview & test
-          </Button>
-          <Button
-            size="sm"
-            onClick={handleSave}
-            disabled={saving}
-            className="gap-1.5"
-          >
-            {saving ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Save className="h-3.5 w-3.5" />
-            )}
-            Save
-          </Button>
-        </div>
-      </div>
-
-      {/* Subject line bar */}
-      <div className="flex items-center gap-3 px-4 py-2 border-b bg-slate-50">
-        <Label className="text-xs font-medium text-muted-foreground shrink-0">
-          Subject:
-        </Label>
-        <Input
-          value={subject}
-          onChange={(e) => setSubject(e.target.value)}
-          placeholder="Enter subject line... (supports {{variables}})"
-          className="h-7 text-sm border-0 bg-transparent shadow-none focus-visible:ring-0 px-0"
-        />
-      </div>
-
-      {/* GrapesJS Editor */}
-      <div className="flex-1" style={{ minHeight: 0 }}>
-        <GrapesJSEditor
-          onEditor={handleEditorReady}
-          existingDesign={existingDesign}
-        />
-      </div>
-
-      {/* Preview Modal */}
-      <Dialog open={showPreview} onOpenChange={setShowPreview}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Eye className="h-5 w-5" />
-              Email Preview
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 overflow-auto border rounded-lg">
-            <iframe
-              srcDoc={previewHtml}
-              title="Email Preview"
-              className="w-full h-[600px] border-0"
-              sandbox="allow-same-origin"
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowPreview(false)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Save Dialog (name + subject) */}
-      <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Save Template</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="saveName">Template Name *</Label>
-              <Input
-                id="saveName"
-                value={templateName}
-                onChange={(e) => setTemplateName(e.target.value)}
-                placeholder="e.g., Product Launch Email"
-                autoFocus
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="saveSubject">Subject Line *</Label>
-              <Input
-                id="saveSubject"
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                placeholder="e.g., Check out our new {{last_product}}"
-              />
-              <p className="text-xs text-muted-foreground">
-                Supports variables: {"{{first_name}}"}, {"{{company}}"}, etc.
-              </p>
+            <div className="flex items-center gap-0.5 ml-2">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={handleUndo}
+                    disabled={!canUndo}
+                  >
+                    <Undo2 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Undo (Ctrl+Z)</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={handleRedo}
+                    disabled={!canRedo}
+                  >
+                    <Redo2 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Redo (Ctrl+Y)</TooltipContent>
+              </Tooltip>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowSaveDialog(false)}>
-              Cancel
+
+          {/* Center: View toggle */}
+          <div className="flex items-center gap-1">
+            <div className="flex items-center border rounded-lg overflow-hidden">
+              <button
+                onClick={() => handleViewModeChange("desktop")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${
+                  viewMode === "desktop"
+                    ? "bg-slate-900 text-white"
+                    : "bg-white text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <Monitor className="h-3.5 w-3.5" />
+                Desktop
+              </button>
+              <button
+                onClick={() => handleViewModeChange("mobile")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${
+                  viewMode === "mobile"
+                    ? "bg-slate-900 text-white"
+                    : "bg-white text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <Smartphone className="h-3.5 w-3.5" />
+                Mobile
+              </button>
+            </div>
+          </div>
+
+          {/* Right: Actions */}
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={handlePreview} className="gap-1.5">
+              <Eye className="h-3.5 w-3.5" />
+              Preview & test
             </Button>
-            <Button onClick={doSave} disabled={saving}>
-              {saving ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Save className="h-4 w-4 mr-2" />
-              )}
-              Save Template
+            <Button size="sm" onClick={handleSave} disabled={saving} className="gap-1.5">
+              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              Save
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+          </div>
+        </div>
+
+        {/* Subject line bar */}
+        <div className="flex items-center gap-3 px-4 py-2 border-b bg-slate-50">
+          <Label className="text-xs font-medium text-muted-foreground shrink-0">Subject:</Label>
+          <Input
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            placeholder="Enter subject line... (supports {{variables}})"
+            className="h-7 text-sm border-0 bg-transparent shadow-none focus-visible:ring-0 px-0"
+          />
+        </div>
+
+        {/* GrapesJS Editor */}
+        <div className="flex-1" style={{ minHeight: 0 }}>
+          <GrapesJSEditor
+            onEditor={handleEditorReady}
+            existingDesign={existingDesign}
+            onUndoRedo={handleUndoRedo}
+          />
+        </div>
+
+        {/* Preview Modal */}
+        <Dialog open={showPreview} onOpenChange={setShowPreview}>
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Eye className="h-5 w-5" />
+                Email Preview
+              </DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 overflow-auto border rounded-lg">
+              <iframe
+                srcDoc={previewHtml}
+                title="Email Preview"
+                className="w-full h-[600px] border-0"
+                sandbox="allow-same-origin"
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowPreview(false)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Save Dialog */}
+        <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Save Template</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="saveName">Template Name *</Label>
+                <Input
+                  id="saveName"
+                  value={templateName}
+                  onChange={(e) => setTemplateName(e.target.value)}
+                  placeholder="e.g., Product Launch Email"
+                  autoFocus
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="saveSubject">Subject Line *</Label>
+                <Input
+                  id="saveSubject"
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  placeholder="e.g., Check out our new {{last_product}}"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Supports variables: {"{{first_name}}"}, {"{{company}}"}, etc.
+                </p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowSaveDialog(false)}>Cancel</Button>
+              <Button onClick={doSave} disabled={saving}>
+                {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                Save Template
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </TooltipProvider>
   );
 }
 
