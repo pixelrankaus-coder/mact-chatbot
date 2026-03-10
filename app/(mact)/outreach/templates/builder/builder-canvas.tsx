@@ -25,6 +25,7 @@ import {
   ChevronUp,
   ChevronDown,
   GripVertical,
+  Plus,
 } from "lucide-react";
 
 // ─── Block Toolbar ───────────────────────────────────────────────────────────
@@ -213,6 +214,15 @@ function SortableBlock({
           : "hover:ring-1 hover:ring-blue-300"
       }`}
     >
+      {/* Section badge */}
+      {block.type === "section" && selected && (
+        <div className="absolute -top-0.5 left-0 z-20">
+          <span className="text-[10px] font-semibold text-white bg-blue-500 px-1.5 py-0.5 rounded-br rounded-tl">
+            Section
+          </span>
+        </div>
+      )}
+
       {/* Drag handle */}
       <div
         {...attributes}
@@ -250,16 +260,18 @@ function DropZone({
   index,
   onDrop,
   onDropFile,
+  onAddSection,
 }: {
   index: number;
   onDrop: (type: BlockType, index: number) => void;
   onDropFile?: (file: File, index: number) => void;
+  onAddSection?: (index: number) => void;
 }) {
   const [active, setActive] = useState(false);
 
   return (
     <div
-      className={`relative h-3 transition-all ${active ? "h-12" : ""}`}
+      className={`relative group/dropzone transition-all ${active ? "h-12" : "h-3"}`}
       onDragOver={(e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -272,7 +284,6 @@ function DropZone({
         e.preventDefault();
         e.stopPropagation();
         setActive(false);
-        // Check for file drops
         const files = e.dataTransfer.files;
         if (files.length > 0 && files[0].type.startsWith("image/") && onDropFile) {
           onDropFile(files[0], index);
@@ -284,6 +295,21 @@ function DropZone({
     >
       {active && (
         <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 h-1 bg-blue-400 rounded-full" />
+      )}
+      {/* + button between blocks */}
+      {onAddSection && !active && (
+        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center opacity-0 group-hover/dropzone:opacity-100 transition-opacity z-10">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddSection(index);
+            }}
+            className="h-5 w-5 rounded-full bg-blue-500 hover:bg-blue-600 text-white flex items-center justify-center shadow-sm transition-colors"
+            title="Add section"
+          >
+            <Plus className="h-3 w-3" />
+          </button>
+        </div>
       )}
     </div>
   );
@@ -343,6 +369,7 @@ interface BuilderCanvasProps {
   onAddBlockToColumn: (parentId: string, colId: string, type: BlockType) => void;
   onDropFile?: (file: File, index?: number) => void;
   onDropFileInColumn?: (parentId: string, colId: string, file: File) => void;
+  onAddSection?: (index: number) => void;
 }
 
 export function BuilderCanvas({
@@ -359,6 +386,7 @@ export function BuilderCanvas({
   onAddBlockToColumn,
   onDropFile,
   onDropFileInColumn,
+  onAddSection,
 }: BuilderCanvasProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
 
@@ -413,7 +441,7 @@ export function BuilderCanvas({
               strategy={verticalListSortingStrategy}
             >
               <div className="bg-white shadow-sm relative" style={{ paddingLeft: 32, paddingRight: 16 }}>
-                <DropZone index={0} onDrop={(type, idx) => onAddBlock(type, idx)} onDropFile={onDropFile ? (f, idx) => onDropFile(f, idx) : undefined} />
+                <DropZone index={0} onDrop={(type, idx) => onAddBlock(type, idx)} onDropFile={onDropFile ? (f, idx) => onDropFile(f, idx) : undefined} onAddSection={onAddSection} />
                 {design.blocks.map((block, i) => (
                   <React.Fragment key={block.id}>
                     <SortableBlock
@@ -439,6 +467,7 @@ export function BuilderCanvas({
                       index={i + 1}
                       onDrop={(type, idx) => onAddBlock(type, idx)}
                       onDropFile={onDropFile ? (f, idx) => onDropFile(f, idx) : undefined}
+                      onAddSection={onAddSection}
                     />
                   </React.Fragment>
                 ))}

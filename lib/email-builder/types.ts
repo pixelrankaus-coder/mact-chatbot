@@ -188,12 +188,37 @@ export interface VideoBlockProps {
   alignment: Alignment;
 }
 
+export interface SectionBorder {
+  width: number;
+  style: "solid" | "dashed" | "dotted" | "none";
+  color: string;
+}
+
+export interface BackgroundImage {
+  url: string;
+  fullWidth: boolean;
+  repeat: "no-repeat" | "repeat" | "repeat-x" | "repeat-y";
+  position: "center" | "top" | "bottom" | "left" | "right";
+  cover: boolean;
+}
+
 export interface SectionBlockProps {
   blocks: EmailBlock[];
-  backgroundColor: string;
+  backgroundColor: string;              // "Section color" — full-bleed behind everything
+  contentBackgroundColor: string;        // "Content color" — within content width only
+  backgroundImage: BackgroundImage;
   padding: Padding;
-  borderTop: { width: number; color: string };
-  borderBottom: { width: number; color: string };
+  mobilePadding: Padding;
+  border: {
+    top: SectionBorder;
+    bottom: SectionBorder;
+    left: SectionBorder;
+    right: SectionBorder;
+  };
+  columnAlignment: "top" | "middle" | "bottom";
+  mobileStacking: "ltr" | "rtl" | "none";
+  hideDesktop: boolean;
+  hideMobile: boolean;
 }
 
 export interface HtmlBlockProps {
@@ -242,7 +267,7 @@ export interface EmailBlock<T extends BlockType = BlockType> {
 // ─── Design Document ─────────────────────────────────────────────────────────
 
 export interface EmailDesign {
-  version: 1;
+  version: 1 | 2;
   bodySettings: {
     backgroundColor: string;
     contentWidth: number; // default 600

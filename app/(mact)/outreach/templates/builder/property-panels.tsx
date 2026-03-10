@@ -24,6 +24,8 @@ import type {
   QuoteBlockProps,
   SocialLink,
   Alignment,
+  SectionBorder,
+  BackgroundImage,
 } from "@/lib/email-builder/types";
 import { MERGE_TAGS } from "@/lib/email-builder/types";
 import { uid } from "@/lib/email-builder/defaults";
@@ -43,6 +45,9 @@ import {
   AlignLeft,
   AlignCenter,
   AlignRight,
+  AlignVerticalJustifyStart,
+  AlignVerticalJustifyCenter,
+  AlignVerticalJustifyEnd,
   Plus,
   Trash2,
   Tag,
@@ -51,6 +56,10 @@ import {
   ImageIcon,
   GripVertical,
   ChevronDown,
+  Eye,
+  EyeOff,
+  Monitor,
+  Smartphone,
 } from "lucide-react";
 import {
   Popover,
@@ -601,6 +610,82 @@ function ColumnsPanel({
   );
 }
 
+function SectionBorderInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: SectionBorder;
+  onChange: (v: SectionBorder) => void;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <div className="flex items-center gap-1.5">
+        <Input
+          type="number"
+          value={value.width}
+          onChange={(e) => onChange({ ...value, width: Math.max(0, Math.min(10, Number(e.target.value))) })}
+          className="h-7 text-xs w-16"
+          min={0}
+          max={10}
+        />
+        <Select value={value.style} onValueChange={(v: "solid" | "dashed" | "dotted" | "none") => onChange({ ...value, style: v })}>
+          <SelectTrigger className="h-7 text-xs w-20"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="solid">Solid</SelectItem>
+            <SelectItem value="dashed">Dashed</SelectItem>
+            <SelectItem value="dotted">Dotted</SelectItem>
+            <SelectItem value="none">None</SelectItem>
+          </SelectContent>
+        </Select>
+        <input
+          type="color"
+          value={value.color || "#e0e0e0"}
+          onChange={(e) => onChange({ ...value, color: e.target.value })}
+          className="w-7 h-7 rounded border cursor-pointer shrink-0"
+        />
+      </div>
+    </div>
+  );
+}
+
+function LabelledPaddingInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: Padding;
+  onChange: (v: Padding) => void;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <div className="grid grid-cols-4 gap-1">
+        {(["top", "right", "bottom", "left"] as const).map((side) => (
+          <div key={side}>
+            <Input
+              type="number"
+              value={value[side]}
+              onChange={(e) =>
+                onChange({ ...value, [side]: Math.max(0, Number(e.target.value)) })
+              }
+              className="h-7 text-xs text-center"
+              min={0}
+              placeholder={side[0].toUpperCase()}
+            />
+            <div className="text-[9px] text-muted-foreground text-center mt-0.5">
+              {side[0].toUpperCase()}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function SectionPanel({
   props: p,
   onUpdate,
@@ -608,18 +693,187 @@ function SectionPanel({
   props: SectionBlockProps;
   onUpdate: (partial: Partial<SectionBlockProps>) => void;
 }) {
+  const [activeTab, setActiveTab] = useState<"styles" | "display">("styles");
+
   return (
     <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">
-        Drag blocks into this section from the sidebar. Sections group content with a shared background.
-      </p>
-      <ColorInput label="Background" value={p.backgroundColor} onChange={(v) => onUpdate({ backgroundColor: v })} />
-      <PaddingInput value={p.padding} onChange={(v) => onUpdate({ padding: v })} />
-      <SectionHeader title="Borders" />
-      <NumberInput label="Top border" value={p.borderTop.width} onChange={(v) => onUpdate({ borderTop: { ...p.borderTop, width: v } })} max={10} />
-      <ColorInput label="Top color" value={p.borderTop.color} onChange={(v) => onUpdate({ borderTop: { ...p.borderTop, color: v } })} />
-      <NumberInput label="Bottom border" value={p.borderBottom.width} onChange={(v) => onUpdate({ borderBottom: { ...p.borderBottom, width: v } })} max={10} />
-      <ColorInput label="Bottom color" value={p.borderBottom.color} onChange={(v) => onUpdate({ borderBottom: { ...p.borderBottom, color: v } })} />
+      {/* Tabs */}
+      <div className="flex border-b">
+        <button
+          className={`flex-1 text-xs font-medium py-1.5 border-b-2 transition-colors ${
+            activeTab === "styles"
+              ? "border-blue-500 text-blue-600"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+          onClick={() => setActiveTab("styles")}
+        >
+          Styles
+        </button>
+        <button
+          className={`flex-1 text-xs font-medium py-1.5 border-b-2 transition-colors ${
+            activeTab === "display"
+              ? "border-blue-500 text-blue-600"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+          onClick={() => setActiveTab("display")}
+        >
+          Display
+        </button>
+      </div>
+
+      {activeTab === "styles" ? (
+        <div className="space-y-3">
+          {/* Background Image */}
+          <SectionHeader title="Background image" />
+          <div className="flex items-center gap-2">
+            <Label className="text-xs text-muted-foreground w-24 shrink-0">Image URL</Label>
+            <Input
+              value={p.backgroundImage?.url || ""}
+              onChange={(e) => onUpdate({ backgroundImage: { ...(p.backgroundImage || { url: "", fullWidth: true, repeat: "no-repeat", position: "center", cover: false }), url: e.target.value } })}
+              placeholder="https://..."
+              className="h-7 text-xs flex-1"
+            />
+          </div>
+          {p.backgroundImage?.url && (
+            <>
+              <div className="flex items-center gap-2">
+                <Label className="text-xs text-muted-foreground w-24 shrink-0">Repeat</Label>
+                <Select value={p.backgroundImage.repeat} onValueChange={(v: BackgroundImage["repeat"]) => onUpdate({ backgroundImage: { ...p.backgroundImage, repeat: v } })}>
+                  <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="no-repeat">No repeat</SelectItem>
+                    <SelectItem value="repeat">Repeat</SelectItem>
+                    <SelectItem value="repeat-x">Repeat X</SelectItem>
+                    <SelectItem value="repeat-y">Repeat Y</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2">
+                <Label className="text-xs text-muted-foreground w-24 shrink-0">Position</Label>
+                <Select value={p.backgroundImage.position} onValueChange={(v: BackgroundImage["position"]) => onUpdate({ backgroundImage: { ...p.backgroundImage, position: v } })}>
+                  <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="center">Center</SelectItem>
+                    <SelectItem value="top">Top</SelectItem>
+                    <SelectItem value="bottom">Bottom</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2">
+                <Label className="text-xs text-muted-foreground w-24 shrink-0">Cover</Label>
+                <button
+                  onClick={() => onUpdate({ backgroundImage: { ...p.backgroundImage, cover: !p.backgroundImage.cover } })}
+                  className={`h-7 px-3 text-xs rounded border transition-colors ${
+                    p.backgroundImage.cover ? "bg-blue-50 border-blue-300 text-blue-700" : "bg-white text-muted-foreground"
+                  }`}
+                >
+                  {p.backgroundImage.cover ? "On" : "Off"}
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* Content color (within content width) */}
+          <SectionHeader title="Content color" />
+          <ColorInput label="Content bg" value={p.contentBackgroundColor} onChange={(v) => onUpdate({ contentBackgroundColor: v })} />
+
+          {/* Section color (full bleed) */}
+          <SectionHeader title="Section color" />
+          <ColorInput label="Section bg" value={p.backgroundColor} onChange={(v) => onUpdate({ backgroundColor: v })} />
+
+          {/* Borders */}
+          <SectionHeader title="Borders" />
+          <SectionBorderInput label="Top" value={p.border.top} onChange={(v) => onUpdate({ border: { ...p.border, top: v } })} />
+          <SectionBorderInput label="Bottom" value={p.border.bottom} onChange={(v) => onUpdate({ border: { ...p.border, bottom: v } })} />
+          <SectionBorderInput label="Left" value={p.border.left} onChange={(v) => onUpdate({ border: { ...p.border, left: v } })} />
+          <SectionBorderInput label="Right" value={p.border.right} onChange={(v) => onUpdate({ border: { ...p.border, right: v } })} />
+
+          {/* Padding */}
+          <SectionHeader title="Padding" />
+          <LabelledPaddingInput label="Desktop" value={p.padding} onChange={(v) => onUpdate({ padding: v })} />
+          <LabelledPaddingInput label="Mobile" value={p.mobilePadding} onChange={(v) => onUpdate({ mobilePadding: v })} />
+
+          {/* Column content alignment */}
+          <SectionHeader title="Column alignment" />
+          <div className="flex items-center gap-2">
+            <Label className="text-xs text-muted-foreground w-24 shrink-0">Vertical</Label>
+            <div className="flex gap-0.5">
+              {([
+                { v: "top", icon: AlignVerticalJustifyStart, label: "Top" },
+                { v: "middle", icon: AlignVerticalJustifyCenter, label: "Middle" },
+                { v: "bottom", icon: AlignVerticalJustifyEnd, label: "Bottom" },
+              ] as const).map(({ v, icon: Icon, label }) => (
+                <Button
+                  key={v}
+                  variant={p.columnAlignment === v ? "default" : "outline"}
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => onUpdate({ columnAlignment: v })}
+                  title={label}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {/* Mobile stacking */}
+          <SectionHeader title="Mobile stacking" />
+          <div className="space-y-1">
+            {([
+              { v: "ltr", label: "Left to right" },
+              { v: "rtl", label: "Right to left" },
+              { v: "none", label: "No stacking" },
+            ] as const).map(({ v, label }) => (
+              <label key={v} className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="mobileStacking"
+                  checked={p.mobileStacking === v}
+                  onChange={() => onUpdate({ mobileStacking: v })}
+                  className="accent-blue-500"
+                />
+                <span className="text-xs">{label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      ) : (
+        /* Display tab */
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Monitor className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs">Hide on Desktop</span>
+            </div>
+            <button
+              onClick={() => onUpdate({ hideDesktop: !p.hideDesktop })}
+              className={`h-7 px-3 text-xs rounded border transition-colors ${
+                p.hideDesktop ? "bg-red-50 border-red-300 text-red-700" : "bg-white text-muted-foreground"
+              }`}
+            >
+              {p.hideDesktop ? "Hidden" : "Visible"}
+            </button>
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Smartphone className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs">Hide on Mobile</span>
+            </div>
+            <button
+              onClick={() => onUpdate({ hideMobile: !p.hideMobile })}
+              className={`h-7 px-3 text-xs rounded border transition-colors ${
+                p.hideMobile ? "bg-red-50 border-red-300 text-red-700" : "bg-white text-muted-foreground"
+              }`}
+            >
+              {p.hideMobile ? "Hidden" : "Visible"}
+            </button>
+          </div>
+          <p className="text-[10px] text-muted-foreground">
+            Hidden sections are not rendered in the final email for the selected device type.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

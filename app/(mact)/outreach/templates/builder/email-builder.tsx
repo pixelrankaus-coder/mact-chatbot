@@ -132,10 +132,10 @@ const EmailBuilderInner = forwardRef<EmailBuilderHandle, EmailBuilderProps>(
       onUndoRedo?.(builder.canUndo, builder.canRedo);
     }, [builder.canUndo, builder.canRedo, onUndoRedo]);
 
-    // Load existing design
+    // Load existing design (supports v1 and v2 — migration happens in loadDesign)
     useEffect(() => {
-      if (existingDesign && (existingDesign as EmailDesign).version === 1) {
-        builder.loadDesign(existingDesign as EmailDesign);
+      if (existingDesign && (existingDesign as unknown as EmailDesign).version) {
+        builder.loadDesign(existingDesign as unknown as EmailDesign);
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [existingDesign]);
@@ -288,6 +288,7 @@ const EmailBuilderInner = forwardRef<EmailBuilderHandle, EmailBuilderProps>(
           }
           onDropFile={handleDropFile}
           onDropFileInColumn={handleDropFileInColumn}
+          onAddSection={(index) => builder.addSection(index)}
         />
       </div>
     );

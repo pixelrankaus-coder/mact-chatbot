@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import type { EmailDesign, EmailBlock, BlockType, ColumnsBlockProps, SectionBlockProps } from "@/lib/email-builder/types";
-import { emptyDesign, createBlock, createColumnsBlock, uid } from "@/lib/email-builder/defaults";
+import { emptyDesign, createBlock, createColumnsBlock, uid, migrateDesign } from "@/lib/email-builder/defaults";
 import { exportToHtml } from "@/lib/email-builder/html-export";
 
 const MAX_HISTORY = 50;
@@ -79,6 +79,24 @@ export function useEmailBuilder() {
   const addColumnsBlock = useCallback(
     (widths: number[], index?: number) => {
       const block = createColumnsBlock(widths);
+      updateDesign((d) => {
+        const blocks = [...d.blocks];
+        if (index !== undefined) {
+          blocks.splice(index, 0, block);
+        } else {
+          blocks.push(block);
+        }
+        return { ...d, blocks };
+      });
+      setSelectedBlockId(block.id);
+      setSelectedColumnCtx(null);
+    },
+    [updateDesign]
+  );
+
+  const addSection = useCallback(
+    (index?: number) => {
+      const block = createBlock("section");
       updateDesign((d) => {
         const blocks = [...d.blocks];
         if (index !== undefined) {
@@ -316,7 +334,7 @@ export function useEmailBuilder() {
   const loadDesign = useCallback(
     (d: EmailDesign) => {
       pushHistory(design);
-      setDesign(d);
+      setDesign(migrateDesign(d));
       setSelectedBlockId(null);
       setSelectedColumnCtx(null);
     },
@@ -353,6 +371,7 @@ export function useEmailBuilder() {
     setSelectedColumnCtx,
     addBlock,
     addColumnsBlock,
+    addSection,
     addBlockToColumn,
     removeBlock,
     duplicateBlock,

@@ -578,6 +578,10 @@ export function QuoteRenderer({ props: p }: RendererProps<QuoteBlockProps>) {
 
 // ─── Section Renderer ────────────────────────────────────────────────────────
 
+function borderCss(b: { width: number; style: string; color: string }): string | undefined {
+  return b.width ? `${b.width}px ${b.style} ${b.color}` : undefined;
+}
+
 interface SectionRendererProps extends RendererProps<SectionBlockProps> {
   renderBlock: (block: EmailBlock, columnId: string) => React.ReactNode;
   onDropInColumn?: (columnId: string, blockType: string) => void;
@@ -586,47 +590,74 @@ interface SectionRendererProps extends RendererProps<SectionBlockProps> {
 
 export function SectionRenderer({ props: p, renderBlock, onDropInColumn, onDropFileInColumn }: SectionRendererProps) {
   const sectionId = "section-inner";
+
+  // Outer = "Section color" (full-bleed background + background image)
+  const outerStyle: React.CSSProperties = {
+    backgroundColor: p.backgroundColor || undefined,
+    ...(p.backgroundImage?.url
+      ? {
+          backgroundImage: `url(${p.backgroundImage.url})`,
+          backgroundRepeat: p.backgroundImage.repeat,
+          backgroundPosition: p.backgroundImage.position,
+          backgroundSize: p.backgroundImage.cover ? "cover" : "auto",
+        }
+      : {}),
+  };
+
+  // Inner = "Content color" (within content width) + padding + borders
+  const innerStyle: React.CSSProperties = {
+    ...padStyle(p.padding),
+    backgroundColor: p.contentBackgroundColor || undefined,
+    borderTop: borderCss(p.border.top),
+    borderBottom: borderCss(p.border.bottom),
+    borderLeft: borderCss(p.border.left),
+    borderRight: borderCss(p.border.right),
+  };
+
   return (
-    <div
-      style={{
-        ...padStyle(p.padding),
-        backgroundColor: p.backgroundColor || undefined,
-        borderTop: p.borderTop.width ? `${p.borderTop.width}px solid ${p.borderTop.color}` : undefined,
-        borderBottom: p.borderBottom.width ? `${p.borderBottom.width}px solid ${p.borderBottom.color}` : undefined,
-      }}
-    >
-      <div
-        className="relative min-h-[60px]"
-        onDragOver={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          e.currentTarget.classList.add("ring-2", "ring-blue-400", "ring-inset");
-        }}
-        onDragLeave={(e) => {
-          e.currentTarget.classList.remove("ring-2", "ring-blue-400", "ring-inset");
-        }}
-        onDrop={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          e.currentTarget.classList.remove("ring-2", "ring-blue-400", "ring-inset");
-          const files = e.dataTransfer.files;
-          if (files.length > 0 && files[0].type.startsWith("image/") && onDropFileInColumn) {
-            onDropFileInColumn(sectionId, files[0]);
-            return;
-          }
-          const blockType = e.dataTransfer.getData("text/block-type");
-          if (blockType && onDropInColumn) {
-            onDropInColumn(sectionId, blockType);
-          }
-        }}
-      >
-        {p.blocks.length === 0 ? (
-          <div className="min-h-[60px] border-2 border-dashed border-slate-200 rounded flex items-center justify-center text-slate-400 text-xs">
-            Drop content here
-          </div>
-        ) : (
-          p.blocks.map((block) => renderBlock(block, sectionId))
-        )}
+    <div style={outerStyle}>
+      <div style={innerStyle}>
+        <div
+          className="relative min-h-[60px]"
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            justifyContent:
+              p.columnAlignment === "middle" ? "center"
+              : p.columnAlignment === "bottom" ? "flex-end"
+              : "flex-start",
+          }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            e.currentTarget.classList.add("ring-2", "ring-blue-400", "ring-inset");
+          }}
+          onDragLeave={(e) => {
+            e.currentTarget.classList.remove("ring-2", "ring-blue-400", "ring-inset");
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            e.currentTarget.classList.remove("ring-2", "ring-blue-400", "ring-inset");
+            const files = e.dataTransfer.files;
+            if (files.length > 0 && files[0].type.startsWith("image/") && onDropFileInColumn) {
+              onDropFileInColumn(sectionId, files[0]);
+              return;
+            }
+            const blockType = e.dataTransfer.getData("text/block-type");
+            if (blockType && onDropInColumn) {
+              onDropInColumn(sectionId, blockType);
+            }
+          }}
+        >
+          {p.blocks.length === 0 ? (
+            <div className="min-h-[60px] border-2 border-dashed border-slate-200 rounded flex items-center justify-center text-slate-400 text-xs">
+              Drop content here
+            </div>
+          ) : (
+            p.blocks.map((block) => renderBlock(block, sectionId))
+          )}
+        </div>
       </div>
     </div>
   );

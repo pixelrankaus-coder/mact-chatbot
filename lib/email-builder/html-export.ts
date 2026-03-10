@@ -199,14 +199,47 @@ function renderQuote(p: QuoteBlockProps): string {
   return `<tr><td style="padding:${padStr(p.padding)};${bgStyle(p.backgroundColor)}text-align:${p.alignment};"><div style="border-left:4px solid ${p.quoteColor};padding:12px 24px;text-align:left;display:inline-block;"><p style="margin:0 0 8px;font-size:${px(p.fontSize)};font-style:italic;color:${p.color};line-height:1.5;font-family:inherit;">&ldquo;${esc(p.content)}&rdquo;</p><p style="margin:0;font-size:14px;color:#999;font-family:inherit;">&mdash; ${esc(p.author)}</p></div></td></tr>`;
 }
 
+function sectionBorderCss(side: string, b: { width: number; style: string; color: string }): string {
+  return b.width > 0 && b.style !== "none" ? `border-${side}:${px(b.width)} ${b.style} ${b.color};` : "";
+}
+
 function renderSection(p: SectionBlockProps, design: EmailDesign): string {
-  const borderTopCss = p.borderTop.width ? `border-top:${px(p.borderTop.width)} solid ${p.borderTop.color};` : "";
-  const borderBottomCss = p.borderBottom.width ? `border-bottom:${px(p.borderBottom.width)} solid ${p.borderBottom.color};` : "";
   const innerBlocks = p.blocks.map((b) => renderBlock(b, design)).join("");
   const innerTable = innerBlocks
     ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tbody>${innerBlocks}</tbody></table>`
     : "";
-  return `<tr><td style="padding:${padStr(p.padding)};${bgStyle(p.backgroundColor)}${borderTopCss}${borderBottomCss}">${innerTable}</td></tr>`;
+
+  // Border CSS
+  const borders = [
+    sectionBorderCss("top", p.border.top),
+    sectionBorderCss("bottom", p.border.bottom),
+    sectionBorderCss("left", p.border.left),
+    sectionBorderCss("right", p.border.right),
+  ].join("");
+
+  // Background image CSS
+  const bgImgCss = p.backgroundImage?.url
+    ? `background-image:url('${p.backgroundImage.url}');background-repeat:${p.backgroundImage.repeat};background-position:${p.backgroundImage.position};${p.backgroundImage.cover ? "background-size:cover;" : ""}`
+    : "";
+
+  // CSS classes for hide/show
+  const hideClasses: string[] = [];
+  if (p.hideDesktop) hideClasses.push("hide-desktop");
+  if (p.hideMobile) hideClasses.push("hide-mobile");
+  const classAttr = hideClasses.length ? ` class="${hideClasses.join(" ")}"` : "";
+
+  // Outer row = section color (full bleed) + background image
+  const outerBg = bgStyle(p.backgroundColor) + bgImgCss;
+
+  // Inner = content color (within content width) + padding + borders
+  const contentWidth = design.bodySettings.contentWidth;
+  const contentBg = bgStyle(p.contentBackgroundColor);
+
+  return `<tr${classAttr}><td style="${outerBg}" align="center">` +
+    `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="${contentWidth}" style="max-width:${contentWidth}px;${contentBg}">` +
+    `<tr><td style="padding:${padStr(p.padding)};${borders}">` +
+    innerTable +
+    `</td></tr></table></td></tr>`;
 }
 
 // ─── Block Dispatcher ────────────────────────────────────────────────────────
@@ -296,6 +329,11 @@ a[x-apple-data-detectors]{color:inherit!important;text-decoration:none!important
 .email-container{width:100%!important;max-width:100%!important}
 .email-container td{padding-left:16px!important;padding-right:16px!important}
 .stack-column{display:block!important;width:100%!important;max-width:100%!important}
+.hide-mobile{display:none!important;max-height:0!important;overflow:hidden!important;mso-hide:all!important}
+}
+.hide-desktop{display:none!important;max-height:0!important;overflow:hidden!important}
+@media only screen and (max-width:640px){
+.hide-desktop{display:table-row!important;max-height:none!important;overflow:visible!important}
 }
 </style>
 </head>

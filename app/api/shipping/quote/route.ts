@@ -4,10 +4,12 @@ import {
   type StarshipitAddress,
   type StarshipitPackage,
 } from "@/lib/starshipit";
+import { createServiceClient } from "@/lib/supabase";
 
 interface QuoteItem {
   product_code?: string;
-  weight?: number; // kg per unit
+  sku?: string;
+  weight?: number; // kg per unit — optional if product_code/sku provided
   quantity: number;
 }
 
@@ -52,13 +54,34 @@ export async function POST(request: NextRequest) {
     if (body.total_weight && body.total_weight > 0) {
       totalWeight = body.total_weight;
     } else if (body.items && body.items.length > 0) {
+      // Look up missing weights from cin7_products
+      const supabase = createServiceClient();
       for (const item of body.items) {
-        const itemWeight = item.weight;
+        let itemWeight = item.weight;
+
+        // Auto-lookup weight from Cin7 if not provided
+        if ((!itemWeight || itemWeight <= 0) && (item.product_code || item.sku)) {
+          const lookupSku = item.sku || item.product_code;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data } = await (supabase as any)
+            .from("cin7_products")
+            .select("weight, weight_units")
+            .eq("sku", lookupSku)
+            .single();
+
+          if (data?.weight && data.weight > 0) {
+            // Convert to kg if needed
+            itemWeight = data.weight_units === "lb"
+              ? data.weight * 0.453592
+              : data.weight; // assume kg
+          }
+        }
+
         if (!itemWeight || itemWeight <= 0) {
           return NextResponse.json(
             {
               success: false,
-              error: `Weight is required for each item. Missing weight for ${item.product_code || "an item"}.`,
+              error: `Weight is required for each item. Missing weight for ${item.product_code || item.sku || "an item"}. Tip: provide 'sku' to auto-lookup from Cin7.`,
             },
             { status: 400 }
           );

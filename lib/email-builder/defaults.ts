@@ -5,6 +5,9 @@ import type {
   EmailBlock,
   Padding,
   ColumnDef,
+  SectionBlockProps,
+  BackgroundImage,
+  SectionBorder,
 } from "./types";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -78,10 +81,27 @@ export const DEFAULT_PROPS: { [K in BlockType]: () => BlockPropsMap[K] } = {
 
   section: () => ({
     blocks: [] as EmailBlock[],
-    backgroundColor: "#ffffff",
+    backgroundColor: "",
+    contentBackgroundColor: "#ffffff",
+    backgroundImage: {
+      url: "",
+      fullWidth: true,
+      repeat: "no-repeat" as const,
+      position: "center" as const,
+      cover: false,
+    },
     padding: padXY(20, 24),
-    borderTop: { width: 0, color: "#e0e0e0" },
-    borderBottom: { width: 0, color: "#e0e0e0" },
+    mobilePadding: padXY(12, 16),
+    border: {
+      top: { width: 0, style: "solid" as const, color: "#e0e0e0" },
+      bottom: { width: 0, style: "solid" as const, color: "#e0e0e0" },
+      left: { width: 0, style: "solid" as const, color: "#e0e0e0" },
+      right: { width: 0, style: "solid" as const, color: "#e0e0e0" },
+    },
+    columnAlignment: "top" as const,
+    mobileStacking: "ltr" as const,
+    hideDesktop: false,
+    hideMobile: false,
   }),
 
   divider: () => ({
@@ -253,11 +273,49 @@ export function createColumnsBlock(widths: number[]) {
   };
 }
 
+// ─── Migrate v1 → v2 ────────────────────────────────────────────────────────
+
+const defaultSectionBorder: SectionBorder = { width: 0, style: "solid", color: "#e0e0e0" };
+const defaultBackgroundImage: BackgroundImage = { url: "", fullWidth: true, repeat: "no-repeat", position: "center", cover: false };
+
+export function migrateDesign(design: EmailDesign): EmailDesign {
+  if (design.version === 2) return design;
+  // Migrate v1 sections to v2 format
+  const blocks = design.blocks.map((b) => {
+    if (b.type !== "section") return b;
+    const old = b.props as unknown as Record<string, unknown>;
+    const newProps: SectionBlockProps = {
+      blocks: (old.blocks as EmailBlock[]) || [],
+      backgroundColor: "",
+      contentBackgroundColor: (old.backgroundColor as string) || "#ffffff",
+      backgroundImage: { ...defaultBackgroundImage },
+      padding: (old.padding as Padding) || padXY(20, 24),
+      mobilePadding: padXY(12, 16),
+      border: {
+        top: old.borderTop
+          ? { width: (old.borderTop as { width: number }).width, style: "solid", color: (old.borderTop as { color: string }).color }
+          : { ...defaultSectionBorder },
+        bottom: old.borderBottom
+          ? { width: (old.borderBottom as { width: number }).width, style: "solid", color: (old.borderBottom as { color: string }).color }
+          : { ...defaultSectionBorder },
+        left: { ...defaultSectionBorder },
+        right: { ...defaultSectionBorder },
+      },
+      columnAlignment: "top",
+      mobileStacking: "ltr",
+      hideDesktop: false,
+      hideMobile: false,
+    };
+    return { ...b, props: newProps };
+  });
+  return { ...design, version: 2, blocks };
+}
+
 // ─── Empty Design ────────────────────────────────────────────────────────────
 
 export function emptyDesign(): EmailDesign {
   return {
-    version: 1,
+    version: 2,
     bodySettings: {
       backgroundColor: "#f4f4f5",
       contentWidth: 600,
