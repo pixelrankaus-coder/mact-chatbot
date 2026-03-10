@@ -13,6 +13,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
+import Link from "next/link";
 import { ArrowUpDown, Package, MapPin } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -86,7 +87,9 @@ const columns: ColumnDef<InventoryProduct>[] = [
             )}
           </div>
           <div className="min-w-0">
-            <div className="font-medium truncate max-w-[280px]">{p.name}</div>
+            <Link href={`/products/${encodeURIComponent(p.sku)}`} className="font-medium truncate max-w-[280px] block hover:text-blue-600 hover:underline" onClick={(e) => e.stopPropagation()}>
+              {p.name}
+            </Link>
             <div className="text-xs text-muted-foreground">{p.sku}</div>
           </div>
         </div>

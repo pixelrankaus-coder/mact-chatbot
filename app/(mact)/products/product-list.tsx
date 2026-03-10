@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   ColumnDef,
   ColumnFiltersState,
@@ -127,7 +128,9 @@ export const columns: ColumnDef<Product>[] = [
             </div>
           )}
         </figure>
-        <div className="capitalize">{row.getValue("name")}</div>
+        <Link href={`/products/${encodeURIComponent(row.original.sku || "")}`} className="capitalize hover:text-blue-600 hover:underline">
+          {row.getValue("name")}
+        </Link>
       </div>
     )
   },
