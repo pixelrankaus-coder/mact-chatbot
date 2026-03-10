@@ -44,39 +44,45 @@ function BlockToolbar({
   label: string;
 }) {
   return (
-    <div className="absolute -top-8 left-1/2 -translate-x-1/2 flex items-center gap-0.5 bg-white border rounded-md shadow-sm px-1 py-0.5 z-20 opacity-0 group-hover/block:opacity-100 transition-opacity">
-      <span className="text-[10px] text-muted-foreground px-1.5 font-medium">
-        {label}
-      </span>
-      <button
-        onClick={(e) => { e.stopPropagation(); onMoveUp(); }}
-        className="p-0.5 hover:bg-slate-100 rounded"
-        title="Move up"
-      >
-        <ChevronUp className="h-3.5 w-3.5 text-slate-500" />
-      </button>
-      <button
-        onClick={(e) => { e.stopPropagation(); onMoveDown(); }}
-        className="p-0.5 hover:bg-slate-100 rounded"
-        title="Move down"
-      >
-        <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
-      </button>
-      <button
-        onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
-        className="p-0.5 hover:bg-slate-100 rounded"
-        title="Duplicate"
-      >
-        <Copy className="h-3.5 w-3.5 text-slate-500" />
-      </button>
-      <button
-        onClick={(e) => { e.stopPropagation(); onDelete(); }}
-        className="p-0.5 hover:bg-red-50 rounded"
-        title="Delete"
-      >
-        <Trash2 className="h-3.5 w-3.5 text-red-500" />
-      </button>
-    </div>
+    <>
+      {/* Label badge — top-left, outside the frame */}
+      <div className="absolute -top-0.5 -left-[1px] z-30">
+        <span className="text-[10px] font-semibold text-white bg-blue-500 px-2 py-0.5 rounded-br-md rounded-tl-sm leading-none">
+          {label}
+        </span>
+      </div>
+      {/* Vertical action buttons — left side, outside the frame */}
+      <div className="absolute top-5 -left-10 flex flex-col gap-0.5 bg-white border rounded-md shadow-sm p-0.5 z-30">
+        <button
+          onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
+          className="p-1 hover:bg-slate-100 rounded"
+          title="Duplicate"
+        >
+          <Copy className="h-3.5 w-3.5 text-slate-500" />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onMoveUp(); }}
+          className="p-1 hover:bg-slate-100 rounded"
+          title="Move up"
+        >
+          <ChevronUp className="h-3.5 w-3.5 text-slate-500" />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onMoveDown(); }}
+          className="p-1 hover:bg-slate-100 rounded"
+          title="Move down"
+        >
+          <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="p-1 hover:bg-red-50 rounded"
+          title="Delete"
+        >
+          <Trash2 className="h-3.5 w-3.5 text-red-500" />
+        </button>
+      </div>
+    </>
   );
 }
 
@@ -172,23 +178,27 @@ function SortableBlock({
         }`}
       >
         {isNestedSelected && (
-          <div className="absolute -top-7 left-1/2 -translate-x-1/2 flex items-center gap-0.5 bg-white border rounded-md shadow-sm px-1 py-0.5 z-20">
-            <span className="text-[10px] text-muted-foreground px-1 font-medium">
-              {BLOCK_LABELS[nestedBlock.type]}
-            </span>
-            <button onClick={(e) => { e.stopPropagation(); onMoveNested(nestedBlock.id, "up"); }} className="p-0.5 hover:bg-slate-100 rounded">
-              <ChevronUp className="h-3 w-3 text-slate-500" />
-            </button>
-            <button onClick={(e) => { e.stopPropagation(); onMoveNested(nestedBlock.id, "down"); }} className="p-0.5 hover:bg-slate-100 rounded">
-              <ChevronDown className="h-3 w-3 text-slate-500" />
-            </button>
-            <button onClick={(e) => { e.stopPropagation(); onDuplicateNested(nestedBlock.id); }} className="p-0.5 hover:bg-slate-100 rounded">
-              <Copy className="h-3 w-3 text-slate-500" />
-            </button>
-            <button onClick={(e) => { e.stopPropagation(); onDeleteNested(nestedBlock.id); }} className="p-0.5 hover:bg-red-50 rounded">
-              <Trash2 className="h-3 w-3 text-red-500" />
-            </button>
-          </div>
+          <>
+            <div className="absolute -top-0.5 -left-[1px] z-30">
+              <span className="text-[10px] font-semibold text-white bg-blue-500 px-2 py-0.5 rounded-br-md rounded-tl-sm leading-none">
+                {BLOCK_LABELS[nestedBlock.type]}
+              </span>
+            </div>
+            <div className="absolute top-5 -left-9 flex flex-col gap-0.5 bg-white border rounded-md shadow-sm p-0.5 z-30">
+              <button onClick={(e) => { e.stopPropagation(); onDuplicateNested(nestedBlock.id); }} className="p-1 hover:bg-slate-100 rounded" title="Duplicate">
+                <Copy className="h-3 w-3 text-slate-500" />
+              </button>
+              <button onClick={(e) => { e.stopPropagation(); onMoveNested(nestedBlock.id, "up"); }} className="p-1 hover:bg-slate-100 rounded" title="Move up">
+                <ChevronUp className="h-3 w-3 text-slate-500" />
+              </button>
+              <button onClick={(e) => { e.stopPropagation(); onMoveNested(nestedBlock.id, "down"); }} className="p-1 hover:bg-slate-100 rounded" title="Move down">
+                <ChevronDown className="h-3 w-3 text-slate-500" />
+              </button>
+              <button onClick={(e) => { e.stopPropagation(); onDeleteNested(nestedBlock.id); }} className="p-1 hover:bg-red-50 rounded" title="Delete">
+                <Trash2 className="h-3 w-3 text-red-500" />
+              </button>
+            </div>
+          </>
         )}
         <BlockRenderer
           block={nestedBlock}
@@ -214,32 +224,25 @@ function SortableBlock({
           : "hover:ring-1 hover:ring-blue-300"
       }`}
     >
-      {/* Section badge */}
-      {block.type === "section" && selected && (
-        <div className="absolute -top-0.5 left-0 z-20">
-          <span className="text-[10px] font-semibold text-white bg-blue-500 px-1.5 py-0.5 rounded-br rounded-tl">
-            Section
-          </span>
-        </div>
-      )}
-
-      {/* Drag handle */}
+      {/* Drag handle — always in left gutter */}
       <div
         {...attributes}
         {...listeners}
-        className="absolute -left-8 top-1/2 -translate-y-1/2 p-1 cursor-grab opacity-0 group-hover/block:opacity-100 transition-opacity z-10 active:cursor-grabbing"
+        className="absolute -left-10 top-0 p-1 cursor-grab opacity-0 group-hover/block:opacity-100 transition-opacity z-10 active:cursor-grabbing"
       >
         <GripVertical className="h-4 w-4 text-slate-400" />
       </div>
 
-      {/* Toolbar */}
-      <BlockToolbar
-        label={BLOCK_LABELS[block.type] || block.type}
-        onDelete={onDelete}
-        onDuplicate={onDuplicate}
-        onMoveUp={onMoveUp}
-        onMoveDown={onMoveDown}
-      />
+      {/* Toolbar — only on selected, positioned outside left like Unlayer */}
+      {selected && (
+        <BlockToolbar
+          label={BLOCK_LABELS[block.type] || block.type}
+          onDelete={onDelete}
+          onDuplicate={onDuplicate}
+          onMoveUp={onMoveUp}
+          onMoveDown={onMoveDown}
+        />
+      )}
 
       <BlockRenderer
         block={block}
@@ -440,7 +443,7 @@ export function BuilderCanvas({
               items={design.blocks.map((b) => b.id)}
               strategy={verticalListSortingStrategy}
             >
-              <div className="bg-white shadow-sm relative" style={{ paddingLeft: 32, paddingRight: 16 }}>
+              <div className="bg-white shadow-sm relative" style={{ marginLeft: 48, marginRight: 16 }}>
                 <DropZone index={0} onDrop={(type, idx) => onAddBlock(type, idx)} onDropFile={onDropFile ? (f, idx) => onDropFile(f, idx) : undefined} onAddSection={onAddSection} />
                 {design.blocks.map((block, i) => (
                   <React.Fragment key={block.id}>
