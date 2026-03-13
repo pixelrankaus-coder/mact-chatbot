@@ -228,6 +228,42 @@ export async function syncCin7Orders(): Promise<SyncResult> {
       console.log(`Upserted ${upsertedCount}/${records.length} orders`);
     }
 
+    // --- Populate cin7_order_items from the line items already in memory ---
+    const allOrderItems: Array<Record<string, unknown>> = [];
+    for (const record of records) {
+      const items = record.line_items as Array<{ name: string; sku?: string; quantity: number; price: number }> | null;
+      if (!items || items.length === 0) continue;
+      for (const item of items) {
+        if (!item.name) continue;
+        allOrderItems.push({
+          order_cin7_id: record.cin7_id,
+          order_number: record.order_number,
+          order_date: typeof record.order_date === "string" ? record.order_date.split("T")[0] : null,
+          sku: item.sku || "UNKNOWN",
+          product_name: item.name,
+          quantity: item.quantity || 1,
+          unit_price: item.price || 0,
+          total_price: (item.price || 0) * (item.quantity || 1),
+        });
+      }
+    }
+
+    if (allOrderItems.length > 0) {
+      let itemsSynced = 0;
+      for (let i = 0; i < allOrderItems.length; i += 500) {
+        const batch = allOrderItems.slice(i, i + 500);
+        const { error } = await supabase
+          .from("cin7_order_items")
+          .upsert(batch, { onConflict: "order_cin7_id,sku" });
+        if (error) {
+          console.error(`cin7_order_items batch error:`, error.message);
+        } else {
+          itemsSynced += batch.length;
+        }
+      }
+      console.log(`Synced ${itemsSynced}/${allOrderItems.length} order line items`);
+    }
+
     const duration = Date.now() - startTime;
 
     // Log success

@@ -389,6 +389,72 @@ export async function getCustomerOrders(
   return searchSales({ customerID: customerId, limit });
 }
 
+// ============ SUPPLIERS ============
+
+export interface Cin7Supplier {
+  ID: string;
+  Name: string;
+  Status: string;
+  Currency?: string;
+  PaymentTerm?: string;
+  TaxRule?: string;
+  Comments?: string;
+  Contacts?: Cin7Contact[];
+  Addresses?: Cin7Address[];
+  LastModifiedOn?: string;
+}
+
+// List suppliers with pagination (single page)
+export async function listSuppliers(params?: {
+  page?: number;
+  limit?: number;
+}): Promise<{ SupplierList: Cin7Supplier[]; Total: number }> {
+  try {
+    const query = new URLSearchParams();
+    query.set("Page", String(params?.page || 1));
+    query.set("Limit", String(params?.limit || 250));
+
+    const res = await fetch(`${CIN7_BASE_URL}/supplier?${query}`, {
+      headers: getHeaders(),
+    });
+    if (!res.ok) return { SupplierList: [], Total: 0 };
+
+    const data = await res.json();
+
+    if (data.Errors && data.Errors.length > 0) {
+      console.error("Cin7 API error:", data.Errors.join(", "));
+      throw new Error(`Cin7 API error: ${data.Errors.join(", ")}`);
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Cin7 listSuppliers error:", error);
+    throw error;
+  }
+}
+
+// List all suppliers with automatic pagination
+export async function listAllSuppliers(params?: {
+  maxPages?: number;
+}): Promise<{ SupplierList: Cin7Supplier[]; Total: number }> {
+  const limit = 250;
+  const maxPages = params?.maxPages || 10;
+  const allSuppliers: Cin7Supplier[] = [];
+
+  const firstResult = await listSuppliers({ page: 1, limit });
+  const total = firstResult.Total;
+  allSuppliers.push(...(firstResult.SupplierList || []));
+
+  const totalPages = Math.min(Math.ceil(total / limit), maxPages);
+  for (let page = 2; page <= totalPages; page++) {
+    const result = await listSuppliers({ page, limit });
+    allSuppliers.push(...(result.SupplierList || []));
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+
+  return { SupplierList: allSuppliers, Total: total };
+}
+
 // ============ PRODUCTS ============
 
 export interface Cin7Product {

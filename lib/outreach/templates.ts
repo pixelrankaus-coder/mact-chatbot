@@ -101,6 +101,22 @@ export const TEMPLATE_VARIABLES = [
     description: "Bpoint credit card payment URL",
     example: "https://www.bpoint.com.au/pay/MININGANDCEMENTT?ref=INV-12345",
   },
+  // Email footer / compliance variables
+  {
+    key: "unsubscribe_url",
+    description: "Unsubscribe link URL",
+    example: "#unsubscribe",
+  },
+  {
+    key: "organization_name",
+    description: "Organization/company name for footer",
+    example: "Mining & Cement Technologies",
+  },
+  {
+    key: "organization_full_address",
+    description: "Full mailing address for footer",
+    example: "123 Industrial Ave, Melbourne VIC 3000",
+  },
 ];
 
 // Fallback values for empty/missing personalization data

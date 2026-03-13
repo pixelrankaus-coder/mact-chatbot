@@ -143,9 +143,9 @@ const columns: ColumnDef<Order>[] = [
 ];
 
 const sourceLabels: Record<DashboardSource, string> = {
-  all: "Cin7 and WooCommerce",
+  all: "Cin7",
   cin7: "Cin7",
-  woocommerce: "WooCommerce",
+  woocommerce: "Cin7",
 };
 
 export function TableOrderStatus() {

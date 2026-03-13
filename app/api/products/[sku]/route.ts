@@ -17,12 +17,22 @@ export async function GET(
   try {
     const supabase = createServiceClient() as SA;
 
-    // 1. Cin7 product data
-    const { data: cin7Product } = await supabase
+    // 1. Cin7 product data — try exact match, then base SKU match for variants
+    let { data: cin7Product } = await supabase
       .from("cin7_products")
       .select("*")
       .eq("sku", sku)
       .single();
+
+    let cin7Variants: SA[] = [];
+    if (!cin7Product) {
+      const { data: variants } = await supabase
+        .from("cin7_products")
+        .select("*")
+        .like("sku", `${sku}-%`);
+      cin7Variants = variants || [];
+      if (cin7Variants.length > 0) cin7Product = cin7Variants[0];
+    }
 
     // 2. WooCommerce product (may not exist)
     const { data: wooProduct } = await supabase
@@ -35,91 +45,85 @@ export async function GET(
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
     }
 
-    // 3. Stock levels per location
+    // Collect all related SKUs for sales lookup (base SKU + all variants)
+    const relatedSkus = new Set<string>([sku]);
+    if (cin7Product) relatedSkus.add(cin7Product.sku);
+    for (const v of cin7Variants) relatedSkus.add(v.sku);
+    const skuList = Array.from(relatedSkus);
+
+    // 3. Stock levels per location — aggregate across variants
     let stockLocations: Record<string, unknown>[] = [];
-    if (cin7Product?.cin7_id) {
+    const cin7Ids = cin7Variants.length > 0
+      ? cin7Variants.map((v: SA) => v.cin7_id).filter(Boolean)
+      : cin7Product?.cin7_id ? [cin7Product.cin7_id] : [];
+
+    if (cin7Ids.length > 0) {
       const { data: stock } = await supabase
         .from("cin7_product_stock")
         .select("location, on_hand, allocated, available, on_order, in_transit, stock_on_hand, bin, last_synced_at")
-        .eq("cin7_product_id", cin7Product.cin7_id);
+        .in("cin7_product_id", cin7Ids);
       stockLocations = stock || [];
     }
 
-    // 4. Sales history from cin7_order_items (last 50 orders)
-    const { data: salesHistory } = await supabase
+    // 4. Cin7 Sales history (last 50) — all related SKUs
+    const { data: cin7SalesRaw } = await supabase
       .from("cin7_order_items")
       .select("order_number, order_date, product_name, quantity, unit_price, total_price, category")
-      .eq("sku", sku)
+      .in("sku", skuList)
       .order("order_date", { ascending: false })
       .limit(50);
 
-    // 5. Sales summary stats
-    const { data: allSales } = await supabase
-      .from("cin7_order_items")
-      .select("quantity, total_price, order_date")
-      .eq("sku", sku);
-
-    const salesStats = {
-      totalRevenue: 0,
-      totalUnitsSold: 0,
-      orderCount: 0,
-      avgOrderValue: 0,
-      firstOrderDate: null as string | null,
-      lastOrderDate: null as string | null,
-    };
-
-    if (allSales && allSales.length > 0) {
-      salesStats.orderCount = allSales.length;
-      salesStats.totalRevenue = allSales.reduce((sum: number, s: SA) => sum + (s.total_price || 0), 0);
-      salesStats.totalUnitsSold = allSales.reduce((sum: number, s: SA) => sum + (s.quantity || 0), 0);
-      salesStats.avgOrderValue = salesStats.totalRevenue / salesStats.orderCount;
-
-      const dates = allSales.map((s: SA) => s.order_date).filter(Boolean).sort();
-      salesStats.firstOrderDate = dates[0] || null;
-      salesStats.lastOrderDate = dates[dates.length - 1] || null;
-    }
-
-    // 6. Get order details for sales history (customer name, status)
-    let enrichedSalesHistory = salesHistory || [];
-    if (salesHistory && salesHistory.length > 0) {
-      const orderNumbers = [...new Set(salesHistory.map((s: SA) => s.order_number))];
+    let cin7Sales: SA[] = [];
+    if (cin7SalesRaw && cin7SalesRaw.length > 0) {
+      const orderNumbers = [...new Set(cin7SalesRaw.map((s: SA) => s.order_number))];
       const { data: orders } = await supabase
         .from("cin7_orders")
         .select("order_number, customer_name, status, status_label, invoice_status")
         .in("order_number", orderNumbers);
-
       const orderMap = new Map<string, SA>();
-      if (orders) {
-        for (const o of orders) {
-          orderMap.set(o.order_number, o);
-        }
-      }
+      if (orders) for (const o of orders) orderMap.set(o.order_number, o);
 
-      enrichedSalesHistory = salesHistory.map((s: SA) => {
+      cin7Sales = cin7SalesRaw.map((s: SA) => {
         const order = orderMap.get(s.order_number);
-        return {
-          ...s,
-          customer_name: order?.customer_name || "Unknown",
-          order_status: order?.status_label || order?.status || "Unknown",
-          invoice_status: order?.invoice_status || null,
-        };
+        return { ...s, customer_name: order?.customer_name || "Unknown", order_status: order?.status_label || order?.status || "Unknown", source: "cin7" };
       });
     }
 
-    // 7. Monthly sales trend (last 12 months)
-    const monthlySales: Record<string, { revenue: number; units: number; orders: number }> = {};
-    if (allSales) {
-      for (const s of allSales as SA[]) {
-        if (!s.order_date) continue;
-        const month = s.order_date.slice(0, 7); // YYYY-MM
-        if (!monthlySales[month]) monthlySales[month] = { revenue: 0, units: 0, orders: 0 };
-        monthlySales[month].revenue += s.total_price || 0;
-        monthlySales[month].units += s.quantity || 0;
-        monthlySales[month].orders += 1;
-      }
+    const enrichedSalesHistory = cin7Sales;
+
+    // 6. All Cin7 sales for stats
+    const { data: allCin7Sales } = await supabase
+      .from("cin7_order_items")
+      .select("quantity, total_price, order_date")
+      .in("sku", skuList);
+
+    const salesStats = {
+      totalRevenue: 0, totalUnitsSold: 0, orderCount: 0, avgOrderValue: 0,
+      firstOrderDate: null as string | null, lastOrderDate: null as string | null,
+    };
+
+    if (allCin7Sales && allCin7Sales.length > 0) {
+      salesStats.orderCount = allCin7Sales.length;
+      salesStats.totalRevenue = allCin7Sales.reduce((sum: number, s: SA) => sum + (s.total_price || 0), 0);
+      salesStats.totalUnitsSold = allCin7Sales.reduce((sum: number, s: SA) => sum + (s.quantity || 0), 0);
+      salesStats.avgOrderValue = salesStats.totalRevenue / salesStats.orderCount;
+      const dates = allCin7Sales.map((s: SA) => s.order_date).filter(Boolean).sort();
+      salesStats.firstOrderDate = dates[0] || null;
+      salesStats.lastOrderDate = dates[dates.length - 1] || null;
     }
 
-    // Sort by month and take last 12
+    // 7. Monthly sales trend (last 12 months, Cin7 only)
+    const monthlySales: Record<string, { revenue: number; units: number; orders: number }> = {};
+    for (const s of (allCin7Sales || []) as SA[]) {
+      if (!s.order_date) continue;
+      const month = typeof s.order_date === "string" ? s.order_date.slice(0, 7) : "";
+      if (!month) continue;
+      if (!monthlySales[month]) monthlySales[month] = { revenue: 0, units: 0, orders: 0 };
+      monthlySales[month].revenue += s.total_price || 0;
+      monthlySales[month].units += s.quantity || 0;
+      monthlySales[month].orders += 1;
+    }
+
     const salesTrend = Object.entries(monthlySales)
       .sort(([a], [b]) => a.localeCompare(b))
       .slice(-12)

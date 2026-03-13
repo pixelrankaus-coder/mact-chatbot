@@ -266,9 +266,18 @@ export async function syncStock(): Promise<SyncResult> {
     );
     result.total = availability.length;
 
+    // Deduplicate by (product_id, location) — Cin7 can return dupes
+    const deduped = new Map<string, Cin7AvailabilityRaw>();
+    for (const a of availability) {
+      const key = `${a.ID}::${a.Location}`;
+      deduped.set(key, a); // last wins
+    }
+    const uniqueStock = Array.from(deduped.values());
+    result.total = uniqueStock.length;
+
     // Batch upsert in groups of 100
-    for (let i = 0; i < availability.length; i += 100) {
-      const batch = availability.slice(i, i + 100);
+    for (let i = 0; i < uniqueStock.length; i += 100) {
+      const batch = uniqueStock.slice(i, i + 100);
       const rows = batch.map((a) => ({
         cin7_product_id: a.ID,
         sku: a.SKU,
@@ -298,6 +307,59 @@ export async function syncStock(): Promise<SyncResult> {
     }
   } catch (err) {
     console.error("syncStock error:", err);
+    result.errors++;
+  }
+
+  return result;
+}
+
+// ─── Single Product Stock Sync ──────────────────────────────────────────────
+
+export async function syncSingleProductStock(cin7ProductId: string): Promise<SyncResult> {
+  const supabase = createServiceClient();
+  const result: SyncResult = { synced: 0, errors: 0, total: 0 };
+
+  try {
+    const url = `${CIN7_BASE_URL}/ref/productavailability?ID=${encodeURIComponent(cin7ProductId)}`;
+    const res = await fetch(url, { headers: getHeaders() });
+    if (!res.ok) throw new Error(`Cin7 availability fetch failed: ${res.status}`);
+
+    const data = await res.json();
+    if (data.Errors?.length > 0) throw new Error(`Cin7 API: ${data.Errors.join(", ")}`);
+
+    const availability: Cin7AvailabilityRaw[] = data.ProductAvailabilityList || [];
+    result.total = availability.length;
+
+    if (availability.length === 0) return result;
+
+    const rows = availability.map((a) => ({
+      cin7_product_id: a.ID,
+      sku: a.SKU,
+      product_name: a.Name,
+      location: a.Location,
+      bin: a.Bin || null,
+      on_hand: a.OnHand,
+      allocated: a.Allocated,
+      available: a.Available,
+      on_order: a.OnOrder,
+      stock_on_hand: a.StockOnHand,
+      in_transit: a.InTransit,
+      last_synced_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }));
+
+    const { error } = await supabase
+      .from("cin7_product_stock" as string)
+      .upsert(rows, { onConflict: "cin7_product_id,location" });
+
+    if (error) {
+      console.error(`Single product stock sync error:`, error);
+      result.errors += rows.length;
+    } else {
+      result.synced += rows.length;
+    }
+  } catch (err) {
+    console.error("syncSingleProductStock error:", err);
     result.errors++;
   }
 

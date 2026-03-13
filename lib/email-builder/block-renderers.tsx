@@ -588,11 +588,13 @@ interface SectionRendererProps extends RendererProps<SectionBlockProps> {
   onDropFileInColumn?: (columnId: string, file: File) => void;
 }
 
-export function SectionRenderer({ props: p, renderBlock, onDropInColumn, onDropFileInColumn }: SectionRendererProps) {
+export function SectionRenderer({ props: p, design, renderBlock, onDropInColumn, onDropFileInColumn }: SectionRendererProps) {
   const sectionId = "section-inner";
+  const contentWidth = design.bodySettings.contentWidth;
 
   // Outer = "Section color" (full-bleed background + background image)
   const outerStyle: React.CSSProperties = {
+    width: "100%",
     backgroundColor: p.backgroundColor || undefined,
     ...(p.backgroundImage?.url
       ? {
@@ -606,6 +608,8 @@ export function SectionRenderer({ props: p, renderBlock, onDropInColumn, onDropF
 
   // Inner = "Content color" (within content width) + padding + borders
   const innerStyle: React.CSSProperties = {
+    maxWidth: contentWidth,
+    margin: "0 auto",
     ...padStyle(p.padding),
     backgroundColor: p.contentBackgroundColor || undefined,
     borderTop: borderCss(p.border.top),

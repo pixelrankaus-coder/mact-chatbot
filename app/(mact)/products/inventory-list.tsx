@@ -90,11 +90,17 @@ const columns: ColumnDef<InventoryProduct>[] = [
             <Link href={`/products/${encodeURIComponent(p.sku)}`} className="font-medium truncate max-w-[280px] block hover:text-blue-600 hover:underline" onClick={(e) => e.stopPropagation()}>
               {p.name}
             </Link>
-            <div className="text-xs text-muted-foreground">{p.sku}</div>
           </div>
         </div>
       );
     },
+  },
+  {
+    accessorKey: "sku",
+    header: "SKU",
+    cell: ({ row }) => (
+      <span className="font-mono text-sm text-muted-foreground">{row.original.sku}</span>
+    ),
   },
   {
     accessorKey: "category",
@@ -184,6 +190,7 @@ export function InventoryList({ data }: { data: InventoryProduct[] }) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
+  const [globalFilter, setGlobalFilter] = React.useState("");
   const [typeFilter, setTypeFilter] = React.useState<string>("all");
   const [stockFilter, setStockFilter] = React.useState<string>("all");
   const [expandedRow, setExpandedRow] = React.useState<string | null>(null);
@@ -213,13 +220,20 @@ export function InventoryList({ data }: { data: InventoryProduct[] }) {
     columns,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
+    onGlobalFilterChange: setGlobalFilter,
+    globalFilterFn: (row, _columnId, filterValue) => {
+      const search = filterValue.toLowerCase();
+      const name = (row.original.name || "").toLowerCase();
+      const sku = (row.original.sku || "").toLowerCase();
+      return name.includes(search) || sku.includes(search);
+    },
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
     initialState: { pagination: { pageSize: 50 } },
-    state: { sorting, columnFilters, columnVisibility },
+    state: { sorting, columnFilters, columnVisibility, globalFilter },
   });
 
   // Get unique types and categories for filters
@@ -230,8 +244,8 @@ export function InventoryList({ data }: { data: InventoryProduct[] }) {
       <div className="flex items-center gap-3 flex-wrap">
         <Input
           placeholder="Search products or SKU..."
-          value={(table.getColumn("name")?.getFilterValue() as string) ?? ""}
-          onChange={(e) => table.getColumn("name")?.setFilterValue(e.target.value)}
+          value={globalFilter}
+          onChange={(e) => setGlobalFilter(e.target.value)}
           className="max-w-xs"
         />
         <Select value={typeFilter} onValueChange={setTypeFilter}>

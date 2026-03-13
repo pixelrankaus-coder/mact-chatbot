@@ -13,6 +13,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { SalesTrendChart } from "./sales-trend-chart";
+import { SyncStockButton } from "./sync-stock-button";
 import {
   ArrowLeft,
   Package,
@@ -40,12 +42,26 @@ export async function generateMetadata({ params }: { params: Promise<{ sku: stri
 async function getProductDetail(sku: string) {
   const supabase = createServiceClient() as SA;
 
-  // Cin7 product
-  const { data: cin7Product } = await supabase
+  // Cin7 product — try exact match first, then base SKU match
+  let { data: cin7Product } = await supabase
     .from("cin7_products")
     .select("*")
     .eq("sku", sku)
     .single();
+
+  // If no exact match, try as base SKU (WooCommerce uses base, Cin7 has variants like SKU-01, SKU-03)
+  let cin7Variants: SA[] = [];
+  if (!cin7Product) {
+    const { data: variants } = await supabase
+      .from("cin7_products")
+      .select("*")
+      .like("sku", `${sku}-%`);
+    cin7Variants = variants || [];
+    // Use first variant as the primary product for display
+    if (cin7Variants.length > 0) {
+      cin7Product = cin7Variants[0];
+    }
+  }
 
   // WooCommerce product
   const { data: wooProduct } = await supabase
@@ -56,26 +72,35 @@ async function getProductDetail(sku: string) {
 
   if (!cin7Product && !wooProduct) return null;
 
-  // Stock levels
+  // Collect all related SKUs for sales lookup (base SKU + all variants)
+  const relatedSkus = new Set<string>([sku]);
+  if (cin7Product) relatedSkus.add(cin7Product.sku);
+  for (const v of cin7Variants) relatedSkus.add(v.sku);
+  const skuList = Array.from(relatedSkus);
+
+  // Stock levels — aggregate across all variants
   let stockLocations: SA[] = [];
-  if (cin7Product?.cin7_id) {
+  const cin7Ids = cin7Variants.length > 0
+    ? cin7Variants.map((v: SA) => v.cin7_id).filter(Boolean)
+    : cin7Product?.cin7_id ? [cin7Product.cin7_id] : [];
+
+  if (cin7Ids.length > 0) {
     const { data } = await supabase
       .from("cin7_product_stock")
       .select("location, on_hand, allocated, available, on_order, in_transit, stock_on_hand, bin, last_synced_at")
-      .eq("cin7_product_id", cin7Product.cin7_id);
+      .in("cin7_product_id", cin7Ids);
     stockLocations = data || [];
   }
 
-  // Sales history (last 50)
+  // --- Cin7 Sales History ---
   const { data: salesRaw } = await supabase
     .from("cin7_order_items")
     .select("order_number, order_date, quantity, unit_price, total_price")
-    .eq("sku", sku)
+    .in("sku", skuList)
     .order("order_date", { ascending: false })
     .limit(50);
 
-  // Enrich with order details
-  let salesHistory: SA[] = [];
+  let cin7Sales: SA[] = [];
   if (salesRaw?.length > 0) {
     const orderNumbers = [...new Set(salesRaw.map((s: SA) => s.order_number))];
     const { data: orders } = await supabase
@@ -85,33 +110,36 @@ async function getProductDetail(sku: string) {
     const orderMap = new Map<string, SA>();
     orders?.forEach((o: SA) => orderMap.set(o.order_number, o));
 
-    salesHistory = salesRaw.map((s: SA) => {
+    cin7Sales = salesRaw.map((s: SA) => {
       const order = orderMap.get(s.order_number);
-      return { ...s, customer_name: order?.customer_name, order_status: order?.status_label || order?.status, invoice_status: order?.invoice_status };
+      return { ...s, customer_name: order?.customer_name, order_status: order?.status_label || order?.status, source: "cin7" };
     });
   }
 
-  // All sales for stats
-  const { data: allSales } = await supabase
+  const salesHistory = cin7Sales;
+
+  // --- All sales for stats (Cin7) ---
+  const { data: allCin7Sales } = await supabase
     .from("cin7_order_items")
     .select("quantity, total_price, order_date")
-    .eq("sku", sku);
+    .in("sku", skuList);
 
   const salesStats = { totalRevenue: 0, totalUnits: 0, orderCount: 0, avgOrderValue: 0, lastOrderDate: null as string | null };
-  if (allSales?.length > 0) {
-    salesStats.orderCount = allSales.length;
-    salesStats.totalRevenue = allSales.reduce((s: number, r: SA) => s + (r.total_price || 0), 0);
-    salesStats.totalUnits = allSales.reduce((s: number, r: SA) => s + (r.quantity || 0), 0);
+  if (allCin7Sales && allCin7Sales.length > 0) {
+    salesStats.orderCount = allCin7Sales.length;
+    salesStats.totalRevenue = allCin7Sales.reduce((s: number, r: SA) => s + (r.total_price || 0), 0);
+    salesStats.totalUnits = allCin7Sales.reduce((s: number, r: SA) => s + (r.quantity || 0), 0);
     salesStats.avgOrderValue = salesStats.totalRevenue / salesStats.orderCount;
-    const dates = allSales.map((s: SA) => s.order_date).filter(Boolean).sort();
+    const dates = allCin7Sales.map((s: SA) => s.order_date).filter(Boolean).sort();
     salesStats.lastOrderDate = dates[dates.length - 1] || null;
   }
 
-  // Monthly trend
+  // Monthly trend (Cin7 only)
   const monthly: Record<string, { revenue: number; units: number }> = {};
-  allSales?.forEach((s: SA) => {
+  (allCin7Sales || []).forEach((s: SA) => {
     if (!s.order_date) return;
-    const m = s.order_date.slice(0, 7);
+    const m = typeof s.order_date === "string" ? s.order_date.slice(0, 7) : "";
+    if (!m) return;
     if (!monthly[m]) monthly[m] = { revenue: 0, units: 0 };
     monthly[m].revenue += s.total_price || 0;
     monthly[m].units += s.quantity || 0;
@@ -127,7 +155,7 @@ async function getProductDetail(sku: string) {
     inTransit: stockLocations.reduce((s: number, r: SA) => s + (r.in_transit || 0), 0),
   };
 
-  return { cin7Product, wooProduct, stockLocations, salesHistory, salesStats, salesTrend, stockTotals };
+  return { cin7Product, wooProduct, cin7Variants, stockLocations, salesHistory, salesStats, salesTrend, stockTotals };
 }
 
 function formatCurrency(val: number) {
@@ -145,7 +173,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
 
   if (!data) notFound();
 
-  const { cin7Product: p, wooProduct: woo, stockLocations, salesHistory, salesStats, salesTrend, stockTotals } = data;
+  const { cin7Product: p, wooProduct: woo, cin7Variants, stockLocations, salesHistory, salesStats, salesTrend, stockTotals } = data;
   const product = p || woo;
   const priceTiers = p?.price_tiers as Record<string, number> | null;
   const isStockType = p?.type === "Stock";
@@ -176,7 +204,16 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
             {p?.brand && <span>{p.brand}</span>}
             {p?.barcode && <span className="flex items-center gap-1"><Barcode className="h-3 w-3" />{p.barcode}</span>}
           </div>
+          {cin7Variants.length > 1 && (
+            <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground flex-wrap">
+              <span>Cin7 variants:</span>
+              {cin7Variants.map((v: SA) => (
+                <Badge key={v.sku} variant="outline" className="text-[10px] font-mono">{v.sku} — {v.name}</Badge>
+              ))}
+            </div>
+          )}
         </div>
+        <SyncStockButton sku={decodedSku} />
         {(product.image_url || woo?.image_url) && (
           <div className="h-16 w-16 rounded-lg border overflow-hidden shrink-0 bg-muted">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -226,33 +263,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         {/* Left Column — Sales History + Trend */}
         <div className="lg:col-span-2 space-y-6">
           {/* Monthly Sales Trend */}
-          {salesTrend.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Monthly Sales Trend</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-end gap-1 h-32">
-                  {salesTrend.map((m) => {
-                    const maxRev = Math.max(...salesTrend.map((s) => s.revenue));
-                    const h = maxRev > 0 ? (m.revenue / maxRev) * 100 : 0;
-                    return (
-                      <div key={m.month} className="flex-1 flex flex-col items-center gap-1">
-                        <div
-                          className="w-full bg-blue-500 rounded-t-sm min-h-[2px] transition-all"
-                          style={{ height: `${Math.max(h, 2)}%` }}
-                          title={`${m.month}: ${formatCurrency(m.revenue)} (${m.units} units)`}
-                        />
-                        <span className="text-[9px] text-muted-foreground -rotate-45 origin-top-left whitespace-nowrap">
-                          {m.month.slice(5)}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          <SalesTrendChart data={salesTrend} />
 
           {/* Sales History Table */}
           <Card>
@@ -290,8 +301,8 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                           <TableCell className="text-right font-medium text-sm">{formatCurrency(s.total_price || 0)}</TableCell>
                           <TableCell>
                             <Badge variant={
-                              s.order_status === "COMPLETED" || s.order_status === "Completed" ? "success"
-                                : s.order_status === "CANCELLED" ? "destructive"
+                              s.order_status === "COMPLETED" || s.order_status === "Completed" || s.order_status === "completed" ? "success"
+                                : s.order_status === "CANCELLED" || s.order_status === "cancelled" ? "destructive"
                                   : "outline"
                             } className="text-[10px]">
                               {s.order_status || "—"}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useImperativeHandle, forwardRef, useState, useCallback } from "react";
+import React, { useEffect, useImperativeHandle, forwardRef, useState, useCallback, useRef, useMemo } from "react";
 import type { EmailDesign, BlockType } from "@/lib/email-builder/types";
 import { useEmailBuilder } from "./use-email-builder";
 import { BuilderSidebar } from "./builder-sidebar";
@@ -110,18 +110,24 @@ const EmailBuilderInner = forwardRef<EmailBuilderHandle, EmailBuilderProps>(
       [builder]
     );
 
-    // Expose API via ref
-    const handle: EmailBuilderHandle = {
-      getHtml: builder.getHtml,
-      getDesignJson: builder.getDesignJson,
-      loadDesign: builder.loadDesign,
-      undo: builder.undo,
-      redo: builder.redo,
-    };
+    // Use a ref so the handle always delegates to the latest builder
+    const builderRef = useRef(builder);
+    builderRef.current = builder;
 
-    useImperativeHandle(ref, () => handle, [builder]);
+    const handle: EmailBuilderHandle = useMemo(
+      () => ({
+        getHtml: () => builderRef.current.getHtml(),
+        getDesignJson: () => builderRef.current.getDesignJson(),
+        loadDesign: (d: EmailDesign) => builderRef.current.loadDesign(d),
+        undo: () => builderRef.current.undo(),
+        redo: () => builderRef.current.redo(),
+      }),
+      []
+    );
 
-    // Notify parent of handle
+    useImperativeHandle(ref, () => handle, [handle]);
+
+    // Notify parent of handle (stable — fires once)
     useEffect(() => {
       onEditor?.(handle);
       // eslint-disable-next-line react-hooks/exhaustive-deps

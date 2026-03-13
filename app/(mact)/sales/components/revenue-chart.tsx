@@ -22,9 +22,9 @@ import { useRevenueData } from "@/hooks/use-dashboard-data";
 import { useDashboardSource, type DashboardSource } from "./dashboard-source-provider";
 
 const sourceLabels: Record<DashboardSource, string> = {
-  all: "Cin7 and WooCommerce",
+  all: "Cin7",
   cin7: "Cin7",
-  woocommerce: "WooCommerce",
+  woocommerce: "Cin7",
 };
 
 const chartConfig = {

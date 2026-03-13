@@ -36,12 +36,14 @@ function BlockToolbar({
   onMoveUp,
   onMoveDown,
   label,
+  isSection,
 }: {
   onDelete: () => void;
   onDuplicate: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
   label: string;
+  isSection?: boolean;
 }) {
   return (
     <>
@@ -51,8 +53,10 @@ function BlockToolbar({
           {label}
         </span>
       </div>
-      {/* Vertical action buttons — left side, outside the frame */}
-      <div className="absolute top-5 -left-10 flex flex-col gap-0.5 bg-white border rounded-md shadow-sm p-0.5 z-30">
+      {/* Vertical action buttons — left side */}
+      <div className={`absolute top-5 flex flex-col gap-0.5 bg-white border rounded-md shadow-sm p-0.5 z-30 ${
+        isSection ? "left-2" : "-left-10"
+      }`}>
         <button
           onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
           className="p-1 hover:bg-slate-100 rounded"
@@ -210,10 +214,24 @@ function SortableBlock({
     );
   };
 
+  const isSection = block.type === "section";
+  const contentWidth = design.bodySettings.contentWidth;
+
+  const wrapperStyle: React.CSSProperties = {
+    ...style,
+    ...(isSection
+      ? {}
+      : {
+          maxWidth: contentWidth,
+          margin: "0 auto",
+          backgroundColor: "#ffffff",
+        }),
+  };
+
   return (
     <div
       ref={setNodeRef}
-      style={style}
+      style={wrapperStyle}
       onClick={(e) => {
         e.stopPropagation();
         onSelect();
@@ -224,16 +242,18 @@ function SortableBlock({
           : "hover:ring-1 hover:ring-blue-300"
       }`}
     >
-      {/* Drag handle — always in left gutter */}
+      {/* Drag handle */}
       <div
         {...attributes}
         {...listeners}
-        className="absolute -left-10 top-0 p-1 cursor-grab opacity-0 group-hover/block:opacity-100 transition-opacity z-10 active:cursor-grabbing"
+        className={`absolute top-0 p-1 cursor-grab opacity-0 group-hover/block:opacity-100 transition-opacity z-10 active:cursor-grabbing ${
+          isSection ? "left-2" : "-left-10"
+        }`}
       >
         <GripVertical className="h-4 w-4 text-slate-400" />
       </div>
 
-      {/* Toolbar — only on selected, positioned outside left like Unlayer */}
+      {/* Toolbar — only on selected */}
       {selected && (
         <BlockToolbar
           label={BLOCK_LABELS[block.type] || block.type}
@@ -241,6 +261,7 @@ function SortableBlock({
           onDuplicate={onDuplicate}
           onMoveUp={onMoveUp}
           onMoveDown={onMoveDown}
+          isSection={isSection}
         />
       )}
 
@@ -424,14 +445,13 @@ export function BuilderCanvas({
       onClick={() => onSelectBlock(null)}
     >
       <div
-        className="mx-auto my-6 px-6"
-        style={{
-          maxWidth: design.bodySettings.contentWidth + 48,
-          fontFamily: design.bodySettings.fontFamily,
-        }}
+        className="my-6"
+        style={{ fontFamily: design.bodySettings.fontFamily }}
       >
         {design.blocks.length === 0 ? (
-          <EmptyCanvas onDrop={(type) => onAddBlock(type)} onDropFile={onDropFile ? (f) => onDropFile(f) : undefined} />
+          <div className="mx-auto px-6" style={{ maxWidth: design.bodySettings.contentWidth + 48 }}>
+            <EmptyCanvas onDrop={(type) => onAddBlock(type)} onDropFile={onDropFile ? (f) => onDropFile(f) : undefined} />
+          </div>
         ) : (
           <DndContext
             sensors={sensors}
@@ -443,7 +463,7 @@ export function BuilderCanvas({
               items={design.blocks.map((b) => b.id)}
               strategy={verticalListSortingStrategy}
             >
-              <div className="bg-white shadow-sm relative" style={{ marginLeft: 48, marginRight: 16 }}>
+              <div className="relative">
                 <DropZone index={0} onDrop={(type, idx) => onAddBlock(type, idx)} onDropFile={onDropFile ? (f, idx) => onDropFile(f, idx) : undefined} onAddSection={onAddSection} />
                 {design.blocks.map((block, i) => (
                   <React.Fragment key={block.id}>

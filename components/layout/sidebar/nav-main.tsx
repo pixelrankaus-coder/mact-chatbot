@@ -37,6 +37,7 @@ import {
   ZapIcon,
   UsersRoundIcon,
   FilterIcon,
+  FactoryIcon,
   type LucideIcon
 } from "lucide-react";
 import Link from "next/link";
@@ -145,6 +146,37 @@ export const navItems: NavGroup[] = [
         title: "Products",
         href: "/products",
         icon: PackageIcon
+      },
+      {
+        title: "Production Intel",
+        href: "/production-intelligence",
+        icon: FactoryIcon,
+        items: [
+          {
+            title: "Dashboard",
+            href: "/production-intelligence"
+          },
+          {
+            title: "Dashboard V2",
+            href: "/production-intelligence/v2"
+          },
+          {
+            title: "Schedule",
+            href: "/production-intelligence/schedule"
+          },
+          {
+            title: "Purchasing",
+            href: "/production-intelligence/purchasing"
+          },
+          {
+            title: "Suppliers",
+            href: "/production-intelligence/suppliers"
+          },
+          {
+            title: "Settings",
+            href: "/production-intelligence/settings"
+          }
+        ]
       },
       {
         title: "Automations",
@@ -274,7 +306,7 @@ export function NavMain() {
                       </div>
                       <Collapsible
                         className="group/collapsible block group-data-[collapsible=icon]:hidden"
-                        defaultOpen={!!item.items.find((s) => s.href === pathname)}>
+                        defaultOpen={!!item.items.find((s) => pathname === s.href || pathname.startsWith(s.href + "/"))}>
                         <CollapsibleTrigger asChild>
                           <SidebarMenuButton
                             className="hover:text-foreground active:text-foreground hover:bg-[var(--primary)]/10 active:bg-[var(--primary)]/10"
@@ -290,7 +322,7 @@ export function NavMain() {
                               <SidebarMenuSubItem key={key}>
                                 <SidebarMenuSubButton
                                   className="hover:text-foreground active:text-foreground hover:bg-[var(--primary)]/10 active:bg-[var(--primary)]/10"
-                                  isActive={pathname === subItem.href}
+                                  isActive={pathname === subItem.href || (subItem.href !== "/" && pathname.startsWith(subItem.href + "/"))}
                                   asChild>
                                   <Link href={subItem.href} target={subItem.newTab ? "_blank" : ""}>
                                     <span>{subItem.title}</span>
@@ -314,17 +346,17 @@ export function NavMain() {
                       </Link>
                     </SidebarMenuButton>
                   )}
-                  {!!item.isComing && (
+                  {!item.items?.length && !!item.isComing && (
                     <SidebarMenuBadge className="peer-hover/menu-button:text-foreground opacity-50">
                       Coming
                     </SidebarMenuBadge>
                   )}
-                  {!!item.isNew && (
+                  {!item.items?.length && !!item.isNew && (
                     <SidebarMenuBadge className="border border-green-400 text-green-600 peer-hover/menu-button:text-green-600">
                       New
                     </SidebarMenuBadge>
                   )}
-                  {!!item.isDataBadge && (
+                  {!item.items?.length && !!item.isDataBadge && (
                     <SidebarMenuBadge className="peer-hover/menu-button:text-foreground">
                       {item.isDataBadge}
                     </SidebarMenuBadge>

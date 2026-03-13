@@ -1,8 +1,6 @@
 import { Metadata } from "next";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import ProductList from "@/app/(mact)/products/product-list";
 import { InventoryList } from "@/app/(mact)/products/inventory-list";
 import { createServiceClient } from "@/lib/supabase";
 import { Package, AlertTriangle, TruckIcon, WarehouseIcon } from "lucide-react";
@@ -14,63 +12,6 @@ export const metadata: Metadata = {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseAny = any;
-
-interface WooProductRow {
-  id: string;
-  woo_id: number;
-  name: string;
-  sku: string;
-  price: string;
-  category: string;
-  image_url: string | null;
-  stock_quantity: number | null;
-  stock_status: string;
-  status: string;
-  rating: string;
-  total_sales: number;
-}
-
-async function getWooProducts() {
-  try {
-    const supabase = createServiceClient();
-    const { data: products, error, count } = await supabase
-      .from("woo_products")
-      .select("*", { count: "exact" })
-      .order("name", { ascending: true })
-      .limit(100);
-
-    if (error) return { products: [], stats: { totalSales: 0, numberOfSales: 0, totalProducts: 0, outOfStock: 0 } };
-
-    const transformed = ((products || []) as WooProductRow[]).map((p, i) => {
-      let displayStatus: "active" | "out-of-stock" | "closed-for-sale" = "active";
-      if (p.stock_status === "outofstock") displayStatus = "out-of-stock";
-      else if (p.status !== "publish") displayStatus = "closed-for-sale";
-      return {
-        id: i + 1,
-        name: p.name,
-        image: p.image_url || null,
-        description: "",
-        category: p.category || "Other",
-        sku: p.sku || "",
-        stock: p.stock_quantity !== null ? String(p.stock_quantity) : "N/A",
-        price: p.price ? `$${parseFloat(p.price).toFixed(2)}` : "$0.00",
-        rating: p.rating || "0",
-        status: displayStatus,
-      };
-    });
-
-    const totalProducts = count || 0;
-    const outOfStock = (products || []).filter((p: WooProductRow) => p.stock_status === "outofstock").length;
-    const totalSales = (products || []).reduce((sum: number, p: WooProductRow) => sum + (p.total_sales || 0), 0);
-
-    return {
-      products: transformed,
-      stats: { totalSales: totalSales * 100, numberOfSales: totalSales, totalProducts, outOfStock },
-    };
-  } catch {
-    return { products: [], stats: { totalSales: 0, numberOfSales: 0, totalProducts: 0, outOfStock: 0 } };
-  }
-}
 
 interface Cin7Product {
   cin7_id: string;
@@ -177,8 +118,7 @@ async function getCin7Inventory() {
 }
 
 export default async function Page() {
-  const [woo, cin7] = await Promise.all([getWooProducts(), getCin7Inventory()]);
-
+  const cin7 = await getCin7Inventory();
   const hasCin7Data = cin7.products.length > 0;
 
   return (
@@ -187,7 +127,7 @@ export default async function Page() {
         <h1 className="text-2xl font-bold tracking-tight">Products & Inventory</h1>
       </div>
 
-      {/* Cin7 Stats Cards */}
+      {/* Stats Cards */}
       {hasCin7Data && (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
@@ -238,39 +178,23 @@ export default async function Page() {
         </div>
       )}
 
-      {/* Tabs: Cin7 Inventory / WooCommerce */}
-      <Tabs defaultValue={hasCin7Data ? "inventory" : "woocommerce"} className="pt-2">
-        <TabsList>
-          <TabsTrigger value="inventory">
-            Cin7 Inventory ({cin7.stats.total})
-          </TabsTrigger>
-          <TabsTrigger value="woocommerce">
-            WooCommerce ({woo.stats.totalProducts})
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="inventory" className="mt-4">
-          {hasCin7Data ? (
-            <InventoryList data={cin7.products} />
-          ) : (
-            <div className="text-center py-12 text-muted-foreground">
-              <Package className="h-12 w-12 mx-auto mb-3 opacity-50" />
-              <p className="text-lg font-medium">No Cin7 inventory data yet</p>
-              <p className="text-sm mt-1">
-                Run the inventory sync to pull products from Cin7.
-                <br />
-                <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
-                  POST /api/cron/inventory-sync
-                </code>
-              </p>
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="woocommerce" className="mt-4">
-          <ProductList data={woo.products} />
-        </TabsContent>
-      </Tabs>
+      {/* Inventory List */}
+      <div className="pt-2">
+        <div className="text-sm text-muted-foreground mb-3">
+          {cin7.stats.total.toLocaleString()} products
+        </div>
+        {hasCin7Data ? (
+          <InventoryList data={cin7.products} />
+        ) : (
+          <div className="text-center py-12 text-muted-foreground">
+            <Package className="h-12 w-12 mx-auto mb-3 opacity-50" />
+            <p className="text-lg font-medium">No inventory data yet</p>
+            <p className="text-sm mt-1">
+              Run the inventory sync to pull products from Cin7.
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
