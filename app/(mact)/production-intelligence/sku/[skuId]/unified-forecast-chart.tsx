@@ -141,15 +141,6 @@ export function UnifiedForecastChart({
               }}
             />
             <YAxis
-              yAxisId="qty"
-              tickLine={false}
-              axisLine={false}
-              tickMargin={4}
-              width={40}
-            />
-            <YAxis
-              yAxisId="stock"
-              orientation="right"
               tickLine={false}
               axisLine={false}
               tickMargin={4}
@@ -157,9 +148,9 @@ export function UnifiedForecastChart({
             />
 
             {/* Reference lines */}
-            <ReferenceLine yAxisId="stock" y={0} stroke="#ef4444" strokeDasharray="3 3" />
+            <ReferenceLine y={0} stroke="#ef4444" strokeDasharray="3 3" />
             {safetyStock > 0 && (
-              <ReferenceLine yAxisId="stock" y={safetyStock} stroke="#f59e0b" strokeDasharray="3 3" />
+              <ReferenceLine y={safetyStock} stroke="#f59e0b" strokeDasharray="3 3" />
             )}
 
             {/* Today divider */}
@@ -195,7 +186,6 @@ export function UnifiedForecastChart({
 
             {/* Actual sales bars (past - green) */}
             <Bar
-              yAxisId="qty"
               dataKey="actual"
               fill="var(--color-actual)"
               radius={[4, 4, 0, 0]}
@@ -204,7 +194,6 @@ export function UnifiedForecastChart({
 
             {/* Forecast bars (future - blue/muted) */}
             <Bar
-              yAxisId="qty"
               dataKey="forecast"
               fill="var(--color-forecast)"
               radius={[4, 4, 0, 0]}
@@ -214,7 +203,6 @@ export function UnifiedForecastChart({
 
             {/* Closing stock line (future only) */}
             <Line
-              yAxisId="stock"
               type="monotone"
               dataKey="closing_stock"
               stroke="var(--color-closing_stock)"
