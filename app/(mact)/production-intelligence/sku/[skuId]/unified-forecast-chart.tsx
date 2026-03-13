@@ -4,7 +4,6 @@ import {
   Bar,
   CartesianGrid,
   ComposedChart,
-  Line,
   ReferenceLine,
   XAxis,
   YAxis,
@@ -46,13 +45,11 @@ interface ChartEntry {
   week: string;
   actual?: number;
   forecast?: number;
-  closing_stock?: number;
 }
 
 const chartConfig = {
   actual: { label: "Actual Sales", color: "var(--chart-3)" },
   forecast: { label: "Forecast", color: "var(--chart-1)" },
-  closing_stock: { label: "Closing Stock", color: "var(--chart-2)" },
 } satisfies ChartConfig;
 
 export function UnifiedForecastChart({
@@ -61,10 +58,8 @@ export function UnifiedForecastChart({
   currentStock,
   safetyStock,
 }: UnifiedForecastChartProps) {
-  // Build combined 24-entry data array
   const chartData: ChartEntry[] = [];
 
-  // Past weeks (actual sales)
   for (const w of historicalSales) {
     chartData.push({
       week: w.week_start,
@@ -72,12 +67,10 @@ export function UnifiedForecastChart({
     });
   }
 
-  // Future weeks (forecast + closing stock)
   for (const w of projectionWeeks) {
     chartData.push({
       week: w.week_start,
       forecast: Math.round(w.forecast_demand * 10) / 10,
-      closing_stock: Math.round(w.closing_stock),
     });
   }
 
@@ -92,10 +85,8 @@ export function UnifiedForecastChart({
     );
   }
 
-  // Find "today" position — the week boundary between past and future
   const todayWeek = projectionWeeks.length > 0 ? projectionWeeks[0].week_start : null;
 
-  // Wk 12 closing stock
   const wk12Stock = projectionWeeks.length > 0
     ? Math.round(projectionWeeks[projectionWeeks.length - 1].closing_stock)
     : 0;
@@ -147,13 +138,10 @@ export function UnifiedForecastChart({
               width={40}
             />
 
-            {/* Reference lines */}
-            <ReferenceLine y={0} stroke="#ef4444" strokeDasharray="3 3" />
             {safetyStock > 0 && (
               <ReferenceLine y={safetyStock} stroke="#f59e0b" strokeDasharray="3 3" />
             )}
 
-            {/* Today divider */}
             {todayWeek && (
               <ReferenceLine
                 x={todayWeek}
@@ -176,7 +164,6 @@ export function UnifiedForecastChart({
                     const labels: Record<string, string> = {
                       actual: "Actual Sales",
                       forecast: "Forecast",
-                      closing_stock: "Closing Stock",
                     };
                     return [`${Number(value).toLocaleString()} units`, labels[name as string] || String(name)];
                   }}
@@ -184,7 +171,6 @@ export function UnifiedForecastChart({
               }
             />
 
-            {/* Actual sales bars (past - green) */}
             <Bar
               dataKey="actual"
               fill="var(--color-actual)"
@@ -192,7 +178,6 @@ export function UnifiedForecastChart({
               maxBarSize={24}
             />
 
-            {/* Forecast bars (future - blue/muted) */}
             <Bar
               dataKey="forecast"
               fill="var(--color-forecast)"
@@ -200,19 +185,9 @@ export function UnifiedForecastChart({
               maxBarSize={24}
               opacity={0.7}
             />
-
-            {/* Closing stock line (future only) */}
-            <Line
-              type="monotone"
-              dataKey="closing_stock"
-              stroke="var(--color-closing_stock)"
-              strokeWidth={2}
-              dot={{ r: 3, fill: "var(--color-closing_stock)" }}
-            />
           </ComposedChart>
         </ChartContainer>
 
-        {/* Legend */}
         <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
           <div className="flex items-center gap-1.5">
             <div className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: "var(--chart-3)" }} />
@@ -221,10 +196,6 @@ export function UnifiedForecastChart({
           <div className="flex items-center gap-1.5">
             <div className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: "var(--chart-1)" }} />
             Forecast
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="h-0.5 w-4 rounded" style={{ backgroundColor: "var(--chart-2)" }} />
-            Closing Stock
           </div>
         </div>
       </CardContent>
