@@ -48,8 +48,8 @@ interface ChartEntry {
 }
 
 const chartConfig = {
-  actual: { label: "Actual Sales", color: "var(--chart-3)" },
-  forecast: { label: "Forecast", color: "var(--chart-1)" },
+  actual: { label: "Actual Sales", color: "#1E3A5F" },
+  forecast: { label: "Forecast", color: "#93C5FD" },
 } satisfies ChartConfig;
 
 export function UnifiedForecastChart({
@@ -173,14 +173,15 @@ export function UnifiedForecastChart({
 
             <Bar
               dataKey="actual"
-              fill="var(--color-actual)"
+              fill="#1E3A5F"
               radius={[4, 4, 0, 0]}
               maxBarSize={24}
+              opacity={1}
             />
 
             <Bar
               dataKey="forecast"
-              fill="var(--color-forecast)"
+              fill="#93C5FD"
               radius={[4, 4, 0, 0]}
               maxBarSize={24}
               opacity={0.7}
@@ -190,11 +191,11 @@ export function UnifiedForecastChart({
 
         <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
           <div className="flex items-center gap-1.5">
-            <div className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: "var(--chart-3)" }} />
+            <div className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: "#1E3A5F" }} />
             Actual Sales
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: "var(--chart-1)" }} />
+            <div className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: "#93C5FD" }} />
             Forecast
           </div>
         </div>
