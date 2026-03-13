@@ -34,6 +34,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { UnifiedForecastChart } from "./unified-forecast-chart";
+import { StockProjectionChart } from "./stock-projection-chart";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -200,6 +201,16 @@ export default function SkuDetailPage() {
             historicalSales={historicalSales}
             projectionWeeks={projectionWeeks}
             currentStock={p.current_stock}
+            safetyStock={p.safety_stock}
+          />
+
+          {/* Stock Projection Chart */}
+          <StockProjectionChart
+            weeks={p.weeks.map((w) => ({
+              week_start: w.week_start,
+              closing_stock: w.closing_stock,
+              risk_flag: w.risk_flag,
+            }))}
             safetyStock={p.safety_stock}
           />
 
