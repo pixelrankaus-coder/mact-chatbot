@@ -10,7 +10,10 @@ import {
   Settings,
   ArrowRight,
   PackageX,
-  ShoppingCart,
+  Search,
+  CalendarClock,
+  Factory,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -72,18 +75,23 @@ interface MRPOverdueData {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function riskColor(weeksOfCover: number): string {
+function coverColor(weeksOfCover: number): string {
   if (weeksOfCover <= 2) return "text-red-600";
   if (weeksOfCover <= 4) return "text-amber-600";
   return "text-green-600";
 }
 
-function riskBadge(weeksOfCover: number) {
-  if (weeksOfCover <= 2)
-    return { label: "Critical", className: "bg-red-50 text-red-700 border-red-200" };
-  if (weeksOfCover <= 4)
-    return { label: "Warning", className: "bg-amber-50 text-amber-700 border-amber-200" };
-  return { label: "OK", className: "bg-green-50 text-green-700 border-green-200" };
+function riskLevel(weeksOfCover: number, currentStock: number): "critical" | "warning" | "ok" {
+  if (weeksOfCover === 0 && currentStock < 0) return "critical";
+  if (weeksOfCover <= 2) return "critical";
+  if (weeksOfCover <= 4) return "warning";
+  return "ok";
+}
+
+function barColor(risk: "critical" | "warning" | "ok"): string {
+  if (risk === "critical") return "#ef4444";
+  if (risk === "warning") return "#f59e0b";
+  return "#22c55e";
 }
 
 // ─── KPI Tile ───────────────────────────────────────────────────────────────
@@ -136,14 +144,14 @@ function Sparkline({ weeks }: { weeks: WeekProjection[] }) {
 
   // Determine trend: compare first half avg to second half avg
   const mid = Math.floor(values.length / 2);
-  const firstHalf = values.slice(0, mid).reduce((s, v) => s + v, 0) / mid;
-  const secondHalf = values.slice(mid).reduce((s, v) => s + v, 0) / (values.length - mid);
+  const firstHalf = values.slice(0, mid).reduce((s, v) => s + v, 0) / (mid || 1);
+  const secondHalf = values.slice(mid).reduce((s, v) => s + v, 0) / ((values.length - mid) || 1);
   const declining = secondHalf < firstHalf * 0.9;
   const strokeColor = declining ? "#ef4444" : "#00BCD4";
 
   const points = values
     .map((v, i) => {
-      const x = (i / (values.length - 1)) * w;
+      const x = (i / Math.max(values.length - 1, 1)) * w;
       const y = h - ((v - min) / range) * h;
       return `${x},${y}`;
     })
@@ -158,6 +166,126 @@ function Sparkline({ weeks }: { weeks: WeekProjection[] }) {
       )}
       <polyline fill="none" stroke={strokeColor} strokeWidth="2" points={points} />
     </svg>
+  );
+}
+
+// ─── Stock Bar ──────────────────────────────────────────────────────────────
+
+function StockBar({ stock, maxStock, risk }: { stock: number; maxStock: number; risk: "critical" | "warning" | "ok" }) {
+  const pct = maxStock > 0 ? Math.max(0, Math.min(100, (stock / maxStock) * 100)) : 0;
+  const color = barColor(risk);
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="h-2 flex-1 rounded-full bg-slate-100 overflow-hidden">
+        <div
+          className="h-full rounded-full transition-all"
+          style={{ width: `${pct}%`, backgroundColor: color }}
+        />
+      </div>
+      <span className="text-sm font-mono text-gray-900 w-12 text-right shrink-0">
+        {stock.toLocaleString()}
+      </span>
+    </div>
+  );
+}
+
+// ─── Action Button ──────────────────────────────────────────────────────────
+
+function ActionCell({ weeksOfCover, currentStock, skuId }: { weeksOfCover: number; currentStock: number; skuId: string }) {
+  if (weeksOfCover >= 5) {
+    return (
+      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[10px]">
+        OK
+      </Badge>
+    );
+  }
+
+  let label: string;
+  let variant: "destructive" | "outline" = "outline";
+  let className = "";
+
+  if (weeksOfCover === 0 && currentStock < 0) {
+    label = "Investigate";
+    variant = "outline";
+    className = "border-red-300 text-red-700 hover:bg-red-50";
+  } else if (weeksOfCover === 0) {
+    label = "Schedule now";
+    variant = "destructive";
+    className = "";
+  } else if (weeksOfCover <= 2) {
+    label = "Schedule this week";
+    variant = "outline";
+    className = "border-amber-300 text-amber-700 hover:bg-amber-50";
+  } else {
+    label = "Plan ahead";
+    variant = "outline";
+    className = "border-slate-300 text-slate-600 hover:bg-slate-50";
+  }
+
+  return (
+    <Button
+      size="sm"
+      variant={variant}
+      className={`h-7 text-[11px] px-2.5 ${className}`}
+      asChild
+    >
+      <Link href={`/production-intelligence/sku/${skuId}`}>
+        {label}
+      </Link>
+    </Button>
+  );
+}
+
+// ─── Action Queue Item ──────────────────────────────────────────────────────
+
+function ActionQueueItem({ projection }: { projection: SkuProjection }) {
+  const risk = riskLevel(projection.weeks_of_cover, projection.current_stock);
+  const isNegative = projection.current_stock < 0;
+
+  let actionText: string;
+  let buttonLabel: string;
+  let buttonIcon: React.ReactNode;
+
+  if (isNegative) {
+    actionText = `Stock negative (${projection.current_stock}) \u00b7 ${projection.weeks_of_cover}w cover`;
+    buttonLabel = "Investigate";
+    buttonIcon = <Search className="h-3.5 w-3.5" />;
+  } else if (projection.weeks_of_cover === 0) {
+    actionText = `Schedule production run \u00b7 0w cover`;
+    buttonLabel = "Schedule run";
+    buttonIcon = <Factory className="h-3.5 w-3.5" />;
+  } else {
+    const avgDemand = projection.weeks.length > 0
+      ? projection.weeks.reduce((s, w) => s + w.forecast_demand, 0) / projection.weeks.length
+      : 0;
+    const orderQty = Math.ceil(avgDemand * 4);
+    actionText = `Order ~${orderQty} units \u00b7 ${projection.weeks_of_cover}w cover`;
+    buttonLabel = "Create PO";
+    buttonIcon = <CalendarClock className="h-3.5 w-3.5" />;
+  }
+
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-semibold text-gray-900 truncate">{projection.name}</div>
+        <div className="text-xs text-gray-400">{projection.sku_code}</div>
+        <div className={`text-xs mt-0.5 ${risk === "critical" ? "text-red-600 font-medium" : "text-gray-500"}`}>
+          {actionText}
+        </div>
+      </div>
+      <Button
+        size="sm"
+        variant={risk === "critical" ? "destructive" : "outline"}
+        className="shrink-0 h-7 text-xs gap-1.5"
+        asChild
+      >
+        <Link href={`/production-intelligence/sku/${projection.sku_id}`}>
+          {buttonIcon}
+          {buttonLabel}
+        </Link>
+      </Button>
+    </div>
   );
 }
 
@@ -177,7 +305,6 @@ function OutlookChart({
   const chartData = React.useMemo(() => {
     if (!projections.length || !projections[0]?.weeks.length) return [];
     const weekCount = projections[0].weeks.length;
-    // Aggregate safety stock across all SKUs
     const totalSafety = projections.reduce((s, p) => s + (p.safety_stock || 0), 0);
 
     return Array.from({ length: weekCount }, (_, i) => {
@@ -186,10 +313,10 @@ function OutlookChart({
       for (const p of projections) {
         if (p.weeks[i]) stock += Math.max(0, p.weeks[i].closing_stock);
       }
-      // Determine bar color based on risk
-      let fill = "#22c55e"; // green — above safety
-      if (stock <= 0) fill = "#ef4444"; // red — stockout
-      else if (stock < totalSafety) fill = "#f59e0b"; // amber — below safety
+      let fill = "#22c55e";
+      if (stock <= 0) fill = "#ef4444";
+      else if (totalSafety > 0 && stock < totalSafety) fill = "#f59e0b";
+      else if (totalSafety === 0) fill = "#00BCD4";
 
       return { week: weekStart, stock: Math.round(stock), fill };
     });
@@ -234,13 +361,20 @@ function OutlookChart({
           <ChartTooltip
             content={
               <ChartTooltipContent
-                className="w-[180px]"
+                className="w-[200px]"
                 nameKey="stock"
                 labelFormatter={(value) => {
-                  const date = new Date(value + "T00:00:00");
-                  return `Week of ${date.toLocaleDateString("en-AU", { month: "short", day: "numeric", year: "numeric" })}`;
+                  const start = new Date(value + "T00:00:00");
+                  const end = new Date(start);
+                  end.setDate(end.getDate() + 6);
+                  const fmt = (d: Date) => d.toLocaleDateString("en-AU", { day: "numeric", month: "short" });
+                  const startStr = fmt(start);
+                  const endStr = start.getMonth() === end.getMonth()
+                    ? end.getDate().toString()
+                    : fmt(end);
+                  return `Week ${startStr}\u2013${endStr} ${start.getFullYear()}`;
                 }}
-                formatter={(value) => [`${Number(value).toLocaleString()} units`, "Closing Stock"]}
+                formatter={(value) => [`${Number(value).toLocaleString()} units \u00b7 Closing Stock`]}
               />
             }
           />
@@ -299,6 +433,15 @@ export default function ProductionIntelligenceDashboardV2() {
   const projections = data?.projections || [];
   const isInitialLoad = loading && !data;
 
+  // Max stock across all SKUs for bar width normalization
+  const maxStock = projections.reduce((m, p) => Math.max(m, p.current_stock), 1);
+
+  // Top 3 most urgent SKUs for Action Queue (sorted by weeks_of_cover ascending, then stock ascending)
+  const urgentSkus = [...projections]
+    .filter((p) => p.weeks_of_cover < 5)
+    .sort((a, b) => a.weeks_of_cover - b.weeks_of_cover || a.current_stock - b.current_stock)
+    .slice(0, 3);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -331,21 +474,21 @@ export default function ProductionIntelligenceDashboardV2() {
           value={summary?.at_risk_skus || 0}
           subtext="SKUs projected to hit zero"
           loading={isInitialLoad}
-          valueColor={(summary?.at_risk_skus || 0) > 0 ? "text-red-600" : "text-gray-900"}
+          valueColor={(summary?.at_risk_skus || 0) > 0 ? "text-[#ef4444]" : "text-gray-900"}
         />
         <KpiTile
           label="Below Safety Stock"
           value={summary?.below_safety_skus || 0}
           subtext="Within 12-week window"
           loading={isInitialLoad}
-          valueColor={(summary?.below_safety_skus || 0) > 0 ? "text-amber-500" : "text-gray-900"}
+          valueColor={(summary?.below_safety_skus || 0) > 0 ? "text-[#f59e0b]" : "text-gray-900"}
         />
         <KpiTile
           label="Overdue POs"
           value={mrpData?.overdue_count || 0}
           subtext="Materials past order date"
           loading={isInitialLoad}
-          valueColor={(mrpData?.overdue_count || 0) > 0 ? "text-red-600" : "text-gray-900"}
+          valueColor={(mrpData?.overdue_count || 0) > 0 ? "text-[#ef4444]" : "text-gray-900"}
         />
         <KpiTile
           label="Order This Week"
@@ -358,65 +501,37 @@ export default function ProductionIntelligenceDashboardV2() {
 
       {/* Main Content — Left/Right split */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[2fr_3fr]">
-        {/* Left Column — Outlook + Urgent Purchases stacked */}
+        {/* Left Column — Outlook + Action Queue stacked */}
         <div className="flex flex-col gap-6">
           {/* 12-Week Outlook Chart */}
           <OutlookChart projections={projections} loading={isInitialLoad} />
 
-          {/* Urgent Purchases */}
+          {/* Action Queue */}
           <div className="rounded-xl border border-slate-200 bg-white p-5">
             <div className="mb-1 flex items-center justify-between">
-              <div className="text-sm font-bold text-gray-900">Urgent Purchases</div>
-              <Link href="/production-intelligence/purchasing">
+              <div className="text-sm font-bold text-gray-900">Action Queue</div>
+              <Link href="#">
                 <Button variant="ghost" size="sm" className="h-7 text-xs text-gray-500 hover:text-gray-900">
-                  View All
+                  View all <ArrowRight className="ml-1 h-3 w-3" />
                 </Button>
               </Link>
             </div>
-            <div className="mb-3 text-xs text-gray-500">Materials needing immediate order</div>
+            <div className="mb-3 text-xs text-gray-500">Top actions to take today</div>
 
             {isInitialLoad ? (
               <div className="space-y-3">
                 {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 w-full" />)}
               </div>
-            ) : mrpData && mrpData.items.length > 0 ? (
+            ) : urgentSkus.length > 0 ? (
               <div className="space-y-2">
-                {mrpData.items.slice(0, 5).map((item, idx) => (
-                  <div
-                    key={`${item.component_sku_id}-${idx}`}
-                    className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3"
-                  >
-                    <Badge
-                      variant={item.urgency_flag === "OVERDUE" ? "destructive" : "default"}
-                      className={`shrink-0 text-[10px] ${item.urgency_flag === "URGENT" ? "bg-amber-500 text-white border-amber-500" : ""}`}
-                    >
-                      {item.urgency_flag}
-                    </Badge>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-semibold text-gray-900 truncate">
-                        {item.component_name}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        Shortfall: {Math.round(item.shortfall_qty)} units
-                      </div>
-                      {item.order_by_date && (
-                        <div className={`text-xs mt-0.5 ${item.urgency_flag === "OVERDUE" ? "text-red-600 font-medium" : "text-gray-500"}`}>
-                          Order by {new Date(item.order_by_date + "T00:00:00").toLocaleDateString("en-AU", { day: "numeric", month: "short" })}
-                        </div>
-                      )}
-                    </div>
-                    {item.urgency_flag === "OVERDUE" && (
-                      <Button size="sm" variant="destructive" className="shrink-0 h-7 text-xs">
-                        Order now
-                      </Button>
-                    )}
-                  </div>
+                {urgentSkus.map((p) => (
+                  <ActionQueueItem key={p.sku_id} projection={p} />
                 ))}
               </div>
             ) : (
               <div className="flex flex-col items-center py-10 text-gray-400">
                 <PackageX className="h-8 w-8 mb-2 opacity-50" />
-                <div className="text-sm">No urgent purchases</div>
+                <div className="text-sm">No urgent actions today</div>
               </div>
             )}
           </div>
@@ -426,7 +541,7 @@ export default function ProductionIntelligenceDashboardV2() {
         <div className="rounded-xl border border-slate-200 bg-white p-5">
           <div className="mb-1 text-sm font-bold text-gray-900">Stock Projection</div>
           <div className="mb-4 text-xs text-gray-500">
-            12-week stock trajectory. Click a SKU for details.
+            12-week stock trajectory. Click a row for details.
           </div>
 
           {isInitialLoad ? (
@@ -442,14 +557,13 @@ export default function ProductionIntelligenceDashboardV2() {
           ) : (
             <div className="max-h-[600px] overflow-y-auto">
               {/* Table Header */}
-              <div className="sticky top-0 z-10 grid grid-cols-[1fr_72px_72px_52px_140px_64px_20px] gap-2 border-b border-slate-200 bg-white px-3 py-2 text-xs font-medium text-gray-500">
+              <div className="sticky top-0 z-10 grid grid-cols-[28%_20%_10%_8%_16%_18%] gap-2 border-b border-slate-200 bg-white px-3 py-2 text-xs font-medium text-gray-500">
                 <div>SKU</div>
-                <div className="text-right">Stock</div>
-                <div className="text-right">Wk Demand</div>
+                <div>Stock on hand</div>
+                <div className="text-right">Wk demand</div>
                 <div className="text-center">Cover</div>
-                <div className="text-center">Trend</div>
-                <div className="text-center">Risk</div>
-                <div />
+                <div className="text-center">12-wk trend</div>
+                <div className="text-center">Action</div>
               </div>
               {/* Table Rows */}
               {projections.map((p) => {
@@ -457,36 +571,50 @@ export default function ProductionIntelligenceDashboardV2() {
                   p.weeks.length > 0
                     ? p.weeks.reduce((s, w) => s + w.forecast_demand, 0) / p.weeks.length
                     : 0;
-                const badge = riskBadge(p.weeks_of_cover);
+                const risk = riskLevel(p.weeks_of_cover, p.current_stock);
 
                 return (
                   <Link
                     key={p.sku_id}
                     href={`/production-intelligence/sku/${p.sku_id}`}
-                    className="group grid grid-cols-[1fr_72px_72px_52px_140px_64px_20px] gap-2 items-center px-3 py-3 border-b border-slate-100 hover:bg-slate-50 transition-colors"
+                    className="group grid grid-cols-[28%_20%_10%_8%_16%_18%] gap-2 items-center px-3 py-3 border-b border-slate-100 hover:bg-[#f8fafc]"
                   >
+                    {/* SKU */}
                     <div className="min-w-0">
                       <div className="text-sm font-semibold text-gray-900 truncate">{p.name}</div>
                       <div className="text-xs text-gray-400">{p.sku_code}</div>
                     </div>
-                    <div className="text-right font-mono text-sm text-gray-900">
-                      {p.current_stock.toLocaleString()}
-                    </div>
+                    {/* Stock on hand — visual bar */}
+                    <StockBar stock={p.current_stock} maxStock={maxStock} risk={risk} />
+                    {/* Wk demand */}
                     <div className="text-right font-mono text-sm text-gray-900">
                       {avgDemand.toFixed(1)}
                     </div>
-                    <div className={`text-center text-sm font-bold ${riskColor(p.weeks_of_cover)}`}>
-                      {p.weeks_of_cover >= 12 ? "12+" : p.weeks_of_cover}w
+                    {/* Cover badge */}
+                    <div className="flex justify-center">
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] font-bold ${
+                          p.weeks_of_cover === 0
+                            ? "bg-red-50 text-red-700 border-red-200"
+                            : p.weeks_of_cover <= 2
+                              ? "bg-amber-50 text-amber-700 border-amber-200"
+                              : p.weeks_of_cover <= 4
+                                ? "bg-amber-50 text-amber-700 border-amber-200"
+                                : "bg-green-50 text-green-700 border-green-200"
+                        }`}
+                      >
+                        {p.weeks_of_cover >= 12 ? "12+" : p.weeks_of_cover}w
+                      </Badge>
                     </div>
+                    {/* Sparkline */}
                     <div className="flex justify-center">
                       <Sparkline weeks={p.weeks} />
                     </div>
-                    <div className="flex justify-center">
-                      <Badge variant="outline" className={`text-[10px] ${badge.className}`}>
-                        {badge.label}
-                      </Badge>
+                    {/* Action */}
+                    <div className="flex justify-center" onClick={(e) => e.preventDefault()}>
+                      <ActionCell weeksOfCover={p.weeks_of_cover} currentStock={p.current_stock} skuId={p.sku_id} />
                     </div>
-                    <ArrowRight className="h-3.5 w-3.5 text-gray-400 group-hover:text-gray-900 transition-colors" />
                   </Link>
                 );
               })}
