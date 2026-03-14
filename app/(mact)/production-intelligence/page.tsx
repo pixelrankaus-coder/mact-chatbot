@@ -142,7 +142,7 @@ function MiniStockChart({ weeks }: { weeks: WeekProjection[] }) {
 export default function ProductionIntelligenceDashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [mrpData, setMrpData] = useState<MRPOverdueData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
 
   const fetchDashboard = useCallback(async () => {
@@ -173,9 +173,8 @@ export default function ProductionIntelligenceDashboard() {
     }
   };
 
-  useEffect(() => {
-    fetchDashboard();
-  }, [fetchDashboard]);
+  // Data is fetched on-demand via Refresh button, not on mount
+  // useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
 
   const summary = data?.summary;
   const projections = data?.projections || [];
