@@ -73,6 +73,34 @@ interface MRPOverdueData {
   }>;
 }
 
+// ─── Cache ──────────────────────────────────────────────────────────────────
+
+const CACHE_KEY = "pi-dashboard-v2";
+const CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours
+
+function readCache(): { data: DashboardData; mrpData: MRPOverdueData; ts: number } | null {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const cached = JSON.parse(raw);
+    if (Date.now() - cached.ts > CACHE_TTL) {
+      localStorage.removeItem(CACHE_KEY);
+      return null;
+    }
+    return cached;
+  } catch {
+    return null;
+  }
+}
+
+function writeCache(data: DashboardData, mrpData: MRPOverdueData) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ data, mrpData, ts: Date.now() }));
+  } catch {
+    // storage full — ignore
+  }
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function coverColor(weeksOfCover: number): string {
@@ -396,6 +424,7 @@ export default function ProductionIntelligenceDashboardV2() {
   const [mrpData, setMrpData] = useState<MRPOverdueData | null>(null);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [cacheAge, setCacheAge] = useState<string | null>(null);
 
   const fetchDashboard = useCallback(async () => {
     try {
@@ -404,8 +433,16 @@ export default function ProductionIntelligenceDashboardV2() {
         fetch("/api/production-intelligence/dashboard"),
         fetch("/api/production-intelligence/mrp/overdue"),
       ]);
-      if (dashRes.ok) setData(await dashRes.json());
-      if (mrpRes.ok) setMrpData(await mrpRes.json());
+      let newData: DashboardData | null = null;
+      let newMrp: MRPOverdueData | null = null;
+      if (dashRes.ok) newData = await dashRes.json();
+      if (mrpRes.ok) newMrp = await mrpRes.json();
+      if (newData) setData(newData);
+      if (newMrp) setMrpData(newMrp);
+      if (newData && newMrp) {
+        writeCache(newData, newMrp);
+        setCacheAge(null);
+      }
     } catch {
       // ignore
     } finally {
@@ -425,8 +462,16 @@ export default function ProductionIntelligenceDashboardV2() {
     }
   };
 
-  // Data is fetched on-demand via Refresh button, not on mount
-  // useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
+  // Load from cache on mount — no API call unless cache is stale/missing
+  useEffect(() => {
+    const cached = readCache();
+    if (cached) {
+      setData(cached.data);
+      setMrpData(cached.mrpData);
+      const mins = Math.round((Date.now() - cached.ts) / 60000);
+      setCacheAge(mins < 1 ? "just now" : mins < 60 ? `${mins}m ago` : `${Math.round(mins / 60)}h ago`);
+    }
+  }, []);
 
   const summary = data?.summary;
   const projections = data?.projections || [];
@@ -463,6 +508,9 @@ export default function ProductionIntelligenceDashboardV2() {
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             <span className="hidden lg:inline">Refresh</span>
           </Button>
+          {cacheAge && (
+            <span className="text-xs text-gray-400 hidden lg:inline">Cached {cacheAge}</span>
+          )}
         </div>
       </div>
 
