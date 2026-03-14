@@ -6,14 +6,11 @@ import {
   RefreshCw,
   TrendingDown,
   Loader2,
-  Play,
-  Settings,
   ArrowRight,
   PackageX,
   Search,
   CalendarClock,
   Factory,
-  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -423,7 +420,6 @@ export default function ProductionIntelligenceDashboardV2() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [mrpData, setMrpData] = useState<MRPOverdueData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [generating, setGenerating] = useState(false);
   const [cacheAge, setCacheAge] = useState<string | null>(null);
 
   const fetchDashboard = useCallback(async () => {
@@ -449,18 +445,6 @@ export default function ProductionIntelligenceDashboardV2() {
       setLoading(false);
     }
   }, []);
-
-  const runForecasts = async () => {
-    setGenerating(true);
-    try {
-      await fetch("/api/production-intelligence/forecast", { method: "POST" });
-      await fetchDashboard();
-    } catch {
-      // ignore
-    } finally {
-      setGenerating(false);
-    }
-  };
 
   // Load from cache on mount — no API call unless cache is stale/missing
   useEffect(() => {
@@ -494,16 +478,6 @@ export default function ProductionIntelligenceDashboardV2() {
           Production Intelligence
         </h1>
         <div className="flex items-center space-x-2">
-          <Link href="/production-intelligence/settings">
-            <Button variant="outline" size="sm">
-              <Settings className="h-4 w-4" />
-              <span className="hidden lg:inline">Data Sync</span>
-            </Button>
-          </Link>
-          <Button variant="outline" size="sm" onClick={runForecasts} disabled={generating}>
-            {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-            <span className="hidden lg:inline">{generating ? "Generating..." : "Run Forecasts"}</span>
-          </Button>
           <Button variant="outline" size="sm" onClick={fetchDashboard} disabled={loading}>
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             <span className="hidden lg:inline">Refresh</span>
