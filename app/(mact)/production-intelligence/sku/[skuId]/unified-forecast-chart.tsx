@@ -156,8 +156,15 @@ export function UnifiedForecastChart({
                 <ChartTooltipContent
                   className="w-[180px]"
                   labelFormatter={(value) => {
-                    const date = new Date(value + "T00:00:00");
-                    return `Week of ${date.toLocaleDateString("en-AU", { month: "short", day: "numeric", year: "numeric" })}`;
+                    const start = new Date(value + "T00:00:00");
+                    const end = new Date(start);
+                    end.setDate(end.getDate() + 6);
+                    const fmt = (d: Date) => d.toLocaleDateString("en-AU", { day: "numeric", month: "short" });
+                    const startStr = fmt(start);
+                    const endStr = start.getMonth() === end.getMonth()
+                      ? end.getDate().toString()
+                      : fmt(end);
+                    return `Week ${startStr}\u2013${endStr} ${start.getFullYear()}`;
                   }}
                   formatter={(value, name) => {
                     if (value === null || value === undefined) return null;
@@ -165,7 +172,7 @@ export function UnifiedForecastChart({
                       actual: "Actual Sales",
                       forecast: "Forecast",
                     };
-                    return [`${Number(value).toLocaleString()} units`, labels[name as string] || String(name)];
+                    return [`${Number(value).toLocaleString()} units \u00b7 ${labels[name as string] || String(name)}`];
                   }}
                 />
               }

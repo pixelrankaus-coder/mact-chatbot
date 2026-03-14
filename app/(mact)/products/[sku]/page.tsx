@@ -163,7 +163,9 @@ function formatCurrency(val: number) {
 }
 
 function formatDate(d: string) {
-  return new Date(d).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" });
+  // Append T00:00:00 to date-only strings to force local-time parsing and prevent UTC day shift
+  const safe = d.includes("T") ? d : d + "T00:00:00";
+  return new Date(safe).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" });
 }
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ sku: string }> }) {
